@@ -1,11 +1,8 @@
-websockets
-requests
-flask
-fastapi
-uvicorn
-pillow
-psutil
-pywin32
-pywebview
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.0.1
 transformers
-torch
+sentencepiece
+protobuf
+accelerate
+flask
+requests
