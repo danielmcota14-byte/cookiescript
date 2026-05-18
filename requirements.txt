@@ -5,6 +5,5 @@ fastapi
 uvicorn
 pillow
 psutil
-pywin32
 transformers
 torch
