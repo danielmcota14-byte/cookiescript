@@ -6,6 +6,5 @@ uvicorn
 pillow
 psutil
 pywin32
-pywebview
 transformers
 torch
