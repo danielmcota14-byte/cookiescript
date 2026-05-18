@@ -1,3 +1,8 @@
+import os
+
+# Adicione isso DEPOIS dos imports
+PORT = int(os.environ.get('PORT', 8080))  # Usa a porta do Render ou 8080 como fallback
+
 import json
 import os
 import subprocess
