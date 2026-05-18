@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookieScript - Editor de Código</title>
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: #f5f5f5;
+            color: #111;
+        }
+        /* Global navbar unificada - preto e branco */
+        .global-nav {
+            background: #111;
+            border-bottom: 1px solid #333;
+            padding: 0.7rem 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 1100;
+        }
+        .global-nav a {
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #ddd;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            transition: all 0.2s;
+        }
+        .global-nav a:hover {
+            background: #333;
+            color: white;
+        }
+        .global-nav a.active {
+            background: white;
+            color: black;
+        }
+        /* Restante do estilo (convertido para monocromático) */
+        .login-popup { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index:2000; justify-content: center; align-items: center; }
+        .login-popup.active { display: flex; }
+        .login-container { background: white; border-radius: 24px; padding: 48px; width: 90%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .login-logo { text-align: center; margin-bottom: 32px; }
+        .login-logo img { width: 80px; height: 80px; border-radius: 20px; margin-bottom: 16px; background: #eee; }
+        .login-logo h2 { font-size: 24px; font-weight: 600; color: #111; }
+        .login-logo p { color: #555; font-size: 14px; margin-top: 8px; }
+        .login-form { display: none; }
+        .login-form.active { display: block; }
+        .login-form h3 { font-size: 20px; margin-bottom: 24px; font-weight: 600; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; background: #fff; border: 1px solid #ccc; border-radius: 12px; font-size: 14px; transition: all 0.3s; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #111; background: #fff; }
+        .btn-primary { width: 100%; padding: 12px; background: #111; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+        .btn-primary:hover { background: #333; transform: translateY(-1px); }
+        .btn-secondary { padding: 10px 20px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 10px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+        .btn-secondary:hover { background: #ddd; }
+        .auth-switch { text-align: center; margin-top: 20px; font-size: 14px; color: #666; }
+        .auth-switch a { color: #111; text-decoration: none; cursor: pointer; font-weight: 500; }
+        .close-login { float: right; font-size: 28px; cursor: pointer; color: #999; }
+        .close-login:hover { color: #111; }
+        .navbar { background: white; border-bottom: 1px solid #ddd; padding: 0 32px; position: sticky; top: 48px; z-index: 1000; }
+        .nav-container { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 64px; }
+        .nav-left { display: flex; align-items: center; gap: 48px; }
+        .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .logo img { width: 32px; height: 32px; border-radius: 8px; background: #eee; }
+        .logo span { font-size: 18px; font-weight: 600; color: #111; }
+        .nav-links { display: flex; gap: 8px; }
+        .nav-links a { color: #555; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 8px; transition: all 0.3s; }
+        .nav-links a:hover, .nav-links a.active { background: #f0f0f0; color: #111; }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .search-container input { padding: 8px 16px; background: #fff; border: 1px solid #ccc; border-radius: 20px; font-size: 14px; width: 240px; }
+        .search-container input:focus { outline: none; border-color: #111; background: white; }
+        .user-menu { position: relative; }
+        .avatar { width: 36px; height: 36px; background: #111; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 600; color: white; }
+        .dropdown-menu { display: none; position: absolute; top: 48px; right: 0; background: white; border: 1px solid #ddd; border-radius: 12px; min-width: 160px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 100; }
+        .dropdown-menu.active { display: block; }
+        .dropdown-menu a { display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; }
+        .dropdown-menu a:hover { background: #f5f5f5; }
+        .app-page { display: none; }
+        .app-page.active { display: block; }
+        main { max-width: 1200px; margin: 0 auto; padding: 48px 32px; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .hero { background: #222; border-radius: 24px; padding: 64px 48px; text-align: center; margin-bottom: 48px; color: white; }
+        .hero h1 { font-size: 48px; margin-bottom: 16px; font-weight: 700; }
+        .hero p { font-size: 18px; margin-bottom: 32px; opacity: 0.9; }
+        .hero .btn-primary { background: white; color: #111; width: auto; padding: 12px 32px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .section-header h2 { font-size: 24px; font-weight: 600; }
+        .repos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .repo-card { background: white; border: 1px solid #ddd; border-radius: 16px; padding: 20px; transition: all 0.3s; cursor: pointer; }
+        .repo-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: #bbb; }
+        .repo-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #111; }
+        .repo-card p { color: #555; font-size: 14px; margin-bottom: 12px; line-height: 1.5; }
+        .repo-meta { display: flex; gap: 16px; font-size: 12px; color: #777; }
+        .btn-small { padding: 6px 12px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; font-size: 12px; transition: all 0.3s; }
+        .loading { text-align: center; padding: 48px; color: #777; }
+        .profile-container { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+        .profile-card, .stats-card { background: white; border: 1px solid #ddd; border-radius: 20px; padding: 32px; }
+        .profile-avatar { width: 100px; height: 100px; background: #111; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0 auto 20px; color: white; }
+        .profile-card h2 { text-align: center; margin-bottom: 8px; }
+        .profile-card p { text-align: center; color: #555; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 24px; }
+        .stat { text-align: center; }
+        .stat-value { display: block; font-size: 36px; font-weight: 700; color: #111; }
+        .stat-label { font-size: 13px; color: #777; margin-top: 4px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1500; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+        .modal-large { max-width: 1000px; width: 90%; }
+        .modal-header { padding: 24px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { font-size: 20px; font-weight: 600; }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 20px 24px; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 12px; }
+        .close-modal, .close-editor, .close-profile { font-size: 28px; cursor: pointer; color: #999; }
+        .monaco-container { height: 500px; border: 1px solid #ddd; border-radius: 12px; overflow: hidden; margin-top: 16px; }
+        .file-name-input { width: 100%; padding: 10px; margin-bottom: 16px; background: #fff; border: 1px solid #ccc; border-radius: 10px; font-size: 14px; }
+        .code-files { margin-bottom: 20px; padding: 12px; background: #f9f9f9; border-radius: 12px; }
+        .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .file-tag { padding: 6px 12px; background: white; border: 1px solid #ccc; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.3s; }
+        .file-tag:hover, .file-tag.active { background: #111; color: white; border-color: #111; }
+        .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; background: #111; color: white; border-radius: 12px; font-size: 14px; display: none; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.show { display: block; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @media (max-width: 768px) { .profile-container { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } .nav-left { gap: 20px; } }
+    </style>
+</head>
+<body>
+    <!-- Global Navbar unificada (preto e branco, sem emojis) -->
+    <div class="global-nav">
+        <a href="cookie_ide.html" class="active">Cookie IDE</a>
+        <a href="index.html">Editor Profissional</a>
+        <a href="index1.html">AI Assistant</a>
+        <a href="index2.html">Wiki</a>
+    </div>
+
+    <!-- Login Popup -->
+    <div id="loginPopup" class="login-popup">
+        <div class="login-container">
+            <span class="close-login" id="closeLoginPopup">&times;</span>
+            <div class="login-logo">
+                <img src="Logo.jpg" alt="CookieCode Logo" id="logoImage" onerror="this.src='https://via.placeholder.com/80x80?text=CC'">
+                <h2>CookieScript</h2>
+                <p>Editor de codigo minimalista</p>
+            </div>
+            <div id="loginForm" class="login-form active">
+                <h3>Entrar</h3>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="seu@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <input type="password" id="loginPassword" placeholder="...">
+                </div>
+                <button id="loginBtn" class="btn-primary">Entrar</button>
+                <p class="auth-switch">
+                    Novo aqui? <a href="#" id="showRegister">Criar conta</a>
+                </p>
+            </div>
+            <div id="registerForm" class="login-form">
+                <h3>Criar conta</h3>
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="registerName" placeholder="Seu nome">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" placeholder="seu@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <input type="password" id="registerPassword" placeholder="...">
+                </div>
+                <button id="registerBtn" class="btn-primary">Criar conta</button>
+                <p class="auth-switch">
+                    Ja tem conta? <a href="#" id="showLogin">Fazer login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="appPage" class="app-page">
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-left">
+                    <a href="#" class="logo">
+                        <img src="logo.jpg" alt="Logo" id="navLogo" onerror="this.src='https://via.placeholder.com/32x32?text=CC'">
+                        <span>CookieScript</span>
+                    </a>
+                    <div class="nav-links">
+                        <a href="#" data-page="dashboard" class="active">Dashboard</a>
+                        <a href="#" data-page="explore">Explorar</a>
+                        <a href="#" data-page="profile">Perfil</a>
+                        <a href="index.html">Editor</a>
+                        <a href="index1.html">AI</a>
+                        <a href="index2.html">Wiki</a>
+                    </div>
+                </div>
+                <div class="nav-right">
+                    <div class="search-container">
+                        <input type="text" id="searchInput" placeholder="Buscar repositorios...">
+                    </div>
+                    <div class="user-menu" id="userMenu">
+                        <div class="avatar" id="avatarBtn">U</div>
+                        <div class="dropdown-menu" id="dropdownMenu">
+                            <a href="#" data-page="profile">Meu Perfil</a>
+                            <a href="#" id="logoutBtn">Sair</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main>
+            <div id="dashboardPage" class="page active">
+                <div class="hero">
+                    <h1>Cookie Script</h1>
+                    <p>Edite e execute seus codigos com o editor integrado</p>
+                    <button class="btn-primary" id="createRepoBtn">+ Novo Repositorio</button>
+                </div>
+                <div class="section-header">
+                    <h2>Seus Repositorios</h2>
+                    <button id="refreshReposBtn" class="btn-small">Atualizar</button>
+                </div>
+                <div id="userRepos" class="repos-grid">
+                    <div class="loading">Carregando...</div>
+                </div>
+            </div>
+
+            <div id="explorePage" class="page">
+                <div class="section-header">
+                    <h2>Explorar Repositorios</h2>
+                </div>
+                <div id="exploreRepos" class="repos-grid">
+                    <div class="loading">Carregando...</div>
+                </div>
+            </div>
+
+            <div id="profilePage" class="page">
+                <div class="profile-container">
+                    <div class="profile-card">
+                        <div class="profile-avatar" id="profileAvatar">U</div>
+                        <h2 id="profileName">Usuario</h2>
+                        <p id="profileEmail">usuario@email.com</p>
+                        <p id="profileBio" class="profile-bio">Desenvolvedor criativo</p>
+                        <button id="editProfileBtn" class="btn-secondary">Editar Perfil</button>
+                    </div>
+                    <div class="stats-card">
+                        <h3>Estatisticas</h3>
+                        <div class="stats-grid">
+                            <div class="stat">
+                                <span class="stat-value" id="statRepos">0</span>
+                                <span class="stat-label">Repositorios</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="statFiles">0</span>
+                                <span class="stat-label">Arquivos</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="statStars">0</span>
+                                <span class="stat-label">Stars</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-value" id="statForks">0</span>
+                                <span class="stat-label">Forks</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="repoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Repositorio</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="repoName" placeholder="ex: meu-projeto">
+                </div>
+                <div class="form-group">
+                    <label>Descricao</label>
+                    <textarea id="repoDesc" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Visibilidade</label>
+                    <select id="repoVisibility">
+                        <option value="public">Publico</option>
+                        <option value="private">Privado</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelRepoBtn">Cancelar</button>
+                <button class="btn-primary" id="confirmRepoBtn">Criar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editorModal" class="modal modal-large">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="editorTitle">Cookie Script Editor</h3>
+                <span class="close-editor">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="code-files">
+                    <label>Arquivos do projeto</label>
+                    <div id="fileList" class="file-list"></div>
+                    <div style="margin-top: 12px; display: flex; gap: 8px;">
+                        <input type="text" id="newFileName" placeholder="novo-arquivo.js" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                        <button id="addFileBtn" class="btn-small">+ Adicionar</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Editando:</label>
+                    <input type="text" id="fileName" class="file-name-input" placeholder="nome do arquivo">
+                </div>
+                <div id="monacoEditor" class="monaco-container"></div>
+                <div style="margin-top: 12px; font-size: 12px; color: #777;">
+                    Dica: Voce pode escrever e editar o codigo livremente. Clique em "Salvar Codigo" para guardar as alteracoes.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelEditorBtn">Fechar</button>
+                <button class="btn-primary" id="saveFileBtn">Salvar Codigo</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Perfil</h3>
+                <span class="close-profile">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="editName">
+                </div>
+                <div class="form-group">
+                    <label>Bio</label>
+                    <textarea id="editBio" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelProfileBtn">Cancelar</button>
+                <button class="btn-primary" id="saveProfileBtn">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
+    <script>
+        let currentUser = null;
+        let repos = [];
+        let editor = null;
+        let currentRepo = null;
+        let currentFile = null;
+        let users = JSON.parse(localStorage.getItem('users') || '[]');
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function showLoginPopup() {
+            document.getElementById('loginPopup').classList.add('active');
+            document.getElementById('appPage').classList.remove('active');
+        }
+
+        function showApp() {
+            document.getElementById('loginPopup').classList.remove('active');
+            document.getElementById('appPage').classList.add('active');
+            updateUI();
+            loadUserData();
+        }
+
+        function updateUI() {
+            if (currentUser) {
+                const initial = currentUser.name.charAt(0).toUpperCase();
+                document.getElementById('avatarBtn').textContent = initial;
+                document.getElementById('profileAvatar').textContent = initial;
+                document.getElementById('profileName').textContent = currentUser.name;
+                document.getElementById('profileEmail').textContent = currentUser.email;
+                document.getElementById('profileBio').textContent = currentUser.bio || 'Desenvolvedor criativo';
+            }
+        }
+
+        function loadUserData() {
+            repos = JSON.parse(localStorage.getItem(`repos_${currentUser.email}`) || '[]');
+            renderUserRepos();
+            renderExploreRepos();
+            let totalFiles = 0;
+            repos.forEach(repo => {
+                const files = JSON.parse(localStorage.getItem(`files_${currentUser.email}_${repo.name}`) || '[]');
+                totalFiles += files.length;
+            });
+            document.getElementById('statRepos').textContent = repos.length;
+            document.getElementById('statFiles').textContent = totalFiles;
+        }
+
+        function renderUserRepos() {
+            const container = document.getElementById('userRepos');
+            if (!repos.length) {
+                container.innerHTML = '<div class="loading">Nenhum repositorio ainda. Crie o seu primeiro!</div>';
+                return;
+            }
+            container.innerHTML = repos.map(repo => `
+                <div class="repo-card" onclick="openRepoEditor('${repo.name}')">
+                    <h3>${repo.name}</h3>
+                    <p>${repo.description || 'Sem descricao'}</p>
+                    <div class="repo-meta">
+                        <span>${repo.visibility === 'public' ? 'Publico' : 'Privado'}</span>
+                        <span>${JSON.parse(localStorage.getItem(`files_${currentUser.email}_${repo.name}`) || '[]').length} arquivos</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderExploreRepos() {
+            const allRepos = [];
+            const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
+            allUsers.forEach(user => {
+                const userRepos = JSON.parse(localStorage.getItem(`repos_${user.email}`) || '[]');
+                userRepos.forEach(repo => {
+                    if (repo.visibility === 'public') {
+                        allRepos.push({...repo, owner: user.name, ownerEmail: user.email});
+                    }
+                });
+            });
+            const container = document.getElementById('exploreRepos');
+            if (!allRepos.length) {
+                container.innerHTML = '<div class="loading">Nenhum repositorio publico encontrado</div>';
+                return;
+            }
+            container.innerHTML = allRepos.map(repo => `
+                <div class="repo-card" onclick="viewPublicRepo('${repo.ownerEmail}', '${repo.name}')">
+                    <h3>${repo.owner}/${repo.name}</h3>
+                    <p>${repo.description || 'Sem descricao'}</p>
+                    <div class="repo-meta">
+                        <span>${JSON.parse(localStorage.getItem(`files_${repo.ownerEmail}_${repo.name}`) || '[]').length} arquivos</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.openRepoEditor = function(repoName) {
+            currentRepo = repos.find(r => r.name === repoName);
+            if (!currentRepo) return;
+            currentRepo.ownerEmail = currentUser.email;
+            loadRepoFiles();
+            document.getElementById('editorModal').classList.add('active');
+            document.getElementById('editorTitle').textContent = `Editando: ${repoName}`;
+            document.getElementById('saveFileBtn').style.display = 'block';
+            if (editor) {
+                editor.setValue('// Clique em um arquivo para comecar a editar');
+                editor.updateOptions({ readOnly: false });
+            }
+        };
+
+        window.viewPublicRepo = function(ownerEmail, repoName) {
+            const ownerRepos = JSON.parse(localStorage.getItem(`repos_${ownerEmail}`) || '[]');
+            const repo = ownerRepos.find(r => r.name === repoName);
+            if (repo) {
+                currentRepo = repo;
+                currentRepo.ownerEmail = ownerEmail;
+                loadRepoFiles();
+                document.getElementById('editorModal').classList.add('active');
+                document.getElementById('editorTitle').textContent = `Visualizando: ${ownerEmail.split('@')[0]}/${repoName}`;
+                document.getElementById('saveFileBtn').style.display = 'none';
+                if (editor) {
+                    editor.updateOptions({ readOnly: true });
+                    editor.setValue('// Modo somente leitura - voce nao pode editar este repositorio');
+                }
+            }
+        };
+
+        function loadRepoFiles() {
+            const owner = currentRepo.ownerEmail;
+            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
+            const fileListDiv = document.getElementById('fileList');
+            if (!files.length) {
+                fileListDiv.innerHTML = '<div style="color: #777;">Nenhum arquivo ainda. Adicione seu primeiro codigo!</div>';
+            } else {
+                fileListDiv.innerHTML = files.map(file => `
+                    <div class="file-tag" onclick="loadFileContent('${file.name}')">${file.name}</div>
+                `).join('');
+            }
+            currentFile = null;
+            document.getElementById('fileName').value = '';
+        }
+
+        window.loadFileContent = function(fileName) {
+            const owner = currentRepo.ownerEmail;
+            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
+            const file = files.find(f => f.name === fileName);
+            if (file && editor) {
+                editor.setValue(file.content);
+                document.getElementById('fileName').value = fileName;
+                currentFile = fileName;
+                document.querySelectorAll('.file-tag').forEach(tag => {
+                    tag.classList.remove('active');
+                    if (tag.textContent.includes(fileName)) tag.classList.add('active');
+                });
+                showToast(`Arquivo "${fileName}" carregado. Agora voce pode editar!`);
+            }
+        };
+
+        // Login/Register events
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const email = document.getElementById('loginEmail').value;
+            const pwd = document.getElementById('loginPassword').value;
+            const user = users.find(u => u.email === email && u.password === pwd);
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                showApp();
+                showToast('Bem-vindo de volta!');
+            } else {
+                showToast('Email ou senha invalidos');
+            }
+        });
+        document.getElementById('registerBtn').addEventListener('click', () => {
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const pwd = document.getElementById('registerPassword').value;
+            if (users.find(u => u.email === email)) {
+                showToast('Email ja cadastrado');
+                return;
+            }
+            users.push({ name, email, password: pwd, bio: 'Desenvolvedor criativo' });
+            localStorage.setItem('users', JSON.stringify(users));
+            showToast('Conta criada! Faca login.');
+            document.getElementById('showLogin').click();
+        });
+        document.getElementById('showRegister').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('loginForm').classList.remove('active');
+            document.getElementById('registerForm').classList.add('active');
+        });
+        document.getElementById('showLogin').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('registerForm').classList.remove('active');
+            document.getElementById('loginForm').classList.add('active');
+        });
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            showLoginPopup();
+            showToast('Ate logo!');
+        });
+
+        document.getElementById('createRepoBtn').addEventListener('click', () => {
+            document.getElementById('repoModal').classList.add('active');
+        });
+        document.getElementById('confirmRepoBtn').addEventListener('click', () => {
+            const name = document.getElementById('repoName').value.trim();
+            if (!name) { showToast('Nome obrigatorio'); return; }
+            const newRepo = { name, description: document.getElementById('repoDesc').value, visibility: document.getElementById('repoVisibility').value, createdAt: new Date() };
+            repos.push(newRepo);
+            localStorage.setItem(`repos_${currentUser.email}`, JSON.stringify(repos));
+            renderUserRepos();
+            document.getElementById('repoModal').classList.remove('active');
+            document.getElementById('repoName').value = '';
+            document.getElementById('repoDesc').value = '';
+            showToast('Repositorio criado!');
+        });
+
+        document.getElementById('addFileBtn').addEventListener('click', () => {
+            const fileName = document.getElementById('newFileName').value.trim();
+            if (!fileName) { showToast('Digite um nome para o arquivo'); return; }
+            const owner = currentRepo.ownerEmail;
+            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
+            if (files.find(f => f.name === fileName)) { showToast('Arquivo ja existe'); return; }
+            files.push({ name: fileName, content: '// Seu codigo aqui\nconsole.log("Hello, CookieCode!");' });
+            localStorage.setItem(`files_${owner}_${currentRepo.name}`, JSON.stringify(files));
+            loadRepoFiles();
+            document.getElementById('newFileName').value = '';
+            showToast(`Arquivo "${fileName}" criado!`);
+        });
+
+        document.getElementById('saveFileBtn').addEventListener('click', () => {
+            const fileName = document.getElementById('fileName').value.trim();
+            const finalName = fileName || currentFile;
+            if (!finalName) { showToast('Nenhum arquivo selecionado para salvar'); return; }
+            const content = editor.getValue();
+            const owner = currentRepo.ownerEmail;
+            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
+            const index = files.findIndex(f => f.name === finalName);
+            if (index !== -1) files[index].content = content;
+            else files.push({ name: finalName, content });
+            localStorage.setItem(`files_${owner}_${currentRepo.name}`, JSON.stringify(files));
+            loadRepoFiles();
+            showToast(`"${finalName}" salvo com sucesso!`);
+        });
+
+        document.querySelectorAll('[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = link.dataset.page;
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(`${page}Page`).classList.add('active');
+                document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+                link.classList.add('active');
+                if (page === 'explore') renderExploreRepos();
+                if (page === 'dashboard') loadUserData();
+            });
+        });
+
+        document.getElementById('avatarBtn').addEventListener('click', () => {
+            document.getElementById('dropdownMenu').classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('userMenu').contains(e.target)) {
+                document.getElementById('dropdownMenu').classList.remove('active');
+            }
+        });
+
+        document.querySelectorAll('.close-modal, #cancelRepoBtn, .close-editor, #cancelEditorBtn, .close-profile, #cancelProfileBtn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('repoModal').classList.remove('active');
+                document.getElementById('editorModal').classList.remove('active');
+                document.getElementById('profileModal').classList.remove('active');
+                if (editor) editor.updateOptions({ readOnly: false });
+            });
+        });
+
+        document.getElementById('editProfileBtn').addEventListener('click', () => {
+            document.getElementById('editName').value = currentUser.name;
+            document.getElementById('editBio').value = currentUser.bio || '';
+            document.getElementById('profileModal').classList.add('active');
+        });
+        document.getElementById('saveProfileBtn').addEventListener('click', () => {
+            currentUser.name = document.getElementById('editName').value;
+            currentUser.bio = document.getElementById('editBio').value;
+            const idx = users.findIndex(u => u.email === currentUser.email);
+            if (idx !== -1) users[idx] = currentUser;
+            localStorage.setItem('users', JSON.stringify(users));
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            updateUI();
+            document.getElementById('profileModal').classList.remove('active');
+            showToast('Perfil atualizado');
+        });
+
+        document.getElementById('refreshReposBtn').addEventListener('click', () => {
+            loadUserData();
+            showToast('Atualizado');
+        });
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = repos.filter(r => r.name.toLowerCase().includes(term));
+            const container = document.getElementById('userRepos');
+            if (!filtered.length) { container.innerHTML = '<div class="loading">Nenhum repositorio encontrado</div>'; return; }
+            container.innerHTML = filtered.map(repo => `<div class="repo-card" onclick="openRepoEditor('${repo.name}')"><h3>${repo.name}</h3><p>${repo.description || ''}</p><div class="repo-meta"><span>${repo.visibility}</span></div></div>`).join('');
+        });
+
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+                value: '// Seu codigo comeca aqui\nconsole.log("Hello, CookieCode!");',
+                language: 'javascript',
+                theme: 'vs-light',
+                fontSize: 14,
+                minimap: { enabled: false },
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                wordWrap: 'on'
+            });
+        });
+
+        const saved = localStorage.getItem('currentUser');
+        if (saved) { currentUser = JSON.parse(saved); showApp(); }
+        else { showLoginPopup(); }
+    </script>
+</body>
+</html>

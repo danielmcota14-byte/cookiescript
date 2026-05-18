@@ -1,0 +1,66 @@
+// Exemplo: Controle de Fluxo no CookieScript
+
+// 1. ESTRUTURA IF/ELSE
+numero = 10
+
+if numero > 5 {
+    resultado_if = "Número maior que 5"
+} else {
+    resultado_if = "Número menor ou igual a 5"
+}
+
+// 2. LOOP FOR
+lista = [1, 2, 3, 4, 5]
+soma = 0
+
+for item in lista {
+    soma = math.somar(soma, item)
+}
+
+// 3. LOOP WHILE
+contador = 0
+resultado_while = []
+
+while contador < 3 {
+    contador = math.somar(contador, 1)
+    resultado_while = string.juntar([resultado_while, [string.numero_para_texto(contador)]], separador=",")
+}
+
+// 4. IF ANINHADO COM FOR
+pares = []
+for num in [1, 2, 3, 4, 5, 6] {
+    if math.modulo(num, 2) == 0 {
+        pares = string.juntar([pares, [string.numero_para_texto(num)]], separador=",")
+    }
+}
+
+// 5. WHILE COM CONDIÇÃO COMPLEXA
+tentativas = 0
+senha_correta = "12345"
+senha_digitada = "12345"
+
+while tentativas < 3 and senha_digitada != senha_correta {
+    tentativas = math.somar(tentativas, 1)
+    if tentativas == 3 {
+        status_login = "Bloqueado - muitas tentativas"
+    } else {
+        status_login = "Tentativa " + string.numero_para_texto(tentativas)
+    }
+}
+
+if senha_digitada == senha_correta {
+    status_login = "Login bem-sucedido"
+}
+
+// 6. FOR COM CONDIÇÃO IF
+numeros = [10, 15, 20, 25, 30]
+maiores_que_20 = []
+
+for n in numeros {
+    if n > 20 {
+        maiores_que_20 = string.juntar([maiores_que_20, [string.numero_para_texto(n)]], separador=",")
+    }
+}
+
+// RESULTADO FINAL
+resultado_completo = "Exemplo de controle de fluxo executado com sucesso!"

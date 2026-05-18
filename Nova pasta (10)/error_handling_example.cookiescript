@@ -1,0 +1,24 @@
+// Exemplo: Tratamento de Erros com Try/Catch
+
+// TRY/CATCH com erro
+try {
+    // Isso vai gerar erro (divisão por zero)
+    resultado_erro = math.dividir(10, 0)
+} catch {
+    erro_tratado = "Divisão por zero tratada: " + error_message
+}
+
+// TRY/CATCH aninhado
+try {
+    numero = 5
+    try {
+        resultado_aninhado = math.dividir(100, numero)
+    } catch {
+        erro_interno = "Erro interno: " + error_message
+    }
+} catch {
+    erro_externo = "Erro externo: " + error_message
+}
+
+// Resultado final
+resultado_completo = "Tratamento de erros testado com sucesso!"

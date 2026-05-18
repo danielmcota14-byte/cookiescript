@@ -1,0 +1,47 @@
+// Exemplo de CookieScript
+// Comentários começam com //
+
+// Escreve um arquivo local
+filesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript executado com sucesso")
+
+// Executa uma função customizada registrada em Python
+notificar_telegram(mensagem="CookieScript rodou e escreveu output.txt")
+
+// Faz uma requisição HTTP GET
+resultado_http = network.http_request(url="https://httpbin.org/get", metodo="GET")
+
+// Calcula hash de uma string
+hash = crypto.hash_sha256(dados="exemplo")
+
+// Salva o resultado em outro arquivo
+filesystem.escrever_arquivo(caminho="hash.txt", conteudo=hash)
+
+// Exemplos dos novos módulos
+
+// Operações matemáticas
+seno_valor = math.seno(1.57)
+potencia = math.potencia(base=2, expoente=3)
+aleatorio = math.numero_aleatorio(minimo=1, maximo=10)
+
+// Operações de tempo
+timestamp = time.timestamp_atual()
+data_atual = time.data_hora_atual()
+
+// Operações com strings
+texto_maiusculo = string.maiusculo("cookiescript")
+comprimento = string.comprimento("teste")
+
+// Codificação
+encoded = encoding.base64_encode("CookieScript")
+decoded = encoding.base64_decode(encoded)
+
+// JSON
+dados_json = json.stringify_json(objeto={"nome": "CookieScript", "versao": "1.0"})
+
+// Instalação de biblioteca Python
+resultado_instalacao = python.instalar_pacote(nome="requests")
+verificacao = python.verificar_pacote(nome="requests")
+
+// Importa o módulo Python instalado para uso no CookieScript
+python.importar_modulo(nome="requests", alias="requests")
+resposta = requests.get(url="https://httpbin.org/get")

@@ -1,0 +1,27 @@
+// Exemplo Simples: Controle de Fluxo Básico
+
+// IF básico
+numero = 10
+if numero > 5 {
+    resultado = "Maior que 5"
+}
+
+// FOR básico
+soma = 0
+for i in [1, 2, 3, 4, 5] {
+    soma = math.somar(soma, i)
+}
+
+// WHILE básico
+contador = 0
+while contador < 3 {
+    contador = math.somar(contador, 1)
+}
+
+// Resultado final
+final = json.stringify_json(objeto={
+    numero_testado: numero,
+    resultado_if: resultado,
+    soma_for: soma,
+    contador_while: contador
+})

@@ -1,0 +1,50 @@
+// Demonstração do Sistema de Tipos Melhorado do CookieScript
+// Este arquivo mostra como o sistema de tipos funciona
+
+// Operações aritméticas com tipos compatíveis
+numero1 = 42
+numero2 = 8
+soma = numero1 + numero2  // int + int = int
+
+decimal1 = 3.14
+decimal2 = 1.86
+soma_decimal = decimal1 + decimal2  // float + float = float
+
+// Operações com strings
+texto1 = "Olá"
+texto2 = " Mundo"
+saudacao = texto1 + texto2  // str + str = str
+
+// Conversões automáticas (concatenação)
+numero_texto = 123 + "456"  // int + str = "123456"
+
+// Valores booleanos
+verdadeiro = true
+falso = false
+
+// Comparações com verificação de tipos
+if numero1 > 10 {
+    status = "maior que 10"
+}
+
+if texto1 == "Olá" {
+    mensagem = "Saudação reconhecida"
+}
+
+// Função com verificação de tipos
+function calcular_area(base, altura) {
+    if base > 0 and altura > 0 {
+        area = base * altura
+    } else {
+        area = 0
+    }
+}
+
+calcular_area(5, 10)
+resultado_area = area
+
+// Demonstração de erro (descomente para testar)
+// erro_invalido = numero1 + [1, 2, 3]  // Isso geraria erro: tipos incompatíveis
+
+// Saída dos resultados
+filesystem.escrever_arquivo(caminho="types_demo_output.txt", conteudo="Sistema de tipos funcionando!")

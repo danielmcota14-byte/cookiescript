@@ -1,0 +1,11 @@
+websockets
+requests
+flask
+fastapi
+uvicorn
+pillow
+psutil
+pywin32
+pywebview
+transformers
+torch

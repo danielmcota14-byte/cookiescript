@@ -1,0 +1,31 @@
+// Demonstração do Sistema de Sandbox Melhorado do CookieScript
+// Este arquivo mostra como usar as proteções anti-debug e sandbox
+
+// Verificar ambiente de execução
+debugger_presente = antidebug.verificar_debugger()
+vm_presente = antidebug.verificar_vm()
+sandbox_presente = antidebug.verificar_sandbox()
+
+// Exibir status de segurança
+filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="Status de Segurança:\n")
+filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="Debugger detectado: " + string.converter_para_string(debugger_presente) + "\n", modo="a")
+filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="VM detectada: " + string.converter_para_string(vm_presente) + "\n", modo="a")
+filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="Sandbox detectado: " + string.converter_para_string(sandbox_presente) + "\n", modo="a")
+
+// Verificar se ambiente é seguro
+ambiente_seguro = not debugger_presente and not vm_presente and not sandbox_presente
+
+if ambiente_seguro {
+    filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="✅ Ambiente seguro - execução normal\n", modo="a")
+    // Continuar com operações normais
+    resultado = crypto.hash_sha256(dados="dados seguros")
+} else {
+    filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="⚠️ Ambiente hostil detectado\n", modo="a")
+    // Operações restritas ou saída
+    // antidebug.sair_do_programa()  // Descomentado para sair automaticamente
+}
+
+// Demonstração de modo sandbox forçado
+// antidebug.forcar_sandbox()  // Descomentado para ativar modo restritivo
+
+filesystem.escrever_arquivo(caminho="security_check.txt", conteudo="Verificação de segurança concluída\n", modo="a")

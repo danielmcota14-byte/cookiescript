@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookieScript IDE - Editor Profissional</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Global navbar unificada */
+        .global-nav {
+            background: #111;
+            border-bottom: 1px solid #333;
+            padding: 0.7rem 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 1100;
+        }
+        .global-nav a {
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #ddd;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            transition: all 0.2s;
+        }
+        .global-nav a:hover {
+            background: #333;
+            color: white;
+        }
+        .global-nav a.active {
+            background: white;
+            color: black;
+        }
+        /* Top Bar */
+        .top-bar {
+            background: #181818;
+            border-bottom: 1px solid #333;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .logo {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ccc;
+        }
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+        }
+        .toolbar button, .toolbar select {
+            padding: 6px 12px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .toolbar button:hover {
+            background: #3a3a3a;
+        }
+        .language-select {
+            background: #2a2a2a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            color: #e0e0e0;
+        }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 50px);
+        }
+        .sidebar {
+            width: 260px;
+            background: #181818;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid #333;
+        }
+        .sidebar-section h3 {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+        .file-list, .project-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .file-item, .project-item {
+            padding: 6px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-bottom: 2px;
+        }
+        .file-item:hover, .project-item:hover {
+            background: #2a2a2a;
+        }
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+        }
+        .tabs {
+            display: flex;
+            background: #181818;
+            border-bottom: 1px solid #333;
+            padding-left: 8px;
+            gap: 2px;
+        }
+        .tab {
+            padding: 8px 16px;
+            background: #1e1e1e;
+            border: none;
+            color: #e0e0e0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+        .tab.active {
+            background: #2a2a2a;
+            color: #ccc;
+        }
+        .tab:hover:not(.active) {
+            background: #2a2a2a;
+        }
+        .tab-close {
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        .editor-wrapper {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .path-bar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .path-bar input {
+            flex: 1;
+            padding: 8px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        textarea {
+            flex: 1;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            color: #e0e0e0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+            padding: 12px;
+            resize: none;
+            border-radius: 8px;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #aaa;
+        }
+        .right-panel {
+            width: 320px;
+            background: #181818;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            gap: 8px;
+        }
+        .panel-header button {
+            padding: 6px 12px;
+            background: #2a2a2a;
+            border: none;
+            color: #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .panel-header button.active {
+            background: #aaa;
+            color: #111;
+        }
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .panel-tab {
+            display: none;
+        }
+        .panel-tab.active {
+            display: block;
+        }
+        .prompt-area {
+            width: 100%;
+            min-height: 100px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            margin-bottom: 12px;
+        }
+        .search-area {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .search-area input {
+            flex: 1;
+            padding: 8px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 6px;
+        }
+        .output-area {
+            background: #0f0f0f;
+            color: #b0b0b0;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        button {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #3a3a3a;
+        }
+        input, textarea, select {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #181818;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #444;
+            border-top-color: #aaa;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn-loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="global-nav">
+        <a href="cookie_ide.html">Cookie IDE</a>
+        <a href="index.html" class="active">Editor Profissional</a>
+        <a href="index1.html">AI Assistant</a>
+        <a href="index2.html">Wiki</a>
+    </div>
+    <div class="top-bar">
+        <div class="logo">CookieScript IDE</div>
+        <div class="toolbar">
+            <button id="btnNew">Novo</button>
+            <button id="btnOpen">Abrir</button>
+            <button id="btnSave">Salvar</button>
+            <button id="btnRun">Executar</button>
+            <select id="languageSelect" class="language-select">
+                <option value="cookiescript">CookieScript</option>
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+            </select>
+        </div>
+    </div>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h3>Arquivos</h3>
+                <div id="fileList" class="file-list">Carregando...</div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Projetos</h3>
+                <input type="text" id="projectName" placeholder="Nome do projeto" style="width: 100%; margin-bottom: 8px; padding: 6px;">
+                <textarea id="projectDesc" placeholder="Descricao" rows="2" style="width: 100%; margin-bottom: 8px; padding: 6px;"></textarea>
+                <button id="btnCreateProject" style="width: 100%; margin-bottom: 8px;">Criar Projeto</button>
+                <div id="projectList" class="project-list">Carregando...</div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Git</h3>
+                <button id="btnGitStatus" style="width: 100%; margin-bottom: 4px;">Status</button>
+                <input type="text" id="commitMsg" placeholder="Mensagem do commit" style="width: 100%; margin-bottom: 4px; padding: 6px;">
+                <button id="btnGitCommit" style="width: 100%;">Commit</button>
+            </div>
+        </div>
+        <div class="editor-area">
+            <div class="tabs" id="tabsContainer"></div>
+            <div class="editor-wrapper">
+                <div class="path-bar">
+                    <span style="color: #aaa;">Arquivo</span>
+                    <input type="text" id="filePath" placeholder="caminho/do/arquivo.cookiescript">
+                </div>
+                <textarea id="codeEditor" placeholder="Escreva seu codigo aqui..."></textarea>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="panel-header">
+                <button data-tab="generate" class="active">Gerar</button>
+                <button data-tab="search">Pesquisar</button>
+                <button data-tab="output">Saida</button>
+            </div>
+            <div class="panel-content">
+                <div id="tab-generate" class="panel-tab active">
+                    <label style="display: block; margin-bottom: 8px;">Gerar codigo com IA</label>
+                    <textarea id="promptInput" class="prompt-area" placeholder="Descreva o codigo que voce quer gerar..."></textarea>
+                    <button id="btnGenerate" style="width: 100%;">Gerar Codigo</button>
+                </div>
+                <div id="tab-search" class="panel-tab">
+                    <label style="display: block; margin-bottom: 8px;">Pesquisar exemplos</label>
+                    <div class="search-area">
+                        <input type="text" id="searchQuery" placeholder="Ex: operacoes com arquivos">
+                        <button id="btnSearch">Pesquisar</button>
+                    </div>
+                    <div id="searchResults" style="font-size: 0.85em; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+                <div id="tab-output" class="panel-tab">
+                    <div class="output-area" id="outputArea">
+                        IDE pronta para uso!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // ============================================
+        // Estado da aplicacao
+        // ============================================
+        let currentFile = null;
+        let currentContent = '';
+        
+        // ============================================
+        // Funcoes de UI helpers
+        // ============================================
+        function addOutput(text) {
+            const output = document.getElementById('outputArea');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent = `[${timestamp}] ${text}\n\n${output.textContent}`;
+            if (output.textContent.length > 10000) {
+                output.textContent = output.textContent.substring(0, 10000);
+            }
+        }
+        
+        function setButtonLoading(btn, isLoading, originalText = null) {
+            if (isLoading) {
+                btn.dataset.originalText = originalText || btn.innerText;
+                btn.innerHTML = '<span class="loading-spinner"></span> Carregando...';
+                btn.classList.add('btn-loading');
+                btn.disabled = true;
+            } else {
+                btn.innerHTML = btn.dataset.originalText || (originalText || btn.innerText);
+                btn.classList.remove('btn-loading');
+                btn.disabled = false;
+            }
+        }
+        
+        // ============================================
+        // API Calls para o backend Python (cookie_ide_app.py)
+        // ============================================
+        async function apiCall(endpoint, data) {
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || `HTTP ${response.status}`);
+                }
+                return result;
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // ============================================
+        // Operacoes com arquivos (API real)
+        // ============================================
+        async function loadFileList() {
+            const fileListDiv = document.getElementById('fileList');
+            fileListDiv.innerHTML = '<div>Carregando arquivos...</div>';
+            
+            const result = await apiCall('/api/files', {});
+            
+            if (result.success && result.files) {
+                fileListDiv.innerHTML = '';
+                if (result.files.length === 0) {
+                    fileListDiv.innerHTML = '<div style="color: #aaa;">Nenhum arquivo encontrado</div>';
+                }
+                result.files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.className = 'file-item';
+                    div.textContent = file;
+                    div.onclick = () => openFile(file);
+                    fileListDiv.appendChild(div);
+                });
+            } else {
+                fileListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+            }
+        }
+        
+        async function openFile(filename) {
+            addOutput(`Abrindo arquivo: ${filename}...`);
+            const result = await apiCall('/api/open', { path: filename });
+            
+            if (result.success) {
+                currentFile = filename;
+                document.getElementById('filePath').value = filename;
+                document.getElementById('codeEditor').value = result.content;
+                currentContent = result.content;
+                addOutput(`Arquivo aberto com sucesso: ${filename} (${result.content.length} caracteres)`);
+            } else {
+                addOutput(`Erro ao abrir arquivo: ${result.error}`);
+            }
+        }
+        
+        async function saveFile() {
+            const path = document.getElementById('filePath').value.trim();
+            if (!path) {
+                addOutput('Erro: Informe um caminho/nome para o arquivo');
+                return;
+            }
+            
+            const content = document.getElementById('codeEditor').value;
+            addOutput(`Salvando arquivo: ${path}...`);
+            
+            const result = await apiCall('/api/save', { path, content });
+            
+            if (result.success) {
+                currentFile = path;
+                currentContent = content;
+                addOutput(`Arquivo salvo com sucesso: ${path}`);
+                await loadFileList();
+            } else {
+                addOutput(`Erro ao salvar arquivo: ${result.error}`);
+            }
+        }
+        
+        // ============================================
+        // Execucao de codigo (API real)
+        // ============================================
+        async function executeCode() {
+            const code = document.getElementById('codeEditor').value;
+            const language = document.getElementById('languageSelect').value;
+            
+            if (!code.trim()) {
+                addOutput('Nenhum codigo para executar');
+                return;
+            }
+            
+            const btnRun = document.getElementById('btnRun');
+            setButtonLoading(btnRun, true, 'Executar');
+            addOutput(`Executando codigo (${language})...`);
+            
+            const result = await apiCall('/api/execute', { code, language });
+            
+            setButtonLoading(btnRun, false);
+            
+            if (result.success) {
+                addOutput(`Execucao concluida:\n${result.output || '(sem saida)'}`);
+            } else {
+                addOutput(`Erro na execucao: ${result.error}`);
+            }
+        }
+        
+        // ============================================
+        // Geracao de codigo com IA (usa cookie_ai.py)
+        // ============================================
+        async function generateCode() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            const language = document.getElementById('languageSelect').value;
+            
+            if (!prompt) {
+                addOutput('Digite um prompt para gerar codigo');
+                return;
+            }
+            
+            const btnGenerate = document.getElementById('btnGenerate');
+            setButtonLoading(btnGenerate, true, 'Gerar Codigo');
+            addOutput(`Gerando codigo com IA (${language})...`);
+            addOutput(`Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
+            
+            const result = await apiCall('/api/generate', { prompt, language });
+            
+            setButtonLoading(btnGenerate, false);
+            
+            if (result.success && result.code) {
+                document.getElementById('codeEditor').value = result.code;
+                addOutput(`Codigo gerado com sucesso! (${result.code.length} caracteres)`);
+            } else {
+                addOutput(`Erro na geracao: ${result.error || 'Falha ao gerar codigo'}`);
+            }
+        }
+        
+        // ============================================
+        // Pesquisa de codigos (usa cookie_ai.py)
+        // ============================================
+        async function searchCode() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const language = document.getElementById('languageSelect').value;
+            
+            if (!query) {
+                addOutput('Digite uma consulta para pesquisar');
+                return;
+            }
+            
+            const btnSearch = document.getElementById('btnSearch');
+            setButtonLoading(btnSearch, true, 'Pesquisar');
+            addOutput(`Pesquisando: "${query}" (${language})...`);
+            
+            const result = await apiCall('/api/search', { query, language });
+            
+            setButtonLoading(btnSearch, false);
+            
+            const searchResultsDiv = document.getElementById('searchResults');
+            
+            if (result.success) {
+                searchResultsDiv.innerHTML = '';
+                
+                if (result.results && result.results.length > 0) {
+                    addOutput(`Encontrados ${result.results.length} arquivos relacionados`);
+                    result.results.forEach(r => {
+                        const div = document.createElement('div');
+                        div.style.cssText = 'padding: 8px; margin-bottom: 8px; background: #2a2a2a; border-radius: 4px; cursor: pointer; border-left: 3px solid #aaa;';
+                        div.innerHTML = `<strong>${r.file}</strong><br><small>${(r.preview || '').substring(0, 120)}${(r.preview || '').length > 120 ? '...' : ''}</small>`;
+                        div.onclick = () => openFile(r.file);
+                        searchResultsDiv.appendChild(div);
+                    });
+                } else {
+                    searchResultsDiv.innerHTML = '<div style="color: #aaa; padding: 8px;">Nenhum resultado encontrado</div>';
+                }
+                
+                if (result.generated) {
+                    addOutput('Codigo gerado pela IA disponivel! Clique em "Gerar Codigo" para usar.');
+                    const genDiv = document.createElement('div');
+                    genDiv.style.cssText = 'padding: 8px; margin-top: 12px; background: #2a5a2a; border-radius: 4px; cursor: pointer; text-align: center;';
+                    genDiv.innerHTML = '<strong>✨ Codigo IA gerado - clique para usar</strong>';
+                    genDiv.onclick = () => {
+                        document.getElementById('codeEditor').value = result.generated;
+                        addOutput('Codigo gerado pela IA inserido no editor');
+                    };
+                    searchResultsDiv.appendChild(genDiv);
+                }
+            } else {
+                searchResultsDiv.innerHTML = `<div style="color: #f66; padding: 8px;">Erro: ${result.error || 'Falha na pesquisa'}</div>`;
+                addOutput(`Erro na pesquisa: ${result.error}`);
+            }
+        }
+        
+        // ============================================
+        // Operacoes com projetos (API real)
+        // ============================================
+        async function loadProjects() {
+            const result = await apiCall('/api/load_projects', {});
+            
+            const projectListDiv = document.getElementById('projectList');
+            
+            if (result.success && result.projects) {
+                projectListDiv.innerHTML = '';
+                const projects = Object.values(result.projects);
+                if (projects.length === 0) {
+                    projectListDiv.innerHTML = '<div style="color: #aaa;">Nenhum projeto criado</div>';
+                }
+                projects.forEach(project => {
+                    const div = document.createElement('div');
+                    div.className = 'project-item';
+                    div.innerHTML = `<strong>${escapeHtml(project.name)}</strong><br><small>${escapeHtml(project.description || 'Sem descricao')}</small>`;
+                    div.onclick = () => loadProject(project.id);
+                    projectListDiv.appendChild(div);
+                });
+                addOutput(`Projetos carregados: ${projects.length}`);
+            } else {
+                projectListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+            }
+        }
+        
+        async function createProject() {
+            const name = document.getElementById('projectName').value.trim();
+            const description = document.getElementById('projectDesc').value.trim();
+            
+            if (!name) {
+                addOutput('Digite um nome para o projeto');
+                return;
+            }
+            
+            const btnCreate = document.getElementById('btnCreateProject');
+            setButtonLoading(btnCreate, true, 'Criar Projeto');
+            addOutput(`Criando projeto: ${name}...`);
+            
+            const result = await apiCall('/api/create_project', { name, description });
+            
+            setButtonLoading(btnCreate, false);
+            
+            if (result.success) {
+                addOutput(`Projeto criado com sucesso! ID: ${result.project_id}`);
+                document.getElementById('projectName').value = '';
+                document.getElementById('projectDesc').value = '';
+                await loadProjects();
+            } else {
+                addOutput(`Erro ao criar projeto: ${result.error}`);
+            }
+        }
+        
+        async function loadProject(projectId) {
+            addOutput(`Carregando projeto...`);
+            const result = await apiCall('/api/load_project', { project_id: projectId });
+            
+            if (result.success && result.project) {
+                addOutput(`Projeto carregado: ${result.project.name}`);
+                const files = result.project.files || {};
+                const fileNames = Object.keys(files);
+                if (fileNames.length > 0) {
+                    const firstFile = fileNames[0];
+                    document.getElementById('codeEditor').value = files[firstFile];
+                    document.getElementById('filePath').value = firstFile;
+                    currentFile = firstFile;
+                    addOutput(`Arquivo "${firstFile}" carregado do projeto`);
+                } else {
+                    addOutput(`Projeto vazio - sem arquivos`);
+                }
+            } else {
+                addOutput(`Erro ao carregar projeto: ${result.error}`);
+            }
+        }
+        
+        // ============================================
+        // Operacoes Git (API real)
+        // ============================================
+        async function gitStatus() {
+            addOutput(`Verificando status Git...`);
+            const result = await apiCall('/api/git_status', {});
+            
+            if (result.success) {
+                addOutput(`Status Git:\n${result.status || 'Working tree clean'}`);
+            } else {
+                addOutput(`Erro Git: ${result.error}`);
+            }
+        }
+        
+        async function gitCommit() {
+            const message = document.getElementById('commitMsg').value.trim();
+            if (!message) {
+                addOutput('Digite uma mensagem para o commit');
+                return;
+            }
+            
+            const btnCommit = document.getElementById('btnGitCommit');
+            setButtonLoading(btnCommit, true, 'Commit');
+            addOutput(`Realizando commit: "${message}"...`);
+            
+            const result = await apiCall('/api/git_commit', { message });
+            
+            setButtonLoading(btnCommit, false);
+            
+            if (result.success) {
+                addOutput(`Commit realizado com sucesso: ${message}`);
+                document.getElementById('commitMsg').value = '';
+            } else {
+                addOutput(`Erro no commit: ${result.error}`);
+            }
+        }
+        
+        // ============================================
+        // Utilitarios
+        // ============================================
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
+        function newFile() {
+            document.getElementById('codeEditor').value = '';
+            document.getElementById('filePath').value = '';
+            currentFile = null;
+            addOutput('Novo arquivo criado (nao salvo)');
+        }
+        
+        function switchPanelTab(tabId) {
+            document.querySelectorAll('.panel-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.panel-header button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+        }
+        
+        // ============================================
+        // Inicializacao e Event Listeners
+        // ============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Botoes principais
+            document.getElementById('btnNew').onclick = newFile;
+            document.getElementById('btnOpen').onclick = () => {
+                const filename = prompt('Nome do arquivo para abrir:');
+                if (filename) openFile(filename);
+            };
+            document.getElementById('btnSave').onclick = saveFile;
+            document.getElementById('btnRun').onclick = executeCode;
+            document.getElementById('btnGenerate').onclick = generateCode;
+            document.getElementById('btnSearch').onclick = searchCode;
+            document.getElementById('btnCreateProject').onclick = createProject;
+            document.getElementById('btnGitStatus').onclick = gitStatus;
+            document.getElementById('btnGitCommit').onclick = gitCommit;
+            
+            // Painel de abas
+            document.querySelectorAll('.panel-header button').forEach(btn => {
+                btn.onclick = () => switchPanelTab(btn.dataset.tab);
+            });
+            
+            // Tecla de atalho Ctrl+Enter no editor
+            const editor = document.getElementById('codeEditor');
+            editor.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    executeCode();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveFile();
+                }
+            });
+            
+            // Carregar dados iniciais
+            addOutput('Conectando ao backend Python (cookie_ide_app.py)...');
+            await loadFileList();
+            await loadProjects();
+            addOutput('CookieScript IDE pronta! Use os botoes para abrir, salvar e executar codigo.');
+        });
+    </script>
+</body>
+</html>

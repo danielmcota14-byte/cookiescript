@@ -1,0 +1,27 @@
+// Exemplo: Incorporação de HTML e Serviços Web no CookieScript
+
+// 1. CRIAR PÁGINA HTML SIMPLES
+pagina_html = html.incorporar_html("<h1>Dashboard CookieScript</h1><p>Bem-vindo ao sistema!</p>")
+
+// 2. CRIAR FORMULÁRIO
+campos = [{tipo: "text", nome: "nome", label: "Nome"}, {tipo: "email", nome: "email", label: "Email"}]
+formulario = html.criar_formulario(acao="/enviar", metodo="POST", campos=campos)
+
+// 3. CRIAR SERVIÇO WEB
+webservice.criar_servico(nome="api_teste", porta=3000)
+webservice.adicionar_rota(servico="api_teste", metodo="GET", caminho="/status", funcao_callback="status_api")
+
+// 4. GERAR CÓDIGO DO SERVIÇO
+codigo_flask = webservice.gerar_codigo_flask(servico="api_teste")
+webservice.compilar_servico(servico="api_teste", framework="flask", saida="teste_api.py")
+
+// 5. SALVAR ARQUIVOS
+conteudo_completo = string.juntar([pagina_html, formulario], separador="\n")
+filesystem.escrever_arquivo(caminho="pagina_teste.html", conteudo=conteudo_completo)
+filesystem.escrever_arquivo(caminho="api_gerada.py", conteudo=codigo_flask)
+
+// 6. LOGGAR RESULTADO
+logging.criar_logger(nome="teste_log", arquivo="teste.log")
+logging.log_info(nome_logger="teste_log", mensagem="Teste de HTML e WebService concluído")
+
+resultado = "Arquivos gerados: pagina_teste.html, api_gerada.py, teste_api.py"

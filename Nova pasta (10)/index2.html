@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookieScript Wiki - Documentacao</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #111;
+        }
+        .global-nav {
+            background: #111;
+            border-bottom: 1px solid #333;
+            padding: 0.7rem 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 1100;
+            margin-bottom: 20px;
+        }
+        .global-nav a {
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #ddd;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            transition: all 0.2s;
+        }
+        .global-nav a:hover { background: #333; color: white; }
+        .global-nav a.active { background: white; color: black; }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+        h1, h2, h3 { color: #111; }
+        h1 { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; }
+        .code {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            color: #111;
+        }
+        .sidebar {
+            float: right;
+            width: 250px;
+            margin-left: 20px;
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+        .sidebar ul { list-style-type: none; padding: 0; }
+        .sidebar li { margin-bottom: 10px; }
+        .sidebar a { text-decoration: none; color: #111; }
+        .sidebar a:hover { text-decoration: underline; }
+        .clear { clear: both; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+<div class="global-nav">
+    <a href="cookie_ide.html">Cookie IDE</a>
+    <a href="index.html">Editor Profissional</a>
+    <a href="index1.html">AI Assistant</a>
+    <a href="index2.html" class="active">Wiki</a>
+</div>
+<div class="container">
+    <div class="sidebar">
+        <h3>Navegacao</h3>
+        <ul>
+            <li><a href="#introducao">Introducao</a></li>
+            <li><a href="#instalacao">Instalacao</a></li>
+            <li><a href="#uso">Como Usar</a></li>
+            <li><a href="#ide">CookieScript IDE</a></li>
+            <li><a href="#linguagem">Linguagem</a></li>
+            <li><a href="#modulos">Modulos</a></li>
+            <li><a href="#exemplos">Exemplos</a></li>
+            <li><a href="#arquitetura">Arquitetura</a></li>
+            <li><a href="#faq">FAQ</a></li>
+        </ul>
+    </div>
+    <h1>CookieScript Wiki</h1>
+    <section id="introducao"><h2>Introducao</h2><p>CookieScript e uma linguagem de script hibrida que combina operacoes de sistema (Python) com operacoes web (JavaScript). Desenvolvida para facilitar a criacao de ferramentas que precisam interagir tanto com o sistema operacional quanto com servicos web.</p><p>O projeto permite escrever scripts simples que podem executar tarefas como manipulacao de arquivos, requisicoes HTTP, criptografia, operacoes matematicas, manipulacao de strings, acesso a bancos de dados e muito mais, tudo em uma sintaxe unificada.</p><p>Atualmente conta com 19 modulos integrados.</p></section>
+    <section id="instalacao"><h2>Instalacao</h2><h3>Download</h3><p>Baixe o projeto completo em ZIP atraves deste link: <a href="https://drive.google.com/drive/folders/14sNNVccjmPLFrFIM3cJZNejRYOaHhBzW?usp=sharing" target="_blank">Download CookieScript (Google Drive)</a></p><h3>Pre-requisitos</h3><ul><li>Python 3.8+</li><li>Node.js 14+</li></ul><h3>Passos de Instalacao</h3><ol><li>Extraia o arquivo ZIP</li><li>Abra o terminal na pasta extraida</li><li>Instale dependencias Python: <div class="code">pip install -r requirements.txt</div></li><li>Instale dependencias Node.js: <div class="code">npm install</div></li></ol></section>
+    <section id="uso"><h2>Como Usar</h2><h3>Executando Scripts</h3><div class="code">python run_cookiescript.py meu_script.cookie</div><p>Ou interativamente:</p><div class="code">python run_cookiescript.py</div><h3>Testando WebSocket</h3><div class="code">python server.py<br># Em outro terminal:<br>node cookiescript.js</div><h3>CookieScript IDE</h3><div class="code">python cookie_ide_app.py</div><p>Abra: http://127.0.0.1:9000/</p></section>
+    <section id="ide"><h2>CookieScript IDE</h2><ul><li>Abrir e salvar arquivos CookieScript</li><li>Explorar arquivos do projeto</li><li>Executar scripts usando o interpretador</li><li>Gerar codigo usando Gemini AI ou templates locais</li><li>Instalar dependencias Python e Node.js</li><li>Verificar o status Git e fazer commits</li></ul></section>
+    <section id="linguagem"><h2>Linguagem CookieScript</h2><h3>Sintaxe Basica</h3><p>Tipos: int, float, str, bool, list, dict.</p><div class="code">numero = 42 + 8<br>texto = "Ola" + " Mundo"</div><h3>Estruturas de Controle</h3><div class="code">if numero > 5 { status = "maior" } else { status = "menor" }<br>for item in lista { soma = math.somar(soma, item) }<br>while contador < 10 { contador = math.somar(contador, 1) }</div><h3>Tratamento de Erros</h3><div class="code">try { resultado = math.dividir(10, 0) } catch { erro = "Divisao por zero: " + error_message }</div></section>
+    <section id="modulos"><h2>Modulos Disponiveis</h2><table><thead><tr><th>Modulo</th><th>Descricao</th></tr></thead><tbody><tr><td>filesystem</td><td>Operacoes com arquivos</td></tr><tr><td>process</td><td>Execucao de processos</td></tr><tr><td>registry</td><td>Manipulacao do registro Windows</td></tr><tr><td>network</td><td>Requisicoes HTTP/WebSocket</td></tr><tr><td>keylogger</td><td>Captura de dados do sistema</td></tr><tr><td>crypto</td><td>Operacoes criptograficas</td></tr><tr><td>python</td><td>Importacao dinamica de modulos Python</td></tr><tr><td>antidebug</td><td>Protecao contra debug/sandbox</td></tr><tr><td>database</td><td>Operacoes com SQLite</td></tr><tr><td>math</td><td>Funcoes matematicas</td></tr><tr><td>time</td><td>Operacoes de data/hora</td></tr><tr><td>string</td><td>Manipulacao de strings</td></tr><tr><td>json</td><td>Parsing/serializacao JSON</td></tr><tr><td>encoding</td><td>Codificacao base64/URL</td></tr><tr><td>xml</td><td>Parsing e manipulacao XML</td></tr><tr><td>logging</td><td>Sistema de logging</td></tr><tr><td>system</td><td>Informacoes do sistema</td></tr><tr><td>html</td><td>Incorporacao de HTML</td></tr><tr><td>webservice</td><td>Servicos web compilaveis</td></tr></tbody></table></section>
+    <section id="exemplos"><h2>Exemplos</h2><div class="code">filesystem.escrever_arquivo(caminho="saida.txt", conteudo="CookieScript executado!")<br>resposta = network.http_request(url="https://httpbin.org/get")<br>hash = crypto.hash_sha256(dados="exemplo")</div></section>
+    <section id="arquitetura"><h2>Arquitetura</h2><ul><li>Interpretador Python</li><li>Cliente JavaScript via WebSocket</li><li>Servidor WebSocket de coordenacao</li><li>Modulos extensiveis</li></ul></section>
+    <section id="faq"><h2>FAQ</h2><h3>O que diferencia CookieScript?</h3><p>Integracao entre sistema operacional e web services.</p><h3>E seguro usar?</h3><p>Depende do uso. Use com responsabilidade.</p><h3>Posso adicionar novos modulos?</h3><p>Sim, crie uma classe Python e registre no CookieScriptVM.</p></section>
+    <div class="clear"></div>
+</div>
+</body>
+</html>

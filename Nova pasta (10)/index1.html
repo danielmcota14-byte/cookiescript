@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Cookie AI - Assistente Gratuito</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f5f5f5;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      color: #111;
+      line-height: 1.5;
+      padding: 2rem 1.5rem;
+    }
+    .global-nav {
+      background: #111;
+      border-bottom: 1px solid #333;
+      padding: 0.7rem 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 1100;
+      margin-bottom: 2rem;
+    }
+    .global-nav a {
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #ddd;
+      padding: 0.3rem 0.8rem;
+      border-radius: 30px;
+      transition: all 0.2s;
+    }
+    .global-nav a:hover { background: #333; color: white; }
+    .global-nav a.active { background: white; color: black; }
+    .container { max-width: 880px; margin: 0 auto; }
+    .site-header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 1rem;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .logo-area h1 { font-size: 1.5rem; font-weight: 500; color: #111; }
+    .badge-mini { font-size: 0.75rem; background: #e0e0e0; padding: 0.2rem 0.7rem; border-radius: 30px; color: #222; }
+    .section-card {
+      background: white;
+      border-radius: 20px;
+      border: 1px solid #ddd;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      padding: 1.8rem;
+      margin-bottom: 2rem;
+    }
+    .form-group { margin-bottom: 1.6rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 500; text-transform: uppercase; color: #555; margin-bottom: 0.5rem; }
+    select, input, textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      color: #111;
+      outline: none;
+      font-family: inherit;
+    }
+    select:focus, input:focus, textarea:focus { border-color: #111; }
+    textarea { resize: vertical; min-height: 100px; }
+    .double-row { display: flex; flex-wrap: wrap; gap: 1.2rem; margin-bottom: 1.2rem; }
+    .double-row .field { flex: 1; min-width: 180px; }
+    .api-hint { font-size: 0.7rem; color: #777; margin-top: 6px; display: flex; justify-content: space-between; }
+    .api-hint a { color: #111; text-decoration: none; border-bottom: 1px solid #ccc; }
+    .groq-model-wrap { display: none; }
+    .groq-model-wrap.active { display: block; }
+    button {
+      background: #111;
+      border: none;
+      padding: 0.7rem 1.8rem;
+      border-radius: 40px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: white;
+      cursor: pointer;
+      transition: 0.15s;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    button:hover { background: #333; transform: scale(0.98); }
+    .response-area { margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1.5rem; }
+    .response-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .response-header h3 { font-size: 0.9rem; font-weight: 500; color: #555; text-transform: uppercase; }
+    .copy-btn { background: #f0f0f0; color: #111; padding: 0.3rem 1rem; font-size: 0.7rem; border-radius: 30px; }
+    .copy-btn:hover { background: #ddd; transform: none; }
+    .response-content { background: #fefefe; padding: 1rem 0; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.55; color: #111; }
+    .loading-state { display: flex; align-items: center; gap: 12px; color: #777; padding: 1rem 0; }
+    .spinner-mini { width: 20px; height: 20px; border: 2px solid #ddd; border-top: 2px solid #111; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .error-block { background: #fff0f0; border-left: 3px solid #d32f2f; padding: 1rem; color: #b91c1c; border-radius: 12px; font-size: 0.85rem; }
+    .footer-note { font-size: 0.7rem; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 1.8rem; margin-top: 1rem; }
+    @media (max-width: 640px) { body { padding: 1rem; } .section-card { padding: 1.2rem; } }
+  </style>
+</head>
+<body>
+<div class="global-nav">
+  <a href="cookie_ide.html">Cookie IDE</a>
+  <a href="index.html">Editor Profissional</a>
+  <a href="index1.html" class="active">AI Assistant</a>
+  <a href="index2.html">Wiki</a>
+</div>
+<div class="container">
+  <div class="site-header">
+    <div class="logo-area"><h1>Cookie AI · free AI</h1><div class="badge-mini">gemini + groq · sem custos</div></div>
+    <div class="badge-mini">minimal API playground</div>
+  </div>
+  <div class="section-card">
+    <div class="double-row">
+      <div class="field"><label>provedor</label><select id="providerSelect"><option value="gemini">Google Gemini (gemini-pro)</option><option value="groq">Groq Cloud (Llama / Mixtral)</option></select></div>
+      <div class="field"><label>api key</label><input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off"><div class="api-hint"><span>necessaria</span><a href="#" id="getKeyLink" target="_blank">obter chave gratuita →</a></div></div>
+    </div>
+    <div class="groq-model-wrap" id="groqModelDiv"><div class="field"><label>modelo groq</label><select id="groqModelSelect"><option value="llama-3.1-8b-instant">Llama 3.1 8B (rapido)</option><option value="mixtral-8x7b-32768">Mixtral 8x7B (potente)</option><option value="llama-3.2-3b-preview">Llama 3.2 3B (leve)</option></select></div></div>
+    <div class="form-group"><label>pergunta / prompt</label><textarea id="promptInput" placeholder="Ex: Explique o conceito de 'attention' em transformers de forma clara e objetiva."></textarea></div>
+    <div style="display: flex; justify-content: flex-end;"><button id="sendBtn">→ gerar resposta</button></div>
+    <div class="response-area"><div class="response-header"><h3>resposta da ia</h3><button id="copyResponseBtn" class="copy-btn">copiar texto</button></div><div id="responseContainer"><div style="color: #777; padding: 1rem 0;">aguardando seu prompt. insira a api key e envie.</div></div></div>
+  </div>
+  <div class="footer-note">Modelos gratuitos via Google Gemini e Groq Cloud. Voce precisa de uma chave valida.<br>Design minimalista — preto e branco.</div>
+</div>
+<script>
+  const providerSelect = document.getElementById('providerSelect');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const groqModelDiv = document.getElementById('groqModelDiv');
+  const groqModelSelect = document.getElementById('groqModelSelect');
+  const promptTextarea = document.getElementById('promptInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const responseContainer = document.getElementById('responseContainer');
+  const copyBtn = document.getElementById('copyResponseBtn');
+  const getKeyLink = document.getElementById('getKeyLink');
+  const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+  let isLoading = false;
+
+  function setResponse(content, isError = false, rawText = '') {
+    if (isError) { responseContainer.innerHTML = `<div class="error-block">${escapeHtml(content)}</div>`; return; }
+    responseContainer.innerHTML = `<div class="response-content">${escapeHtml(content).replace(/\n/g, '<br>')}</div>`;
+    responseContainer.dataset.rawText = rawText || content;
+  }
+  function setLoading(loading) {
+    isLoading = loading;
+    if (loading) { responseContainer.innerHTML = `<div class="loading-state"><div class="spinner-mini"></div><span>processando requisicao...</span></div>`; sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; sendBtn.innerText = 'enviando'; }
+    else { sendBtn.disabled = false; sendBtn.style.opacity = '1'; sendBtn.innerText = '→ gerar resposta'; }
+  }
+  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+  function updateKeyLink() { const provider = providerSelect.value; if (provider === 'gemini') { getKeyLink.href = 'https://aistudio.google.com/app/apikey'; getKeyLink.textContent = 'obter chave gemini (gratuita) →'; } else { getKeyLink.href = 'https://console.groq.com/keys'; getKeyLink.textContent = 'obter chave groq cloud →'; } }
+  function toggleGroqModel() { if (providerSelect.value === 'groq') groqModelDiv.classList.add('active'); else groqModelDiv.classList.remove('active'); }
+  async function callGemini(apiKey, prompt) {
+    const url = `${GEMINI_ENDPOINT}?key=${apiKey}`;
+    const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } };
+    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!resp.ok) { let detail = `HTTP ${resp.status}`; try { const errJson = await resp.json(); detail = errJson.error?.message || detail; } catch(e) {} throw new Error(`Gemini: ${detail}`); }
+    const data = await resp.json();
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) return data.candidates[0].content.parts[0].text;
+    throw new Error('Resposta invalida do Gemini');
+  }
+  async function callGroq(apiKey, modelId, prompt) {
+    const payload = { model: modelId, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 1024 };
+    const resp = await fetch(GROQ_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(payload) });
+    if (!resp.ok) { let errMsg = `HTTP ${resp.status}`; try { const errData = await resp.json(); errMsg = errData.error?.message || errMsg; } catch(e) {} throw new Error(`Groq: ${errMsg}`); }
+    const data = await resp.json();
+    if (data.choices && data.choices[0]?.message?.content) return data.choices[0].message.content;
+    throw new Error('Resposta inesperada da Groq');
+  }
+  async function handleSend() {
+    if (isLoading) return;
+    const provider = providerSelect.value;
+    let apiKey = apiKeyInput.value.trim();
+    const prompt = promptTextarea.value.trim();
+    if (!prompt) { setResponse('Escreva uma pergunta antes de enviar.', true); return; }
+    if (!apiKey) { setResponse(`E necessaria uma API Key valida para ${provider === 'gemini' ? 'Gemini' : 'Groq'}.`, true); return; }
+    setLoading(true);
+    try {
+      let result = '';
+      if (provider === 'gemini') result = await callGemini(apiKey, prompt);
+      else result = await callGroq(apiKey, groqModelSelect.value, prompt);
+      setResponse(result, false, result);
+    } catch (err) { let friendly = err.message; if (friendly.includes('API key not valid') || friendly.includes('invalid') || friendly.includes('403')) friendly = 'Chave invalida ou nao autorizada.'; else if (friendly.includes('429')) friendly = 'Limite de taxa (rate limit). Aguarde e tente novamente.'; else if (friendly.includes('fetch')) friendly = 'Erro de rede.'; setResponse(`Erro: ${friendly}`, true); }
+    finally { setLoading(false); }
+  }
+  function copyResponse() {
+    let raw = responseContainer.dataset.rawText;
+    if (!raw) { const contentDiv = responseContainer.querySelector('.response-content'); if (contentDiv) raw = contentDiv.innerText; else { const errorBlock = responseContainer.querySelector('.error-block'); if (errorBlock) raw = errorBlock.innerText; } }
+    if (!raw || raw.includes("aguardando")) { alert('Nenhuma resposta gerada ainda.'); return; }
+    navigator.clipboard.writeText(raw).then(() => { const original = copyBtn.innerText; copyBtn.innerText = 'copiado'; setTimeout(() => { copyBtn.innerText = original; }, 1200); }).catch(() => alert('Nao foi possivel copiar'));
+  }
+  providerSelect.addEventListener('change', () => { toggleGroqModel(); updateKeyLink(); responseContainer.innerHTML = `<div style="color:#777;">provedor alterado. confirme sua chave de API.</div>`; delete responseContainer.dataset.rawText; if (providerSelect.value === 'gemini') apiKeyInput.placeholder = 'ex: AIzaSy...'; else apiKeyInput.placeholder = 'gsk_...'; });
+  sendBtn.addEventListener('click', handleSend);
+  copyBtn.addEventListener('click', copyResponse);
+  promptTextarea.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSend(); } });
+  toggleGroqModel(); updateKeyLink(); if (providerSelect.value === 'gemini') apiKeyInput.placeholder = 'ex: AIzaSy...'; else apiKeyInput.placeholder = 'gsk_...';
+  promptTextarea.placeholder = 'Ex: Explique de forma clara o que e fine-tuning em modelos de linguagem.';
+</script>
+</body>
+</html>

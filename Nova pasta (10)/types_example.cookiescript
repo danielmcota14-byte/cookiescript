@@ -1,0 +1,33 @@
+// Exemplo: Sistema de Tipos Melhorado
+
+// Teste de tipos e operações
+numero_int = 42
+numero_float = 3.14
+texto = "Olá"
+booleano = true
+
+// Operações válidas
+soma_int = numero_int + 8
+soma_float = numero_float + 1.86
+concatenacao = texto + " Mundo"
+
+// Comparações com tipos corretos
+comparacao1 = numero_int == 42
+comparacao2 = numero_float > 3.0
+comparacao3 = texto == "Olá"
+
+// Teste de conversões automáticas
+numero_str = "123"
+resultado_conversao = numero_str + 456  // Deve funcionar (concatenação)
+
+// Função com tipos
+function calcular(a, b) {
+    if a > 0 and b > 0 {
+        resultado = a * b
+    } else {
+        resultado = 0
+    }
+}
+
+calcular(5, 10)
+area = resultado

@@ -1,0 +1,7 @@
+x = 3
+if x > 5 {
+    resultado = "maior"
+}
+else {
+    resultado = "menor"
+}

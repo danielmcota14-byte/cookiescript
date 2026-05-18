@@ -1,0 +1,26 @@
+// Exemplo: Funções Definidas pelo Usuário
+
+// Definir função simples
+function saudacao(nome) {
+    resultado = "Olá, " + nome + "!"
+}
+
+// Definir função com cálculos
+function calcular_area(base, altura) {
+    area = math.multiplicar(base, altura)
+}
+
+// Definir função simples sem recursão
+function dobro(n) {
+    resultado = math.multiplicar(n, 2)
+}
+
+// Testar funções
+saudacao("Mundo")
+mensagem = resultado
+
+calcular_area(5, 10)
+area_calculada = resultado
+
+dobro(7)
+numero_dobrado = resultado

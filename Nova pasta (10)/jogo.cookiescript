@@ -1,0 +1,250 @@
+// Aventura do Arquivo Perdido
+// Um jogo complexo em CookieScript que usa XML, Python e módulos internos.
+
+arquivo_save = "aventura_save.xml"
+log_file = "jogo_xml.log"
+
+// Carregar módulos Python necessários
+python.importar_modulo(nome="random", alias="random")
+python.importar_modulo(nome="xml.etree.ElementTree", alias="etree")
+
+// Construir o mapa de salas em XML usando concatenação direta de strings
+xml_mapa = "<game>"
+xml_mapa = xml_mapa + "<room id='entrada'>"
+xml_mapa = xml_mapa + "<title>Entrada Misteriosa</title>"
+xml_mapa = xml_mapa + "<description>Você abre a antiga porta da mansão e entra em um salão com rugas no tapete e pinturas murmurantes.</description>"
+xml_mapa = xml_mapa + "<exit name='biblioteca'>biblioteca</exit>"
+xml_mapa = xml_mapa + "<exit name='escritorio'>escritorio</exit>"
+xml_mapa = xml_mapa + "<item name='lanterna'>Uma lanterna com bateria meio fraca.</item>"
+xml_mapa = xml_mapa + "</room>"
+xml_mapa = xml_mapa + "<room id='biblioteca'>"
+xml_mapa = xml_mapa + "<title>Biblioteca Sombria</title>"
+xml_mapa = xml_mapa + "<description>As estantes estão cheias de livros antigos. Um trecho sublinhado no livro chama sua atenção.</description>"
+xml_mapa = xml_mapa + "<exit name='entrada'>entrada</exit>"
+xml_mapa = xml_mapa + "<exit name='jardim'>jardim</exit>"
+xml_mapa = xml_mapa + "<item name='chave_antiga'>Uma chave antiga com símbolos estranhos.</item>"
+xml_mapa = xml_mapa + "<clue>O livro sussurra: a soma dos algarismos é o começo do código.</clue>"
+xml_mapa = xml_mapa + "</room>"
+xml_mapa = xml_mapa + "<room id='escritorio'>"
+xml_mapa = xml_mapa + "<title>Escritório Abandonado</title>"
+xml_mapa = xml_mapa + "<description>Há uma escrivaninha com uma carta rasgada e um mapa desenhado em papel amarelado.</description>"
+xml_mapa = xml_mapa + "<exit name='entrada'>entrada</exit>"
+xml_mapa = xml_mapa + "<item name='mapa'>Um mapa antigo que aponta para o jardim secreto.</item>"
+xml_mapa = xml_mapa + "<clue>A data no papel é 1924 e a última pista se esconde no código.</clue>"
+xml_mapa = xml_mapa + "</room>"
+xml_mapa = xml_mapa + "<room id='jardim'>"
+xml_mapa = xml_mapa + "<title>Jardim Secreto</title>"
+xml_mapa = xml_mapa + "<description>O vento balança os galhos. No centro há um cofre enterrado e um pé de laranja carregado de segredos.</description>"
+xml_mapa = xml_mapa + "<exit name='biblioteca'>biblioteca</exit>"
+xml_mapa = xml_mapa + "<item name='amuleto'>Um amuleto brilhante escondido entre as flores.</item>"
+xml_mapa = xml_mapa + "<clue>O cofre só abre com a chave certa e o código correto.</clue>"
+xml_mapa = xml_mapa + "</room>"
+xml_mapa = xml_mapa + "</game>"
+jogo_root = xml.parse_xml(xml_mapa)
+
+// Criar segredo dinâmico usando o módulo Python xml.etree.ElementTree
+codigo_aleatorio = random.randint(100, 999)
+segredo_codigo = encoding.numero_para_texto(codigo_aleatorio)
+segredo = etree.Element("segredo", {"codigo": segredo_codigo})
+segredo_xml = etree.tostring(segredo, encoding="unicode")
+codigo_cofre = xml.get_element_attribute(xml.parse_xml(segredo_xml), "codigo")
+
+player_location = "entrada"
+inventario = []
+pistas = []
+jogo_ativo = true
+
+function log(mensagem) {
+  linha = time.data_hora_atual() + " - " + mensagem
+  filesystem.escrever_arquivo(caminho=log_file, conteudo=linha + "\n", modo="a")
+  notificar_telegram(mensagem=linha)
+}
+
+function encontrar_sala(id_sala) {
+  salas = xml.find_all_elements(jogo_root, 'room')
+  for sala in salas {
+    if xml.get_element_attribute(sala, 'id') == id_sala {
+      return sala
+    }
+  }
+  return none
+}
+
+function listar_exits(id_sala) {
+  sala = encontrar_sala(id_sala)
+  if sala == none {
+    return ""
+  }
+  saidas = []
+  for exit in xml.find_all_elements(sala, 'exit') {
+    nome_saida = xml.get_element_attribute(exit, 'name')
+    saidas = saidas + [nome_saida]
+  }
+  return string.juntar(saidas, ", ")
+}
+
+function listar_itens(id_sala) {
+  sala = encontrar_sala(id_sala)
+  if sala == none {
+    return ""
+  }
+  itens = []
+  for item in xml.find_all_elements(sala, 'item') {
+    itens = itens + [xml.get_element_attribute(item, 'name')]
+  }
+  return string.juntar(itens, ", ")
+}
+
+function buscar_clue(id_sala) {
+  sala = encontrar_sala(id_sala)
+  if sala == none {
+    return ""
+  }
+  clue = xml.find_element(sala, 'clue')
+  if clue == none {
+    return "Nenhuma pista aparente." 
+  }
+  return xml.get_element_text(clue)
+}
+
+function descrever_sala(id_sala) {
+  sala = encontrar_sala(id_sala)
+  if sala == none {
+    log("Sala desconhecida: " + id_sala)
+    return
+  }
+
+  titulo = xml.get_element_text(xml.find_element(sala, 'title'))
+  descricao = xml.get_element_text(xml.find_element(sala, 'description'))
+  exits = listar_exits(id_sala)
+  itens = listar_itens(id_sala)
+  pista = buscar_clue(id_sala)
+
+  log("Você está em: " + titulo)
+  log(descricao)
+  log("Saídas disponíveis: " + exits)
+  if itens != "" {
+    log("Itens nesta sala: " + itens)
+  }
+  log("Pista local: " + pista)
+}
+
+function salvar_progresso() {
+  conteudo = "<save>\n"
+  conteudo = conteudo + "  <player location='" + player_location + "'/>\n"
+  conteudo = conteudo + "  <inventory>\n"
+  for item in inventario {
+    conteudo = conteudo + "    <item>" + item + "</item>\n"
+  }
+  conteudo = conteudo + "  </inventory>\n"
+  conteudo = conteudo + "</save>\n"
+  filesystem.escrever_arquivo(caminho=arquivo_save, conteudo=conteudo, modo="w")
+  log("Progresso salvo em " + arquivo_save)
+}
+
+function carregar_progresso() {
+  try {
+    conteudo = filesystem.ler_arquivo(caminho=arquivo_save)
+    save_root = xml.parse_xml(conteudo)
+    jogador = xml.find_element(save_root, 'player')
+    player_location = xml.get_element_attribute(jogador, 'location')
+
+    inventario = []
+    items = xml.find_all_elements(save_root, 'item')
+    for item in items {
+      inventario = inventario + [xml.get_element_text(item)]
+    }
+
+    log("Progresso carregado. Você retorna para: " + player_location)
+  } catch {
+    log("Nenhum progresso encontrado. O jogo começa agora.")
+  }
+}
+
+function mover_para(destino) {
+  destino = string.minusculo(destino)
+  sala_atual = encontrar_sala(player_location)
+  opcoes = xml.find_all_elements(sala_atual, 'exit')
+  for exit in opcoes {
+    if string.minusculo(xml.get_element_attribute(exit, 'name')) == destino {
+      player_location = destino
+      log("Você segue para: " + destino)
+      return
+    }
+  }
+  log("Não é possível ir para: " + destino)
+}
+
+function pegar_item(nome_item) {
+  nome_item = string.minusculo(nome_item)
+  sala = encontrar_sala(player_location)
+  itens = xml.find_all_elements(sala, 'item')
+  for item in itens {
+    if string.minusculo(xml.get_element_attribute(item, 'name')) == nome_item {
+      descricao_item = xml.get_element_text(item)
+      inventario = inventario + [xml.get_element_attribute(item, 'name')]
+      log("Você coletou: " + descricao_item)
+      return
+    }
+  }
+  log("Não há esse item aqui: " + nome_item)
+}
+
+function abrir_cofre() {
+  if player_location != "jardim" {
+    log("O cofre só pode ser aberto no jardim secreto.")
+    return
+  }
+  if not string.contem(string.juntar(inventario, ","), "chave_antiga") {
+    log("Você ainda precisa encontrar a chave antiga para abrir o cofre.")
+    return
+  }
+  entrada = ler_entrada(prompt="Digite o código do cofre: ")
+  if entrada == codigo_cofre {
+    inventario = inventario + ["Amuleto de XML"]
+    log("Cofre aberto! Você encontrou o Amuleto de XML. Parabéns, jogador.")
+  } else {
+    log("Código incorreto. O cofre permanece fechado.")
+  }
+}
+
+function mostrar_inventario() {
+  if string.comprimento(inventario) == 0 {
+    log("Seu inventário está vazio.")
+    return
+  }
+  inventario_texto = string.juntar(inventario, ", ")
+  log("Inventário: " + inventario_texto)
+}
+
+function iniciar_jogo() {
+  log("=== Aventura do Arquivo Perdido ===")
+  carregar_progresso()
+
+  while jogo_ativo {
+    descrever_sala(player_location)
+    log("Comandos válidos: mover, pegar, abrir, inventario, salvar, sair")
+    comando = string.minusculo(ler_entrada(prompt="Digite um comando: "))
+
+    if comando == "sair" {
+      log("Encerrando a aventura. Até a próxima!")
+      jogo_ativo = false
+    } else if comando == "salvar" {
+      salvar_progresso()
+    } else if comando == "inventario" {
+      mostrar_inventario()
+    } else if comando == "mover" {
+      destino = string.minusculo(ler_entrada(prompt="Para onde deseja ir? "))
+      mover_para(destino)
+    } else if comando == "pegar" {
+      nome_item = string.minusculo(ler_entrada(prompt="Qual item deseja pegar? "))
+      pegar_item(nome_item)
+    } else if comando == "abrir" {
+      abrir_cofre()
+    } else {
+      log("Comando desconhecido. Use mover, pegar, abrir, inventario, salvar ou sair.")
+    }
+  }
+}
+
+iniciar_jogo()
