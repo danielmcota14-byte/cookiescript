@@ -1,18 +1,17 @@
 import os
 
-# Adicione isso DEPOIS dos imports
-PORT = int(os.environ.get('PORT', 8080))  # Usa a porta do Render ou 8080 como fallback
+# Pega a porta do ambiente (Render define essa variável)
+PORT = int(os.environ.get('PORT', 8080))
 
 import json
-import os
 import subprocess
 import sys
-import threading
 import webbrowser
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+# Tentativa de importar módulos opcionais (não obrigatórios)
 try:
     from cookiescript_vm import CookieScriptVM
 except ImportError:
@@ -26,7 +25,6 @@ except ImportError:
     CookieAIGenerator = None
 
 BASE_DIR = Path(__file__).resolve().parent
-PORT = 8080
 
 class CookieIDEHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -141,7 +139,6 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 result = vm.executar(code)
                 output_lines.append(str(result))
             elif language == 'python':
-                # Executar Python
                 temp_file = BASE_DIR / '_temp_exec.py'
                 with open(temp_file, 'w', encoding='utf-8') as f:
                     f.write(code)
@@ -157,7 +154,6 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 if result.stderr:
                     output_lines.append(f"[ERRO] {result.stderr}")
             elif language == 'javascript':
-                # Executar JavaScript
                 temp_file = BASE_DIR / '_temp_exec.js'
                 with open(temp_file, 'w', encoding='utf-8') as f:
                     f.write(code)
@@ -233,10 +229,9 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
             self.send_json({'error': 'Consulta vazia'})
             return
         
-        # Busca local nos arquivos .cookiescript
         results = []
         for file in BASE_DIR.glob('*.cookiescript'):
-            if file.stat().st_size < 100000:  # Limite de 100KB
+            if file.stat().st_size < 100000:
                 try:
                     content = file.read_text(encoding='utf-8')
                     if query.lower() in content.lower():
@@ -359,9 +354,7 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
             return
         
         try:
-            # Primeiro adiciona tudo
             subprocess.run(['git', 'add', '-A'], cwd=str(BASE_DIR), capture_output=True)
-            # Depois commita
             result = subprocess.run(
                 ['git', 'commit', '-m', message],
                 cwd=str(BASE_DIR),
@@ -378,18 +371,31 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
 def main():
     os.chdir(BASE_DIR)
     
-    handler = CookieIDEHandler
-    httpd = HTTPServer(('127.0.0.1', PORT), handler)
+    # Verifica se o arquivo HTML existe
+    html_file = BASE_DIR / 'cookie_ide.html'
+    if not html_file.exists():
+        print(f"AVISO: Arquivo '{html_file}' não encontrado. A IDE pode não funcionar corretamente.")
     
-    url = f'http://127.0.0.1:{PORT}/'
+    # Cria o servidor ouvindo em todas as interfaces (0.0.0.0) e na porta definida
+    handler = CookieIDEHandler
+    httpd = HTTPServer(('0.0.0.0', PORT), handler)
+    
+    url = f'http://0.0.0.0:{PORT}/'  # URL interna do servidor
     print(f"\n{'='*50}")
-    print(f"CookieScript IDE iniciada!")
-    print(f"Acesse: {url}")
+    print(f"CookieScript IDE iniciada com sucesso!")
+    print(f"Servidor rodando em: http://0.0.0.0:{PORT}")
+    print(f"Para acessar externamente, use a URL fornecida pelo Render")
     print(f"{'='*50}\n")
     
-    # Abrir no navegador
-    webbrowser.open(url)
+    # Em servidores headless (Render, Heroku, etc.), não abrir navegador
+    try:
+        # Tenta abrir navegador apenas em ambiente local (não crítico)
+        if os.environ.get('RENDER') != 'true' and os.environ.get('PORT') is None:
+            webbrowser.open(f'http://localhost:{PORT}/')
+    except:
+        pass  # Ignora falha ao abrir navegador
     
+    # Mantém o servidor rodando
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
