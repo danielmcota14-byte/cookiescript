@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CookieScript IDE - Editor Profissional</title>
+    <title>Jertruge IDE - Editor Profissional</title>
     <style>
         * {
             margin: 0;
@@ -313,20 +313,20 @@
 </head>
 <body>
     <div class="global-nav">
-        <a href="cookie_ide.html">Cookie IDE</a>
+        <a href="cookie_ide.html">Jertruge</a>
         <a href="index.html" class="active">Editor Profissional</a>
         <a href="index1.html">AI Assistant</a>
         <a href="index2.html">Wiki</a>
     </div>
     <div class="top-bar">
-        <div class="logo">CookieScript IDE</div>
+        <div class="logo">Jertruge IDE</div>
         <div class="toolbar">
             <button id="btnNew">Novo</button>
             <button id="btnOpen">Abrir</button>
             <button id="btnSave">Salvar</button>
             <button id="btnRun">Executar</button>
             <select id="languageSelect" class="language-select">
-                <option value="cookiescript">CookieScript</option>
+                <option value="cookiescript">JertrugeScript</option>
                 <option value="python">Python</option>
                 <option value="javascript">JavaScript</option>
             </select>
@@ -357,7 +357,7 @@
             <div class="editor-wrapper">
                 <div class="path-bar">
                     <span style="color: #aaa;">Arquivo</span>
-                    <input type="text" id="filePath" placeholder="caminho/do/arquivo.cookiescript">
+                    <input type="text" id="filePath" placeholder="caminho/do/arquivo.jrt">
                 </div>
                 <textarea id="codeEditor" placeholder="Escreva seu codigo aqui..."></textarea>
             </div>
@@ -423,7 +423,7 @@
         }
         
         // ============================================
-        // API Calls para o backend Python (cookie_ide_app.py)
+        // API Calls para o backend Python (jertruge_app.py)
         // ============================================
         async function apiCall(endpoint, data) {
             try {
@@ -534,7 +534,7 @@
         }
         
         // ============================================
-        // Geracao de codigo com IA (usa cookie_ai.py)
+        // Geracao de codigo com IA (usa jertruge_ai.py)
         // ============================================
         async function generateCode() {
             const prompt = document.getElementById('promptInput').value.trim();
@@ -563,7 +563,7 @@
         }
         
         // ============================================
-        // Pesquisa de codigos (usa cookie_ai.py)
+        // Pesquisa de codigos (usa jertruge_ai.py)
         // ============================================
         async function searchCode() {
             const query = document.getElementById('searchQuery').value.trim();
@@ -794,10 +794,10 @@
             });
             
             // Carregar dados iniciais
-            addOutput('Conectando ao backend Python (cookie_ide_app.py)...');
+            addOutput('Conectando ao backend Python (jertruge_app.py)...');
             await loadFileList();
             await loadProjects();
-            addOutput('CookieScript IDE pronta! Use os botoes para abrir, salvar e executar codigo.');
+            addOutput('Jertruge IDE pronta! Use os botoes para abrir, salvar e executar codigo.');
         });
     </script>
 </body>
