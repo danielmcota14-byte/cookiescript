@@ -127,7 +127,7 @@
       <div class="field"><label>provedor</label><select id="providerSelect">
         <option value="gemini">Google Gemini</option>
         <option value="groq">Groq Cloud</option>
-        <option value="local">Cookie AI (local - DeepSeek)</option>
+        <option value="local">jertruge (local - DeepSeek)</option>
       </select></div>
       <div class="field" id="apiKeyField"><label>api key (para Gemini/Groq)</label><input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off"><div class="api-hint"><span>necessária apenas para Gemini/Groq</span><a href="#" id="getKeyLink" target="_blank">obter chave gratuita →</a></div></div>
     </div>
@@ -137,7 +137,7 @@
     <div style="display: flex; justify-content: flex-end;"><button id="sendBtn">→ perguntar à IA</button></div>
     <div class="response-area"><div class="response-header"><h3>resposta da ia</h3><button id="copyResponseBtn" class="copy-btn">copiar texto</button></div><div id="responseContainer"><div style="color: #777; padding: 1rem 0;">Escolha um provedor, insira a chave (se necessário) e envie sua pergunta.</div></div></div>
   </div>
-  <div class="footer-note">Gemini e Groq requerem chave API gratuita. Cookie AI (local) usa DeepSeek rodando no servidor. Certifique-se de que o servidor cookie_ide.py está ativo.</div>
+  <div class="footer-note">Gemini e Groq requerem chave API gratuita. jertruge DeepSeek rodando no servidor. Certifique-se de que o servidor cookie_ide.py está ativo.</div>
 </div>
 <script>
   const providerSelect = document.getElementById('providerSelect');
@@ -212,7 +212,7 @@
     try {
       const res = await fetch('/health');
       if (res.ok) {
-        localStatusMsg.innerHTML = '✅ jetruge disponível (DeepSeek/Cookie AI)';
+        localStatusMsg.innerHTML = '✅ jetruge disponível (/Cookie AI)';
         localStatusMsg.style.color = '#155724';
       } else {
         throw new Error();
