@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CookieScript - Editor de Código</title>
+    <title>Jertruge - Editor de Código</title>
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
     <style>
         * {
@@ -140,7 +140,7 @@
 <body>
     <!-- Global Navbar unificada (preto e branco, sem emojis) -->
     <div class="global-nav">
-        <a href="cookie_ide.html" class="active">Cookie IDE</a>
+        <a href="cookie_ide.html" class="active">Jertruge</a>
         <a href="index.html">Editor Profissional</a>
         <a href="index1.html">AI Assistant</a>
         <a href="index2.html">Wiki</a>
@@ -151,9 +151,9 @@
         <div class="login-container">
             <span class="close-login" id="closeLoginPopup">&times;</span>
             <div class="login-logo">
-                <img src="Logo.jpg" alt="CookieCode Logo" id="logoImage" onerror="this.src='https://via.placeholder.com/80x80?text=CC'">
-                <h2>CookieScript</h2>
-                <p>Editor de codigo minimalista</p>
+                <img src="Logo.jpg" alt="Jertruge Logo" id="logoImage" onerror="this.src='https://via.placeholder.com/80x80?text=JT'">
+                <h2>Jertruge</h2>
+                <p>Editor de código minimalista</p>
             </div>
             <div id="loginForm" class="login-form active">
                 <h3>Entrar</h3>
@@ -198,8 +198,8 @@
             <div class="nav-container">
                 <div class="nav-left">
                     <a href="#" class="logo">
-                        <img src="logo.jpg" alt="Logo" id="navLogo" onerror="this.src='https://via.placeholder.com/32x32?text=CC'">
-                        <span>CookieScript</span>
+                        <img src="logo.jpg" alt="Logo" id="navLogo" onerror="this.src='https://via.placeholder.com/32x32?text=JT'">
+                        <span>Jertruge</span>
                     </a>
                     <div class="nav-links">
                         <a href="#" data-page="dashboard" class="active">Dashboard</a>
@@ -228,8 +228,8 @@
         <main>
             <div id="dashboardPage" class="page active">
                 <div class="hero">
-                    <h1>Cookie Script</h1>
-                    <p>Edite e execute seus codigos com o editor integrado</p>
+                    <h1>Jertruge</h1>
+                    <p>Edite e execute seus códigos com o editor integrado</p>
                     <button class="btn-primary" id="createRepoBtn">+ Novo Repositorio</button>
                 </div>
                 <div class="section-header">
@@ -319,7 +319,7 @@
     <div id="editorModal" class="modal modal-large">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3 id="editorTitle">Cookie Script Editor</h3>
+                <h3 id="editorTitle">Jertruge Editor</h3>
                 <span class="close-editor">&times;</span>
             </div>
             <div class="modal-body">
@@ -597,7 +597,7 @@
             const owner = currentRepo.ownerEmail;
             const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
             if (files.find(f => f.name === fileName)) { showToast('Arquivo ja existe'); return; }
-            files.push({ name: fileName, content: '// Seu codigo aqui\nconsole.log("Hello, CookieCode!");' });
+            files.push({ name: fileName, content: '// Seu codigo aqui\nconsole.log("Hello, Jertruge!");' });
             localStorage.setItem(`files_${owner}_${currentRepo.name}`, JSON.stringify(files));
             loadRepoFiles();
             document.getElementById('newFileName').value = '';
@@ -683,7 +683,7 @@
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
             editor = monaco.editor.create(document.getElementById('monacoEditor'), {
-                value: '// Seu codigo comeca aqui\nconsole.log("Hello, CookieCode!");',
+                value: '// Seu codigo comeca aqui\nconsole.log("Hello, Jertruge!");',
                 language: 'javascript',
                 theme: 'vs-light',
                 fontSize: 14,
