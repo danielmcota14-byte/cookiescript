@@ -13,44 +13,37 @@ except ImportError:
     TRANSFORMERS_AVAILABLE = False
 
 class CookieAIGenerator:
-    """Gerador de código e respostas conversacionais usando DeepSeek Coder."""
-
-    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-coder-1b-base')
+    # Modelo leve que roda em CPU (phi-2 precisa ~8GB RAM, flan-t5-base ~1GB)
+    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'microsoft/phi-2')   # ou 'google/flan-t5-base'
     DEEPSEEK_USE_CPU = os.getenv('DEEPSEEK_USE_CPU', '1').lower() in ('1', 'true', 'yes')
 
     def __init__(self):
         self._deepseek_tokenizer = None
         self._deepseek_model = None
+        self._model_loaded = False   # flag para saber se carregou
 
     # ----- Métodos públicos -----
     def responder(self, pergunta: str) -> str:
-        """
-        Responde qualquer pergunta de forma conversacional.
-        Usa DeepSeek se disponível, senão fallback simples.
-        """
         pergunta = pergunta.strip()
         if not pergunta:
             return "Por favor, faça uma pergunta."
 
-        if self._can_use_deepseek():
+        if self._is_model_available():
             resposta = self._gerar_com_deepseek(pergunta, mode='chat')
             if resposta:
                 return resposta
         return self._fallback_resposta(pergunta)
 
     def gerar_codigo(self, prompt: str, language: str = 'cookiescript') -> str:
-        """
-        Gera código na linguagem especificada (fallback para DeepSeek ou templates locais).
-        """
         prompt_text = prompt.strip()
         language = language.lower().strip() if language else 'cookiescript'
 
-        if prompt_text and self._can_use_deepseek():
+        if prompt_text and self._is_model_available():
             deepseek_result = self._gerar_com_deepseek(prompt_text, language, mode='code')
             if deepseek_result:
                 return deepseek_result
 
-        # Fallback para templates locais (igual ao original)
+        # Fallback para templates locais
         if language == 'python':
             return self._gerar_python(prompt_text)
         if language in ['js', 'javascript', 'node']:
@@ -75,9 +68,8 @@ class CookieAIGenerator:
         return self._gerar_alvo_geral(prompt)
 
     def pesquisar_codigo(self, query: str, language: str = 'cookiescript') -> str:
-        """Pesquisa códigos e módulos relevantes (mantido original)."""
         language = language.lower().strip() if language else 'cookiescript'
-        if query.strip() and self._can_use_deepseek():
+        if query.strip() and self._is_model_available():
             result = self._gerar_com_deepseek(
                 f'Provide a concise code example for the following request using only valid {"CookieScript" if language == "cookiescript" else ("JavaScript" if language in ["js", "javascript", "node"] else language.capitalize())} code. Request: {query}',
                 language, mode='code'
@@ -86,17 +78,19 @@ class CookieAIGenerator:
                 return result
         return self._pesquisa_local(query, language)
 
-    # ----- Métodos internos de modelo DeepSeek -----
-    def _can_use_deepseek(self) -> bool:
-        return TRANSFORMERS_AVAILABLE and self.DEEPSEEK_MODEL is not None
+    # ----- Métodos internos de modelo -----
+    def _is_model_available(self) -> bool:
+        return TRANSFORMERS_AVAILABLE and self._model_loaded and self._deepseek_model is not None
 
     def _load_deepseek_model(self):
-        if self._deepseek_model is not None and self._deepseek_tokenizer is not None:
+        if self._model_loaded:
             return
         if not TRANSFORMERS_AVAILABLE:
+            print("Transformers não instalado. Execute: pip install torch transformers")
             return
 
         try:
+            print(f"Carregando modelo {self.DEEPSEEK_MODEL}... (pode levar vários minutos na primeira vez)")
             self._deepseek_tokenizer = AutoTokenizer.from_pretrained(
                 self.DEEPSEEK_MODEL,
                 trust_remote_code=True,
@@ -108,80 +102,73 @@ class CookieAIGenerator:
             }
             if self.DEEPSEEK_USE_CPU or not torch.cuda.is_available():
                 load_kwargs['torch_dtype'] = torch.float32
-                load_kwargs['device_map'] = 'auto'
+                load_kwargs['device_map'] = 'cpu'
+                print("Usando CPU (pode ser lento, mas funciona)")
             else:
                 load_kwargs['torch_dtype'] = torch.float16
                 load_kwargs['device_map'] = 'auto'
+                print("Usando GPU se disponível")
 
             self._deepseek_model = AutoModelForCausalLM.from_pretrained(
                 self.DEEPSEEK_MODEL,
                 **load_kwargs,
             )
+            self._model_loaded = True
+            print("Modelo carregado com sucesso!")
         except Exception as err:
-            print(f'Erro ao carregar DeepSeek model {self.DEEPSEEK_MODEL}: {err}')
+            print(f'ERRO ao carregar modelo: {err}')
             self._deepseek_model = None
             self._deepseek_tokenizer = None
+            self._model_loaded = False
 
     def _gerar_com_deepseek(self, prompt: str, language: str = '', mode: str = 'code') -> str:
-        """
-        Gera resposta usando DeepSeek.
-        mode: 'code' -> gera código na linguagem especificada
-              'chat' -> resposta conversacional geral
-        """
         self._load_deepseek_model()
-        if self._deepseek_model is None or self._deepseek_tokenizer is None:
+        if not self._is_model_available():
             return ''
 
         if mode == 'chat':
             instruction = (
-                "You are a helpful, respectful, and honest assistant. "
-                "Answer the user's question concisely and accurately in the same language as the question. "
-                "Do not generate code unless explicitly asked for code.\n\n"
-                f"Pergunta: {prompt}\n\n"
-                "Resposta:"
+                "You are a helpful assistant. Answer the user's question concisely in the same language.\n\n"
+                f"Pergunta: {prompt}\n\nResposta:"
             )
-        else:  # mode == 'code'
-            language_name = 'CookieScript' if language == 'cookiescript' else ('JavaScript' if language in ['js', 'javascript', 'node'] else language.capitalize())
+        else:  # code
+            lang_name = 'CookieScript' if language == 'cookiescript' else ('JavaScript' if language in ['js','javascript','node'] else language.capitalize())
             instruction = (
-                f'You are a code generation assistant using DeepSeek Coder. '
-                f'Generate only valid {language_name} code for the request below. '
-                'Do not add explanations or comments outside the code. '
-                'Return only executable code.\n\n'
-                f'Request: {prompt}\n\n'
-                '### Response:\n'
+                f"Generate only valid {lang_name} code for: {prompt}\n"
+                "Do not add explanations. Return only executable code.\n\n"
+                f"### Response:\n"
             )
 
         try:
-            encoded = self._deepseek_tokenizer(instruction, return_tensors='pt', truncation=True, max_length=2048)
-            encoded = {k: v.to(self._deepseek_model.device) for k, v in encoded.items()}
+            encoded = self._deepseek_tokenizer(instruction, return_tensors='pt', truncation=True, max_length=1024)
+            device = next(self._deepseek_model.parameters()).device
+            encoded = {k: v.to(device) for k, v in encoded.items()}
             outputs = self._deepseek_model.generate(
                 **encoded,
                 max_new_tokens=512,
                 do_sample=False,
-                top_p=0.95,
                 temperature=0.2,
-                eos_token_id=self._deepseek_tokenizer.eos_token_id if hasattr(self._deepseek_tokenizer, 'eos_token_id') else None,
-                pad_token_id=self._deepseek_tokenizer.eos_token_id if hasattr(self._deepseek_tokenizer, 'eos_token_id') else None,
+                pad_token_id=self._deepseek_tokenizer.eos_token_id
             )
             decoded = self._deepseek_tokenizer.decode(outputs[0], skip_special_tokens=True)
-            # Remove o prompt da resposta
             if decoded.startswith(instruction):
                 decoded = decoded[len(instruction):]
             return decoded.strip()
-        except Exception as err:
-            print(f'Erro ao gerar com DeepSeek ({mode}): {err}')
+        except Exception as e:
+            print(f"Erro na geração: {e}")
             return ''
 
     def _fallback_resposta(self, pergunta: str) -> str:
-        """Resposta simples quando DeepSeek não está disponível."""
         pergunta_lower = pergunta.lower()
-        if "capital" in pergunta_lower and "brasil" in pergunta_lower:
+        if "capital" in pergunta_lower and ("brasil" in pergunta_lower or "brazil" in pergunta_lower):
             return "A capital do Brasil é Brasília."
-        if "quem é" in pergunta_lower or "quem foi" in pergunta_lower:
-            return "Desculpe, não tenho informações suficientes para responder."
-        return f"Pergunta recebida: '{pergunta}'. (Modelo DeepSeek não disponível, respostas limitadas.)"
+        if "capital" in pergunta_lower and "frança" in pergunta_lower:
+            return "A capital da França é Paris."
+        if "olá" in pergunta_lower or "oi" in pergunta_lower:
+            return "Olá! Como posso ajudar?"
+        return f"Pergunta recebida: '{pergunta}'. (Modelo não disponível. Verifique o terminal para erros.)"
 
-    # ----- Métodos existentes de fallback (mantidos iguais) -----
+    # ------------------- TODOS OS MÉTODOS DE FALLBACK (gerar código, templates, pesquisa) -------------------
     def _exemplo_basico(self) -> str:
         return '''// Exemplo CookieScript gerado automaticamente
 filesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE funcionando!", modo="w")
@@ -328,20 +315,19 @@ console.log('Resultado:', resultado);'''
         return '''// Código JavaScript gerado para o prompt
 console.log('Insira um prompt mais específico para gerar código JavaScript.');'''
 
-    def _extrair_caminho(self, prompt: str) -> str:
+    def _extrair_caminho(self, prompt: str) -> Optional[str]:
         match = re.search(r'arquivo\s+([\w\-\.\/\\]+)', prompt)
         return match.group(1) if match else None
 
-    def _extrair_texto(self, prompt: str) -> str:
+    def _extrair_texto(self, prompt: str) -> Optional[str]:
         match = re.search(r'texto\s+"([^"]+)"', prompt)
         return match.group(1) if match else None
 
-    def _extrair_url(self, prompt: str) -> str:
+    def _extrair_url(self, prompt: str) -> Optional[str]:
         match = re.search(r'(https?://[^\s]+)', prompt)
         return match.group(1) if match else None
 
     def _pesquisa_local(self, query: str, language: str = 'cookiescript') -> str:
-        """Fallback local para pesquisa de códigos (mantido original)"""
         query_lower = query.lower()
         language = language.lower().strip() if language else 'cookiescript'
         if language == 'python':
