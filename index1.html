@@ -3,111 +3,369 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Jertruge AI - Assistente com APIs e jertruge</title>
+  <title>Jertruge AI - Plataforma de Desenvolvimento com IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* (mesmo estilo original, apenas ajuste de cores) */
+    :root {
+      --primary: #111;
+      --primary-light: #333;
+      --accent: #0070f3;
+      --accent-dark: #0051a2;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #fafafa;
+      --gray-100: #f5f5f5;
+      --gray-200: #eeeeee;
+      --gray-300: #e5e5e5;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+      --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #f5f5f5;
+      background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
       font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      color: #111;
-      line-height: 1.5;
+      color: var(--primary);
+      line-height: 1.6;
+      min-height: 100vh;
       padding: 2rem 1.5rem;
     }
+
     .global-nav {
-      background: #111;
-      border-bottom: 1px solid #333;
-      padding: 0.7rem 2rem;
+      background: var(--primary);
+      border-bottom: 1px solid var(--gray-700);
+      padding: 0.75rem 2rem;
       display: flex;
       justify-content: center;
-      gap: 2rem;
+      gap: 0.5rem;
       flex-wrap: wrap;
       position: sticky;
       top: 0;
       z-index: 1100;
       margin-bottom: 2rem;
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
     }
+
     .global-nav a {
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      color: #ddd;
-      padding: 0.3rem 0.8rem;
-      border-radius: 30px;
-      transition: all 0.2s;
+      color: var(--gray-300);
+      padding: 0.5rem 1.25rem;
+      border-radius: 9999px;
+      transition: all 0.25s;
+      letter-spacing: 0.025em;
     }
-    .global-nav a:hover { background: #333; color: white; }
-    .global-nav a.active { background: white; color: black; }
-    .container { max-width: 880px; margin: 0 auto; }
+
+    .global-nav a:hover {
+      background: var(--gray-700);
+      color: white;
+      transform: translateY(-1px);
+    }
+
+    .global-nav a.active {
+      background: white;
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
     .site-header {
-      margin-bottom: 2rem;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 1rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--gray-200);
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 1rem;
     }
-    .logo-area h1 { font-size: 1.5rem; font-weight: 500; color: #111; }
-    .badge-mini { font-size: 0.75rem; background: #e0e0e0; padding: 0.2rem 0.7rem; border-radius: 30px; color: #222; }
+
+    .logo-area h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--primary);
+      letter-spacing: -0.02em;
+    }
+
+    .badge-mini {
+      font-size: 0.75rem;
+      background: var(--gray-200);
+      padding: 0.25rem 0.875rem;
+      border-radius: 9999px;
+      color: var(--gray-700);
+      font-weight: 500;
+    }
+
+    .badge-mini.accent {
+      background: var(--accent);
+      color: white;
+    }
+
     .section-card {
       background: white;
-      border-radius: 20px;
-      border: 1px solid #ddd;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-      padding: 1.8rem;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-md);
+      padding: 2rem;
       margin-bottom: 2rem;
+      transition: box-shadow 0.3s;
     }
-    .form-group { margin-bottom: 1.6rem; }
-    label { display: block; font-size: 0.8rem; font-weight: 500; text-transform: uppercase; color: #555; margin-bottom: 0.5rem; }
+
+    .section-card:hover {
+      box-shadow: var(--shadow-lg);
+    }
+
+    .form-group { margin-bottom: 1.75rem; }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--gray-700);
+      margin-bottom: 0.625rem;
+    }
+
     select, input, textarea {
       width: 100%;
-      padding: 0.75rem 1rem;
+      padding: 0.875rem 1.125rem;
       background: white;
-      border: 1px solid #ccc;
-      border-radius: 14px;
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius-md);
       font-size: 0.95rem;
-      color: #111;
+      color: var(--primary);
       outline: none;
       font-family: inherit;
+      transition: all 0.2s;
     }
-    select:focus, input:focus, textarea:focus { border-color: #111; }
-    textarea { resize: vertical; min-height: 100px; }
-    .double-row { display: flex; flex-wrap: wrap; gap: 1.2rem; margin-bottom: 1.2rem; }
-    .double-row .field { flex: 1; min-width: 180px; }
-    .api-hint { font-size: 0.7rem; color: #777; margin-top: 6px; display: flex; justify-content: space-between; }
-    .api-hint a { color: #111; text-decoration: none; border-bottom: 1px solid #ccc; }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.1);
+    }
+
+    textarea { resize: vertical; min-height: 120px; }
+
+    .double-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .double-row .field { flex: 1; min-width: 200px; }
+
+    .api-hint {
+      font-size: 0.75rem;
+      color: var(--gray-500);
+      margin-top: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .api-hint a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid var(--gray-300);
+      transition: border-color 0.2s;
+    }
+
+    .api-hint a:hover {
+      border-color: var(--primary);
+    }
+
     .groq-model-wrap, .local-status-wrap { display: none; }
     .groq-model-wrap.active, .local-status-wrap.active { display: block; }
-    button {
-      background: #111;
-      border: none;
-      padding: 0.7rem 1.8rem;
-      border-radius: 40px;
+
+    .ai-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--gray-200);
+    }
+
+    .ai-toggle input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent);
+    }
+
+    .ai-toggle label {
+      margin-bottom: 0;
       font-size: 0.9rem;
+      color: var(--gray-700);
+      cursor: pointer;
+    }
+
+    button {
+      background: var(--primary);
+      border: none;
+      padding: 0.875rem 2rem;
+      border-radius: 9999px;
+      font-size: 0.95rem;
       font-weight: 500;
       color: white;
       cursor: pointer;
-      transition: 0.15s;
+      transition: all 0.25s;
       font-family: inherit;
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      letter-spacing: 0.025em;
     }
-    button:hover { background: #333; transform: scale(0.98); }
-    .response-area { margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1.5rem; }
-    .response-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-    .response-header h3 { font-size: 0.9rem; font-weight: 500; color: #555; text-transform: uppercase; }
-    .copy-btn { background: #f0f0f0; color: #111; padding: 0.3rem 1rem; font-size: 0.7rem; border-radius: 30px; }
-    .copy-btn:hover { background: #ddd; transform: none; }
-    .response-content { background: #fefefe; padding: 1rem 0; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.55; color: #111; }
-    .loading-state { display: flex; align-items: center; gap: 12px; color: #777; padding: 1rem 0; }
-    .spinner-mini { width: 20px; height: 20px; border: 2px solid #ddd; border-top: 2px solid #111; border-radius: 50%; animation: spin 0.7s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .error-block { background: #fff0f0; border-left: 3px solid #d32f2f; padding: 1rem; color: #b91c1c; border-radius: 12px; font-size: 0.85rem; }
-    .footer-note { font-size: 0.7rem; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 1.8rem; margin-top: 1rem; }
-    @media (max-width: 640px) { body { padding: 1rem; } .section-card { padding: 1.2rem; } }
+
+    button:hover:not(:disabled) {
+      background: var(--primary-light);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .response-area {
+      margin-top: 1.75rem;
+      border-top: 1px solid var(--gray-200);
+      padding-top: 1.75rem;
+    }
+
+    .response-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .response-header h3 {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .copy-btn {
+      background: var(--gray-100);
+      color: var(--gray-700);
+      padding: 0.5rem 1.25rem;
+      font-size: 0.8rem;
+      border-radius: 9999px;
+      border: 1px solid var(--gray-300);
+    }
+
+    .copy-btn:hover {
+      background: var(--gray-200);
+      transform: translateY(-1px);
+    }
+
+    .response-content {
+      background: var(--gray-50);
+      padding: 1.25rem;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      color: var(--primary);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--gray-200);
+      min-height: 80px;
+    }
+
+    .loading-state {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--gray-500);
+      padding: 1.5rem 0;
+    }
+
+    .spinner-mini {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--gray-300);
+      border-top: 2px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error-block {
+      background: #fef2f2;
+      border-left: 4px solid var(--danger);
+      padding: 1rem;
+      color: #991b1b;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      font-size: 0.9rem;
+    }
+
+    .footer-note {
+      font-size: 0.75rem;
+      text-align: center;
+      color: var(--gray-500);
+      border-top: 1px solid var(--gray-200);
+      padding-top: 1.75rem;
+      margin-top: 1rem;
+    }
+
+    .ai-flow-info {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+      color: white;
+      padding: 1.25rem;
+      border-radius: var(--radius-md);
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .ai-flow-info.active { display: block; }
+
+    .ai-flow-steps {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .ai-step {
+      background: rgba(255,255,255,0.15);
+      padding: 0.5rem 0.875rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      .section-card { padding: 1.5rem; }
+      .site-header { flex-direction: column; text-align: center; }
+      .double-row { flex-direction: column; gap: 1rem; }
+    }
   </style>
 </head>
 <body>
@@ -117,28 +375,94 @@
   <a href="index1.html" class="active">AI Assistant</a>
   <a href="index2.html">Wiki</a>
 </div>
+
 <div class="container">
   <div class="site-header">
-    <div class="logo-area"><h1>Jertruge AI · APIs + jertruge</h1><div class="badge-mini">Gemini | Groq | jertruge</div></div>
-    <div class="badge-mini">qualquer pergunta</div>
-  </div>
-  <div class="section-card">
-    <div class="double-row">
-      <div class="field"><label>provedor</label><select id="providerSelect">
-        <option value="gemini">Google Gemini</option>
-        <option value="groq">Groq Cloud</option>
-        <option value="local">jertruge (local - DeepSeek)</option>
-      </select></div>
-      <div class="field" id="apiKeyField"><label>api key (para Gemini/Groq)</label><input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off"><div class="api-hint"><span>necessária apenas para Gemini/Groq</span><a href="#" id="getKeyLink" target="_blank">obter chave gratuita →</a></div></div>
+    <div class="logo-area">
+      <h1>Jertruge AI · Plataforma de Desenvolvimento</h1>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <span class="badge-mini">Gemini</span>
+        <span class="badge-mini">Groq</span>
+        <span class="badge-mini accent">IA Local</span>
+      </div>
     </div>
-    <div class="groq-model-wrap" id="groqModelDiv"><div class="field"><label>modelo groq</label><select id="groqModelSelect"><option value="llama-3.1-8b-instant">Llama 3.1 8B</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option><option value="llama-3.2-3b-preview">Llama 3.2 3B</option></select></div></div>
-    <div class="local-status-wrap" id="localStatusDiv"><div class="field"><label>jertruge</label><div id="localStatusMsg" style="font-size:0.85rem; padding:0.5rem 0; color:#555;">⏳ Verificando conexão...</div></div></div>
-    <div class="form-group"><label>pergunta / prompt</label><textarea id="promptInput" placeholder="Ex: Explique o conceito de 'atenção' em transformers. || Qual a capital do Brasil? || Escreva uma função em Python que calcule o fatorial."></textarea></div>
-    <div style="display: flex; justify-content: flex-end;"><button id="sendBtn">→ perguntar à IA</button></div>
-    <div class="response-area"><div class="response-header"><h3>resposta da ia</h3><button id="copyResponseBtn" class="copy-btn">copiar texto</button></div><div id="responseContainer"><div style="color: #777; padding: 1rem 0;">Escolha um provedor, insira a chave (se necessário) e envie sua pergunta.</div></div></div>
   </div>
-  <div class="footer-note">Gemini e Groq requerem chave API gratuita. jertruge DeepSeek rodando no servidor. Certifique-se de que o servidor cookie_ide.py está ativo.</div>
+
+  <div class="section-card">
+    <div class="ai-flow-info" id="aiFlowInfo">
+      <strong>Fluxo de IAs Potencializadas:</strong>
+      <div class="ai-flow-steps">
+        <span class="ai-step">1. Seu prompt</span>
+        <span class="ai-step">2. Groq responde</span>
+        <span class="ai-step">3. IA Local refina</span>
+      </div>
+    </div>
+
+    <div class="double-row">
+      <div class="field">
+        <label for="providerSelect">Provedor de IA</label>
+        <select id="providerSelect">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq Cloud</option>
+          <option value="enhanced">jertruge Potencializada (Groq + Local)</option>
+          <option value="local">jertruge Local (DeepSeek)</option>
+        </select>
+      </div>
+      <div class="field" id="apiKeyField">
+        <label for="apiKeyInput">API Key (Gemini/Groq)</label>
+        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off">
+        <div class="api-hint">
+          <span id="keyHint">necessária apenas para Gemini/Groq</span>
+          <a href="#" id="getKeyLink" target="_blank">obter chave →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="groq-model-wrap" id="groqModelDiv">
+      <div class="field">
+        <label for="groqModelSelect">Modelo Groq</label>
+        <select id="groqModelSelect">
+          <option value="llama-3.1-8b-instant">Llama 3.1 8B (rápido)</option>
+          <option value="mixtral-8x7b-32768">Mixtral 8x7B (potente)</option>
+          <option value="llama-3.2-3b-preview">Llama 3.2 3B (leve)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="local-status-wrap" id="localStatusDiv">
+      <div class="field">
+        <label>Status da IA Local</label>
+        <div id="localStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">⏳ Verificando conexão...</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="promptInput">Pergunta / Prompt</label>
+      <textarea id="promptInput" placeholder="Ex: Explique o conceito de 'atenção' em transformers. || Qual a capital do Brasil? || Escreva uma função em Python que calcule o fatorial."></textarea>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end;">
+      <button id="sendBtn">→ Perguntar à IA</button>
+    </div>
+
+    <div class="response-area">
+      <div class="response-header">
+        <h3>Resposta da IA</h3>
+        <button id="copyResponseBtn" class="copy-btn">Copiar texto</button>
+      </div>
+      <div id="responseContainer">
+        <div style="color: var(--gray-500); padding: 1rem 0;">Escolha um provedor, insira a chave (se necessário) e envie sua pergunta.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita.
+    <strong>jertruge DeepSeek</strong> roda localmente no servidor.<br>
+    A opção "Potencializada" usa Groq + IA Local para respostas refinadas.
+  </div>
 </div>
+
 <script>
   const providerSelect = document.getElementById('providerSelect');
   const apiKeyField = document.getElementById('apiKeyField');
@@ -152,15 +476,20 @@
   const responseContainer = document.getElementById('responseContainer');
   const copyBtn = document.getElementById('copyResponseBtn');
   const getKeyLink = document.getElementById('getKeyLink');
+  const aiFlowInfo = document.getElementById('aiFlowInfo');
 
   const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
   const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-  const LOCAL_ASK_ENDPOINT = '/api/ask';  // mesmo servidor
+  const LOCAL_ASK_ENDPOINT = '/api/ask';
+  const LOCAL_ENHANCED_ENDPOINT = '/api/ask_enhanced';
 
   let isLoading = false;
 
   function setResponse(content, isError = false, rawText = '') {
-    if (isError) { responseContainer.innerHTML = `<div class="error-block">${escapeHtml(content)}</div>`; return; }
+    if (isError) {
+      responseContainer.innerHTML = `<div class="error-block">${escapeHtml(content)}</div>`;
+      return;
+    }
     responseContainer.innerHTML = `<div class="response-content">${escapeHtml(content).replace(/\n/g, '<br>')}</div>`;
     responseContainer.dataset.rawText = rawText || content;
   }
@@ -168,43 +497,61 @@
   function setLoading(loading) {
     isLoading = loading;
     if (loading) {
-      responseContainer.innerHTML = `<div class="loading-state"><div class="spinner-mini"></div><span>processando requisição...</span></div>`;
+      responseContainer.innerHTML = `<div class="loading-state"><div class="spinner-mini"></div><span>Processando requisição...</span></div>`;
       sendBtn.disabled = true;
       sendBtn.style.opacity = '0.6';
-      sendBtn.innerText = 'enviando...';
+      sendBtn.innerText = 'Enviando...';
     } else {
       sendBtn.disabled = false;
       sendBtn.style.opacity = '1';
-      sendBtn.innerText = '→ perguntar à IA';
+      sendBtn.innerText = '→ Perguntar à IA';
     }
   }
 
-  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
 
   function updateUIForProvider() {
     const provider = providerSelect.value;
+    
     if (provider === 'gemini') {
       apiKeyField.style.display = 'block';
       groqModelDiv.classList.remove('active');
       localStatusDiv.classList.remove('active');
+      aiFlowInfo.classList.remove('active');
       getKeyLink.href = 'https://aistudio.google.com/app/apikey';
-      getKeyLink.textContent = 'obter chave gemini →';
+      getKeyLink.textContent = 'obter chave Gemini →';
       apiKeyInput.placeholder = 'ex: AIzaSy...';
     } else if (provider === 'groq') {
       apiKeyField.style.display = 'block';
       groqModelDiv.classList.add('active');
       localStatusDiv.classList.remove('active');
+      aiFlowInfo.classList.remove('active');
       getKeyLink.href = 'https://console.groq.com/keys';
-      getKeyLink.textContent = 'obter chave groq →';
+      getKeyLink.textContent = 'obter chave Groq →';
       apiKeyInput.placeholder = 'gsk_...';
+    } else if (provider === 'enhanced') {
+      apiKeyField.style.display = 'none';
+      groqModelDiv.classList.remove('active');
+      localStatusDiv.classList.add('active');
+      aiFlowInfo.classList.add('active');
+      checkLocalHealth();
     } else { // local
       apiKeyField.style.display = 'none';
       groqModelDiv.classList.remove('active');
       localStatusDiv.classList.add('active');
+      aiFlowInfo.classList.remove('active');
       checkLocalHealth();
     }
-    // limpar resposta antiga ao trocar provedor
-    responseContainer.innerHTML = `<div style="color:#777;">Provedor alterado. Digite sua pergunta.</div>`;
+    
+    responseContainer.innerHTML = `<div style="color:var(--gray-500);">Provedor alterado. Digite sua pergunta.</div>`;
     delete responseContainer.dataset.rawText;
   }
 
@@ -212,33 +559,64 @@
     try {
       const res = await fetch('/health');
       if (res.ok) {
-        localStatusMsg.innerHTML = '✅ jetruge disponível (/Cookie AI)';
-        localStatusMsg.style.color = '#155724';
+        localStatusMsg.innerHTML = '✅ jertruge disponível e funcionando';
+        localStatusMsg.style.color = 'var(--success)';
       } else {
         throw new Error();
       }
     } catch(e) {
       localStatusMsg.innerHTML = '❌ jertruge não está respondendo. Verifique se o servidor cookie_ide.py está rodando.';
-      localStatusMsg.style.color = '#721c24';
+      localStatusMsg.style.color = 'var(--danger)';
     }
   }
 
   async function callGemini(apiKey, prompt) {
     const url = `${GEMINI_ENDPOINT}?key=${apiKey}`;
-    const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } };
-    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!resp.ok) { let detail = `HTTP ${resp.status}`; try { const errJson = await resp.json(); detail = errJson.error?.message || detail; } catch(e) {} throw new Error(`Gemini: ${detail}`); }
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+    };
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+      let detail = `HTTP ${resp.status}`;
+      try { const errJson = await resp.json(); detail = errJson.error?.message || detail; } catch(e) {}
+      throw new Error(`Gemini: ${detail}`);
+    }
     const data = await resp.json();
-    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) return data.candidates[0].content.parts[0].text;
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+      return data.candidates[0].content.parts[0].text;
+    }
     throw new Error('Resposta inválida do Gemini');
   }
 
   async function callGroq(apiKey, modelId, prompt) {
-    const payload = { model: modelId, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 1024 };
-    const resp = await fetch(GROQ_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(payload) });
-    if (!resp.ok) { let errMsg = `HTTP ${resp.status}`; try { const errData = await resp.json(); errMsg = errData.error?.message || errMsg; } catch(e) {} throw new Error(`Groq: ${errMsg}`); }
+    const payload = {
+      model: modelId,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1024
+    };
+    const resp = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+      let errMsg = `HTTP ${resp.status}`;
+      try { const errData = await resp.json(); errMsg = errData.error?.message || errMsg; } catch(e) {}
+      throw new Error(`Groq: ${errMsg}`);
+    }
     const data = await resp.json();
-    if (data.choices && data.choices[0]?.message?.content) return data.choices[0].message.content;
+    if (data.choices && data.choices[0]?.message?.content) {
+      return data.choices[0].message.content;
+    }
     throw new Error('Resposta inesperada da Groq');
   }
 
@@ -255,19 +633,41 @@
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     if (data.resposta) return data.resposta;
-    throw new Error('Resposta vazia da jertruge');
+    throw new Error('Resposta vazia da jertruge AI');
+  }
+
+  async function callEnhancedAI(prompt, groqModel) {
+    const resp = await fetch(LOCAL_ENHANCED_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pergunta: prompt, groq_model: groqModel })
+    });
+    if (!resp.ok) {
+      let errorText = await resp.text();
+      throw new Error(`Enhanced AI: ${resp.status} - ${errorText}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    if (data.resposta) return data.resposta;
+    throw new Error('Resposta vazia da IA potencializada');
   }
 
   async function handleSend() {
     if (isLoading) return;
     const provider = providerSelect.value;
     const prompt = promptTextarea.value.trim();
-    if (!prompt) { setResponse('Digite uma pergunta antes de enviar.', true); return; }
+    if (!prompt) {
+      setResponse('Digite uma pergunta antes de enviar.', true);
+      return;
+    }
 
     let apiKey = '';
-    if (provider !== 'local') {
+    if (provider === 'gemini' || provider === 'groq') {
       apiKey = apiKeyInput.value.trim();
-      if (!apiKey) { setResponse(`É necessária uma API Key válida para ${provider === 'gemini' ? 'Gemini' : 'Groq'}.`, true); return; }
+      if (!apiKey) {
+        setResponse(`É necessária uma API Key válida para ${provider === 'gemini' ? 'Gemini' : 'Groq'}.`, true);
+        return;
+      }
     }
 
     setLoading(true);
@@ -277,16 +677,23 @@
         result = await callGemini(apiKey, prompt);
       } else if (provider === 'groq') {
         result = await callGroq(apiKey, groqModelSelect.value, prompt);
+      } else if (provider === 'enhanced') {
+        result = await callEnhancedAI(prompt, groqModelSelect.value);
       } else {
         result = await callLocalAI(prompt);
       }
       setResponse(result, false, result);
     } catch (err) {
       let friendly = err.message;
-      if (friendly.includes('API key not valid') || friendly.includes('invalid') || friendly.includes('403')) friendly = 'Chave inválida ou não autorizada.';
-      else if (friendly.includes('429')) friendly = 'Limite de taxa (rate limit). Aguarde e tente novamente.';
-      else if (friendly.includes('fetch') || friendly.includes('network')) friendly = 'Erro de rede. Verifique sua conexão.';
-      else if (friendly.includes('Local AI') && friendly.includes('ECONNREFUSED')) friendly = 'jertruge não está rodando. Execute cookie_ide.py primeiro.';
+      if (friendly.includes('API key not valid') || friendly.includes('invalid') || friendly.includes('403')) {
+        friendly = 'Chave inválida ou não autorizada.';
+      } else if (friendly.includes('429')) {
+        friendly = 'Limite de taxa atingido. Aguarde e tente novamente.';
+      } else if (friendly.includes('fetch') || friendly.includes('network')) {
+        friendly = 'Erro de rede. Verifique sua conexão.';
+      } else if (friendly.includes('Local AI') && friendly.includes('ECONNREFUSED')) {
+        friendly = 'jertruge não está rodando. Execute cookie_ide.py primeiro.';
+      }
       setResponse(`Erro: ${friendly}`, true);
     } finally {
       setLoading(false);
@@ -298,21 +705,38 @@
     if (!raw) {
       const contentDiv = responseContainer.querySelector('.response-content');
       if (contentDiv) raw = contentDiv.innerText;
-      else { const errorBlock = responseContainer.querySelector('.error-block'); if (errorBlock) raw = errorBlock.innerText; }
+      else {
+        const errorBlock = responseContainer.querySelector('.error-block');
+        if (errorBlock) raw = errorBlock.innerText;
+      }
     }
-    if (!raw || raw.includes("Escolha um provedor") || raw.includes("Digite sua pergunta")) { alert('Nenhuma resposta gerada ainda.'); return; }
-    navigator.clipboard.writeText(raw).then(() => { const original = copyBtn.innerText; copyBtn.innerText = 'copiado'; setTimeout(() => { copyBtn.innerText = original; }, 1200); }).catch(() => alert('Não foi possível copiar'));
+    if (!raw || raw.includes("Escolha um provedor") || raw.includes("Digite sua pergunta")) {
+      alert('Nenhuma resposta gerada ainda.');
+      return;
+    }
+    navigator.clipboard.writeText(raw).then(() => {
+      const original = copyBtn.innerText;
+      copyBtn.innerText = 'Copiado!';
+      setTimeout(() => { copyBtn.innerText = original; }, 1200);
+    }).catch(() => alert('Não foi possível copiar'));
   }
 
   providerSelect.addEventListener('change', updateUIForProvider);
   sendBtn.addEventListener('click', handleSend);
   copyBtn.addEventListener('click', copyResponse);
-  promptTextarea.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSend(); } });
+  promptTextarea.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSend();
+    }
+  });
 
-  // inicialização
   updateUIForProvider();
-  // verificar saúde local periodicamente se estiver selecionado
-  setInterval(() => { if (providerSelect.value === 'local') checkLocalHealth(); }, 15000);
+  setInterval(() => {
+    if (providerSelect.value === 'local' || providerSelect.value === 'enhanced') {
+      checkLocalHealth();
+    }
+  }, 15000);
 </script>
 </body>
 </html>
