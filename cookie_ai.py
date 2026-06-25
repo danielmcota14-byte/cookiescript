@@ -316,116 +316,30 @@ console.log('Resultado:', resultado);'''
 console.log('Insira um prompt mais específico para gerar código JavaScript.');'''
 
     def _extrair_caminho(self, prompt: str) -> Optional[str]:
-        match = re.search(r'arquivo\s+([\w\-\.\/\\]+)', prompt)
-        return match.group(1) if match else None
+        match = re.search(r'["\']([^"\']*)["\']', prompt)
+        if match:
+            return match.group(1)
+        # Fallback: look for words after certain keywords
+        match = re.search(r'(?:arquivo|file|path)[\s:=]+["\']?([^\s\'"]+)["\']?', prompt, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return None
 
     def _extrair_texto(self, prompt: str) -> Optional[str]:
-        match = re.search(r'texto\s+"([^"]+)"', prompt)
-        return match.group(1) if match else None
+        # Look for quoted text
+        match = re.search(r'["\']([^"\']*)["\']', prompt)
+        if match:
+            return match.group(1)
+        return None
 
     def _extrair_url(self, prompt: str) -> Optional[str]:
-        match = re.search(r'(https?://[^\s]+)', prompt)
-        return match.group(1) if match else None
+        # Look for a URL pattern
+        match = re.search(r'https?://[^\s]+', prompt)
+        if match:
+            return match.group(0)
+        return None
 
-    def _pesquisa_local(self, query: str, language: str = 'cookiescript') -> str:
-        query_lower = query.lower()
-        language = language.lower().strip() if language else 'cookiescript'
-        if language == 'python':
-            if "arquivo" in query_lower or "ler arquivo" in query_lower:
-                return '''# Operações com arquivos em Python
-with open('teste.txt', 'w', encoding='utf-8') as f:
-    f.write('Teste Python')
-with open('teste.txt', 'r', encoding='utf-8') as f:
-    conteudo = f.read()
-print(conteudo)'''
-            if "http" in query_lower or "request" in query_lower or "api" in query_lower:
-                return '''# Requisição HTTP em Python
-import urllib.request
-with urllib.request.urlopen('https://httpbin.org/get') as response:
-    body = response.read().decode('utf-8')
-print(body)'''
-            if "json" in query_lower:
-                return '''# Manipulação JSON em Python
-import json
-dados = {'nome': 'CookieScript', 'versao': 1}
-texto_json = json.dumps(dados, indent=2)
-parsed = json.loads(texto_json)
-print(parsed)'''
-            return '''# Código Python gerado para a pesquisa
-print('Aprimore sua busca para obter um exemplo de Python mais específico.')'''
-
-        if language in ['js', 'javascript', 'node']:
-            if "arquivo" in query_lower or "ler arquivo" in query_lower:
-                return '''// Operações de arquivo em Node.js
-const fs = require('fs');
-const conteudo = fs.readFileSync('teste.txt', 'utf-8');
-console.log(conteudo);'''
-            if "http" in query_lower or "request" in query_lower or "api" in query_lower:
-                return '''// Requisição HTTP em Node.js
-const https = require('https');
-https.get('https://httpbin.org/get', (res) => {
-  let data = '';
-  res.on('data', (chunk) => { data += chunk; });
-  res.on('end', () => { console.log(data); });
-});'''
-            if "json" in query_lower:
-                return '''// Manipulação JSON em JavaScript
-const dados = { nome: 'CookieScript', versao: 1 };
-console.log(JSON.stringify(dados, null, 2));'''
-            return '''// Código JavaScript gerado para a pesquisa
-console.log('Aprimore sua busca para obter um exemplo de JavaScript mais específico.');'''
-
-        if "filesystem" in query_lower or "arquivo" in query_lower:
-            return '''// Operações com arquivos
-filesystem.escrever_arquivo(caminho="teste.txt", conteudo="Conteúdo de teste", modo="w")
-conteudo = filesystem.ler_arquivo(caminho="teste.txt")
-filesystem.escrever_arquivo(caminho="resultado.txt", conteudo=conteudo, modo="w")'''
-        if "network" in query_lower or "http" in query_lower or "api" in query_lower:
-            return '''// Requisições HTTP
-resultado = network.http_request(url="https://httpbin.org/get", metodo="GET")
-filesystem.escrever_arquivo(caminho="api_response.txt", conteudo=resultado['body'], modo="w")'''
-        if "json" in query_lower:
-            return '''// Manipulação JSON
-dados = {"nome": "CookieScript", "versao": 1, "modulos": ["filesystem", "network", "json"]}
-texto_json = json.stringify_json(dados)
-dados_parseados = json.parse_json(texto_json)
-filesystem.escrever_arquivo(caminho="json_teste.txt", conteudo=texto_json, modo="w")'''
-        if "database" in query_lower or "sqlite" in query_lower:
-            return '''// Operações com banco de dados
-database.conectar(caminho="teste.db")
-database.executar_sql(sql="CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY, nome TEXT)")
-database.executar_sql(sql="INSERT INTO usuarios (nome) VALUES ('João')")
-resultados = database.executar_sql(sql="SELECT * FROM usuarios")
-database.desconectar()'''
-        if "crypto" in query_lower or "hash" in query_lower:
-            return '''// Criptografia e hashing
-hash_sha256 = crypto.hash_sha256(dados="texto para hash")
-filesystem.escrever_arquivo(caminho="hash.txt", conteudo=hash_sha256, modo="w")'''
-        if "math" in query_lower or "matematica" in query_lower:
-            return '''// Operações matemáticas
-resultado_soma = math.somar(a=10, b=5)
-resultado_potencia = math.potencia(base=2, expoente=3)
-resultado_raiz = math.raiz_quadrada(valor=16)
-filesystem.escrever_arquivo(caminho="math_result.txt", conteudo="Soma: " + resultado_soma + ", Potência: " + resultado_potencia + ", Raiz: " + resultado_raiz, modo="w")'''
-        if "time" in query_lower or "data" in query_lower:
-            return '''// Operações com data e hora
-data_atual = time.data_atual()
-hora_atual = time.hora_atual()
-timestamp = time.timestamp()
-filesystem.escrever_arquivo(caminho="time_info.txt", conteudo="Data: " + data_atual + ", Hora: " + hora_atual + ", Timestamp: " + timestamp, modo="w")'''
-        if "string" in query_lower or "texto" in query_lower:
-            return '''// Manipulação de strings
-texto = "Olá, CookieScript!"
-maiusculo = string.maiusculo(texto=texto)
-minusculo = string.minusculo(texto=texto)
-comprimento = string.comprimento(texto=texto)
-substituido = string.substituir(texto=texto, antigo="Olá", novo="Oi")
-filesystem.escrever_arquivo(caminho="string_ops.txt", conteudo="Original: " + texto + ", Maiúsculo: " + maiusculo + ", Comprimento: " + comprimento, modo="w")'''
-        if "webservice" in query_lower or "servico web" in query_lower:
-            return '''// Criação de serviços web
-webservice.criar_servico(caminho="/api/teste", metodo="GET", resposta="Olá do CookieScript!")
-webservice.iniciar_servidor(porta=8080)'''
-
-        return f'''// Pesquisa para: {query}
-// Não foi possível encontrar um exemplo específico. Tente ser mais específico.
-// Exemplos disponíveis: filesystem, network, json, database, crypto, math, time, string, webservice'''
+    def _pesquisa_local(self, query: str, language: str) -> str:
+        # This is a placeholder for local search (we keep the original fallback)
+        # We'll return a simple message indicating no local search implementation
+        return "// Pesquisa local não implementada nesta versão de fallback."

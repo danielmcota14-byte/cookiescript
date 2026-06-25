@@ -5,5 +5,5 @@ fastapi
 uvicorn
 pillow
 psutil
-transformers
 torch
+transformers
