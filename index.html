@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jertruge IDE - Editor Profissional de IA</title>
+    <title>CookieScript IDE - Editor Profissional de IA</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js"></script>
+    <script src="cookiescript.js"></script>
     <style>
         :root {
             --primary: #111;
@@ -335,23 +337,30 @@
 </head>
 <body>
     <div class="global-nav">
-        <a href="cookie_ide.html">Jertruge</a>
+        <a href="cookie_ide.html">CookieScript</a>
         <a href="index.html" class="active">Editor Profissional</a>
         <a href="index1.html">AI Assistant</a>
         <a href="index2.html">Wiki</a>
     </div>
     <div class="top-bar">
-        <div class="logo">Jertruge IDE</div>
+        <div class="logo">CookieScript IDE</div>
         <div class="toolbar">
             <button id="btnNew">Novo</button>
             <button id="btnOpen">Abrir</button>
             <button id="btnSave">Salvar</button>
             <button id="btnRun">Executar</button>
-            <select id="languageSelect" class="language-select">
-                <option value="cookiescript">JertrugeScript</option>
-                <option value="python">Python</option>
-                <option value="javascript">JavaScript</option>
-            </select>
+<select id="languageSelect" class="language-select">
+    <option value="cookiescript">CookieScript</option>
+    <option value="javascript">JavaScript</option>
+    <option value="python">Python</option>
+    <option value="lua">Lua</option>
+    <option value="ruby">Ruby</option>
+    <option value="php">PHP</option>
+    <option value="scheme">Scheme</option>
+    <option value="basic">BASIC</option>
+    <option value="forth">Forth</option>
+    <option value="lisp">Lisp</option>
+</select>
         </div>
     </div>
     <div class="main-container">
@@ -444,16 +453,839 @@
             }
         }
         
-        // ============================================
-        // API Calls para o backend Python (jertruge_app.py)
-        // ============================================
-        async function apiCall(endpoint, data) {
+// ============================================
+// API Calls para o backend Python (cookie_ide_app.py)
+// ============================================
+async function apiCall(endpoint, data) {
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || `HTTP ${response.status}`);
+        }
+        return result;
+    } catch (error) {
+        console.error('API Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================
+// Client-side Code Execution (for Netlify/static hosting)
+// ============================================
+
+// Load external libraries on demand
+let pyodideLoading = false;
+let pyodideInstance = null;
+let luaLoaded = false;
+
+// Initialize Lua environment when needed
+async function initLua() {
+    if (luaLoaded) return true;
+    luaLoaded = true;
+    return new Promise((resolve, reject) => {
+        // Lua.js is already included via script tag below
+        // Just check if it's available
+        if (typeof lua !== 'undefined') {
+            resolve(true);
+        } else {
+            // Fallback: load dynamically
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => reject(new Error('Failed to load lua.js'));
+            document.head.appendChild(script);
+        }
+    });
+}
+
+// Initialize Pyodide when needed
+async function initPyodide() {
+    if (pyodideInstance) return true;
+    if (pyodideLoading) {
+        // Wait for ongoing load
+        return new Promise((resolve) => {
+            const check = () => {
+                if (pyodideInstance) resolve(true);
+                else setTimeout(check, 100);
+            };
+            setTimeout(check, 100);
+        });
+    }
+    pyodideLoading = true;
+    try {
+        // Load pyodide.js if not already loaded
+        if (typeof loadPyodide === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+            script.onload = async () => {
+                pyodideInstance = await loadPyodide();
+                pyodideLoading = false;
+            };
+            script.onerror = () => {
+                pyodideLoading = false;
+                throw new Error('Failed to load pyodide.js');
+            };
+            document.head.appendChild(script);
+        } else {
+            pyodideInstance = await loadPyodide();
+            pyodideLoading = false;
+        }
+        return true;
+    } catch (e) {
+        pyodideLoading = false;
+        throw e;
+    }
+}
+
+// Execute JavaScript in sandboxed iframe
+function executeJavaScript(code) {
+    return new Promise((resolve, reject) => {
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = 'allow-scripts';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        iframe.onload = () => {
             try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                // Capture console.log
+                const oldLog = console.log;
+                const logs = [];
+                console.log = (...args) => {
+                    logs.push(args.map(a => 
+                        typeof a === 'object' ? JSON.stringify(a) : String(a)
+                    ).join(' '));
+                    oldLog.apply(console, args);
+                };
+                
+                // Execute code
+                const result = iframe.contentWindow.eval(code);
+                console.log = oldLog; // restore
+                
+                const output = logs.join('\n');
+                if (result !== undefined) {
+                    const resultStr = typeof result === 'object' ? 
+                        JSON.stringify(result) : String(result);
+                    resolve(output ? `${output}\n${resultStr}` : resultStr);
+                } else {
+                    resolve(output || '(no output)');
+                }
+            } catch (e) {
+                console.log = oldLog; // restore
+                reject(e);
+            } finally {
+                document.body.removeChild(iframe);
+            }
+        };
+        
+        iframe.onerror = (e) => {
+            document.body.removeChild(iframe);
+            reject(e);
+        };
+        
+        // Write the HTML with script
+        iframe.srcdoc = `
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <script>
+                    ${code.replace(/<\/script>/g, '<\\/script>')}
+                </script>
+            </body>
+            </html>
+        `);
+    });
+}
+
+// Execute Lua code
+async function executeLua(code) {
+    await initLua();
+    if (typeof lua === 'undefined') {
+        throw new Error('Lua engine not available');
+    }
+    
+    // Capture print output
+    const originalPrint = print;
+    const outputLines = [];
+    print = function(...args) {
+        outputLines.push(args.map(String).join('\t'));
+    };
+    
+    try {
+        // Lua.js uses lua.doString
+        const result = lua.doString(code);
+        print = originalPrint; // restore
+        
+        const output = outputLines.join('\n');
+        if (result !== undefined && result !== null) {
+            return output ? `${output}\n${result}` : String(result);
+        }
+        return output || '(no output)';
+    } catch (e) {
+        print = originalPrint; // restore
+        throw e;
+    }
+}
+
+// Execute Python code via Pyodide
+async function executePython(code) {
+    const pyodide = await initPyodide();
+    if (!pyodide) throw new Error('Pyodide not initialized');
+    
+    // Create a fresh pyodide instance for isolation to avoid state pollution
+    // For simplicity, we'll use the shared instance but clear stdout properly
+    try {
+        // Save original stdout
+        await pyodide.runPythonAsync(`
+            import sys
+            from io import StringIO
+            _old_stdout = sys.stdout
+        `);
+        
+        // Redirect stdout to capture output
+        await pyodide.runPythonAsync(`
+            import sys
+            from io import StringIO
+            _captured_output = StringIO()
+            sys.stdout = _captured_output
+        `);
+        
+        // Execute code
+        let result = undefined;
+        try {
+            result = await pyodide.runPythonAsync(code);
+        } catch (e) {
+            // If execution fails, still try to get output
+            throw e;
+        }
+        
+        // Get captured output and restore stdout
+        const output = await pyodide.runPythonAsync(`
+            import sys
+            output = _captured_output.getvalue()
+            sys.stdout = _old_stdout
+            del _captured_output
+            del _old_stdout
+            output
+        `);
+        
+        const outputStr = output || '';
+        if (result !== undefined) {
+            // Handle Pyodide JS proxy objects
+            let resultStr = '';
+            try {
+                // Try to convert to JSON if it's a simple type
+                if (result === null) {
+                    resultStr = 'null';
+                } else if (typeof result === 'object' && result !== null) {
+                    // For complex objects, show type
+                    resultStr = `<${Object.prototype.toString.call(result)}>`;
+                } else {
+                    resultStr = String(result);
+                }
+            } catch (e) {
+                resultStr = `<unserializable object>`;
+            }
+            return outputStr ? `${outputStr}\n${resultStr}` : resultStr;
+        }
+        return outputStr || '(no output)';
+    } catch (e) {
+        // Try to restore stdout even on error
+        try {
+            await pyodide.runPythonAsync(`
+                import sys
+                if hasattr(sys, '_old_stdout'):
+                    sys.stdout = sys._old_stdout
+                    del sys._old_stdout
+            `);
+        } catch (_) {}
+        throw e;
+    }
+}
+
+// Placeholder for other languages (to be implemented)
+async function executeRuby(code) {
+    throw new Error('Ruby execution not yet implemented client-side');
+}
+
+async function executePHP(code) {
+    throw new Error('PHP execution not yet implemented client-side');
+}
+
+async function executeScheme(code) {
+    throw new Error('Scheme execution not yet implemented client-side');
+}
+
+async function executeBasic(code) {
+    throw new Error('BASIC execution not yet implemented client-side');
+}
+
+async function executeForth(code) {
+    throw new Error('Forth execution not yet implemented client-side');
+}
+
+async function executeLisp(code) {
+    throw new Error('Lisp execution not yet implemented client-side');
+}
+
+// Main dispatcher for client-side execution
+async function executeClientSide(language, code) {
+    try {
+        switch (language) {
+            case 'javascript':
+                return await executeJavaScript(code);
+            case 'python':
+                return await executePython(code);
+            case 'lua':
+                return await executeLua(code);
+            case 'ruby':
+                return await executeRuby(code);
+            case 'php':
+                return await executePHP(code);
+            case 'scheme':
+                return await executeScheme(code);
+            case 'basic':
+                return await executeBasic(code);
+            case 'forth':
+                return await executeForth(code);
+            case 'lisp':
+                return await executeLisp(code);
+            case 'cookiescript':
+                // Try to execute CookieScript client-side
+                try {
+                    return await executeCookieScript(code);
+                } catch (cookieError) {
+                    // If client-side CookieScript fails, fall back to backend
+                    throw new Error(`CookieScript client-side execution failed: ${cookieError.message}. Falling back to backend.`);
+                }
+            default:
+                throw new Error(`Language ${language} not supported client-side`);
+}
+    } catch (clientError) {
+        // If client-side execution fails, throw to trigger fallback
+        throw new Error(`Client-side execution failed: ${clientError.message}`);
+    }
+}
+
+// Simple JavaScript simulator for common CookieScript operations
+async function simulateCookieScript(code) {
+    // This is a basic implementation that handles common web-relevant operations
+    // It's not a full CookieScript interpreter but provides demo functionality
+    
+    const lines = code.split('\\n').map(line => line.trim()).filter(line => line);
+    const output = [];
+    const variables = {};
+    const files = {}; // In-memory file system simulation
+    
+    // Helper to resolve variables in strings
+    function resolveVars(str) {
+        return str.replace(/\{(\w+)\}/g, (match, varName) => {
+            return variables[varName] !== undefined ? variables[varName] : match;
+        });
+    }
+    
+    try {
+        for (const line of lines) {
+            // Skip empty lines and comments
+            if (!line || line.startsWith('//')) continue;
+            
+            // Handle variable assignment: variavel = valor
+            const assignMatch = line.match(/^(\w+)\s*=\s*(.+)$/);
+            if (assignMatch) {
+                const varName = assignMatch[1];
+                let valueStr = assignMatch[2].trim();
+                
+                // Remove quotes if present
+                if (valueStr.startsWith('"') && valueStr.endsWith('"') || 
+                    valueStr.startsWith("'") && valueStr.endsWith("'")) {
+                    valueStr = valueStr.slice(1, -1);
+                }
+                
+                variables[varName] = valueStr;
+                output.push(`Variável '${varName}' definida como: ${valueStr}`);
+                continue;
+            }
+            
+            // Handle file writing: filesystem.escrever_arquivo(caminho="arquivo.txt", conteudo="Hello", modo="w")
+            const writeMatch = line.match(/filesystem\.escrever_arquivo\s*\(([^)]+)\)/);
+            if (writeMatch) {
+                const params = writeMatch[1];
+                let path = '';
+                let content = '';
+                let mode = 'w';
+                
+                // Parse parameters (simplified)
+                const pathMatch = params.match(/caminho\s*=\s*["']([^"']*)["']/);
+                if (pathMatch) path = pathMatch[1];
+                
+                const contentMatch = params.match(/conteudo\s*=\s*["']([^"']*)["']/);
+                if (contentMatch) content = contentMatch[1];
+                
+                const modeMatch = params.match(/modo\s*=\s*["']([^"']*)["']/);
+                if (modeMatch) mode = modeMatch[1];
+                
+                // Resolve variables in path and content
+                path = resolveVars(path);
+                content = resolveVars(content);
+                
+                if (mode === 'w') {
+                    files[path] = content;
+                } else if (mode === 'a') {
+                    files[path] = (files[path] || '') + content;
+                }
+                
+                output.push(`Arquivo '${path}' ${mode === 'w' ? 'criado' : 'atualizado'} (${content.length} chars)`);
+                continue;
+            }
+            
+            // Handle file reading: conteudo = filesystem.ler_arquivo(caminho="arquivo.txt")
+            const readMatch = line.match(/(\w+)\s*=\s*filesystem\.ler_arquivo\s*\(([^)]+)\)/);
+            if (readMatch) {
+                const varName = readMatch[1];
+                const params = readMatch[2];
+                
+                let path = '';
+                const pathMatch = params.match(/caminho\s*=\s*["']([^"']*)["']/);
+                if (pathMatch) path = pathMatch[1];
+                
+                path = resolveVars(path);
+                const content = files[path] || '';
+                variables[varName] = content;
+                output.push(`Lido do arquivo '${path}': ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`);
+                continue;
+            }
+            
+            // Handle HTTP requests: resultado = network.http_request(url="https://httpbin.org/get", metodo="GET")
+            const httpMatch = line.match(/(\w+)\s*=\s*network\.http_request\s*\(([^)]+)\)/);
+            if (httpMatch) {
+                const varName = httpMatch[1];
+                const params = httpMatch[2];
+                
+                let url = '';
+                let method = 'GET';
+                
+                const urlMatch = params.match(/url\s*=\s*["']([^"']*)["']/);
+                if (urlMatch) url = urlMatch[1];
+                
+                const methodMatch = params.match(/metodo\s*=\s*["']([^"']*)["']/);
+                if (methodMatch) method = methodMatch[1];
+                
+                // Resolve variables in URL
+                url = resolveVars(url);
+                
+                try {
+                    // Make actual HTTP request (or simulated) HTTP request
+                    // For demo purposes, we'll simulate common endpoints
+                    let responseData = {};
+                    if (url.includes('httpbin.org/get')) {
+                        responseData = { args: {}, headers: {}, origin: "127.0.0.1", url: url };
+                    } else if (url.includes('httpbin.org/post')) {
+                        responseData = { args: {}, data: "", files: {}, headers: {}, json: null, origin: "127.0.0.1", url: url };
+                    } else {
+                        // Generic simulation
+                        responseData = { message: `Simulated response from ${url}`, timestamp: new Date().toISOString() };
+                    }
+                    
+                    variables[varName] = JSON.stringify(responseData, null, 2);
+                    output.push(`Requisição HTTP ${method} para ${url} concluída`);
+                } catch (httpError) {
+                    output.push(`Erro na requisição HTTP: ${httpError.message}`);
+                }
+                continue;
+            }
+            
+            // Handle math operations: resultado = math.somar(a=5, b=3)
+            const mathMatch = line.match(/(\w+)\s*=\s*math\.(\w+)\(([^)]*)\)/);
+            if (mathMatch) {
+                const varName = mathMatch[1];
+                const operation = mathMatch[2];
+                const paramsStr = mathMatch[3];
+                
+                // Simple parameter parsing
+                const params = {};
+                const paramMatches = paramsStr.matchAll/(\w+)\s*=\s*([^,]+)/g;
+                for (const match of paramMatches) {
+                    let value = match[2].trim();
+                    // Remove quotes if present
+                    if ((value.startsWith('"') && value.endsWith('"')) || 
+                        (value.startsWith("'") && value.endsWith("'"))) {
+                        value = value.slice(1, -1);
+                    }
+                    // Try to parse as number
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        value = numValue;
+                    }
+                    params[match[1]] = value;
+                }
+                
+                let result = 0;
+                switch (operation) {
+                    case 'somar':
+                        result = (params.a || 0) + (params.b || 0);
+                        break;
+                    case 'subtrair':
+                        result = (params.a || 0) - (params.b || 0);
+                        break;
+                    case 'multiplicar':
+                        result = (params.a || 0) * (params.b || 0);
+                        break;
+                    case 'dividir':
+                        result = (params.b || 0) !== 0 ? (params.a || 0) / (params.b || 1) : 0;
+                        break;
+                    case 'potencia':
+                        result = Math.pow(params.a || 0, params.b || 0);
+                        break;
+                    case 'raiz_quadrada':
+                        result = Math.sqrt(params.a || 0);
+                        break;
+                    default:
+                        result = 0;
+                }
+                
+                variables[varName] = result;
+                output.push(`Math.${operation}(${Object.values(params).join(', ')}) = ${result}`);
+                continue;
+            }
+            
+            // Handle string operations: resultado = string.maiusculo(texto="hello")
+            const stringMatch = line.match(/(\w+)\s*=\s*string\.(\w+)\(([^)]*)\)/);
+            if (stringMatch) {
+                const varName = stringMatch[1];
+                const operation = stringMatch[2];
+                const paramsStr = stringMatch[3];
+                
+                // Simple parameter parsing for string operations
+                let text = '';
+                const textMatch = paramsStr.match/texto\s*=\s*["']([^"']*)["']/;
+                if (textMatch) text = textMatch[1];
+                
+                text = resolveVars(text);
+                
+                let result = '';
+                switch (operation) {
+                    case 'maiusculo':
+                        result = text.toUpperCase();
+                        break;
+                    case 'minusculo':
+                        result = text.toLowerCase();
+                        break;
+                    case 'inverter':
+                        result = text.split('').reverse().join('');
+                        break;
+                    case 'tamanho':
+                        result = text.length;
+                        break;
+                    // Add more string operations as needed
+                    default:
+                        result = text;
+                }
+                
+                variables[varName] = result;
+                output.push(`String.${operation}("${text}") = ${result}`);
+                continue;
+            }
+            
+            // Handle JSON operations
+            const jsonMatch = line.match(/(\w+)\s*=\s*json\.(\w+)\(([^)]*)\)/);
+            if (jsonMatch) {
+                const varName = jsonMatch[1];
+                const operation = jsonMatch[2];
+                const paramsStr = jsonMatch[3];
+                
+                let jsonText = '';
+                const jsonMatch2 = paramsStr.match/texto_json\s*=\s*["']([^"']*)["']/;
+                if (jsonMatch2) jsonText = jsonMatch2[1];
+                
+                jsonText = resolveVars(jsonText);
+                
+                let result = null;
+                try {
+                    switch (operation) {
+                        case 'parse_json':
+                            result = JSON.parse(jsonText);
+                            break;
+                        case 'stringify_json':
+                            result = JSON.stringify(JSON.parse(jsonText));
+                            break;
+                        default:
+                            result = jsonText;
+                    }
+                } catch (jsonError) {
+                    result = `Erro ao processar JSON: ${jsonError.message}`;
+                }
+                
+                variables[varName] = result;
+                output.push(`JSON.${operation}: ${typeof result === 'string' ? result : JSON.stringify(result)}`);
+                continue;
+            }
+            
+            // If we didn't match any known pattern, provide a generic message
+            output.push(`Comando processado (simulado): ${line.substring(0, 50)}${line.length > 50 ? '...' : ''}`);
+        }
+        
+        // Return the output as a string
+        return output.join('\n') || '(nenhuma operação executada)';
+    } catch (simError) {
+        throw new Error(`Simulação do CookieScript falhou: ${simError.message}`);
+    }
+}
+            default:
+                throw new Error(`Language ${language} not supported client-side`);
+        }
+    } catch (clientError) {
+        // If client-side execution fails, throw to trigger fallback
+        throw new Error(`Client-side execution failed: ${clientError.message}`);
+    }
+// ============================================
+// Operacoes com arquivos (API real)
+// ============================================
+async function loadFileList() {
+    const fileListDiv = document.getElementById('fileList');
+    fileListDiv.innerHTML = '<div>Carregando arquivos...</div>';
+    
+    const result = await apiCall('/api/files', {});
+    
+    if (result.success && result.files) {
+        fileListDiv.innerHTML = '';
+        if (result.files.length === 0) {
+            fileListDiv.innerHTML = '<div style="color: #aaa;">Nenhum arquivo encontrado</div>';
+        }
+        result.files.forEach(file => {
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            div.textContent = file;
+            div.onclick = () => openFile(file);
+            fileListDiv.appendChild(div);
+        });
+    } else {
+        fileListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+    }
+}
+
+async function openFile(filename) {
+    addOutput(`Abrindo arquivo: ${filename}...`);
+    const result = await apiCall('/api/open', { path: filename });
+    
+    if (result.success) {
+        currentFile = filename;
+        document.getElementById('filePath').value = filename;
+        document.getElementById('codeEditor').value = result.content;
+        currentContent = result.content;
+        addOutput(`Arquivo aberto com sucesso: ${filename} (${result.content.length} caracteres)`);
+    } else {
+        addOutput(`Erro ao abrir arquivo: ${result.error}`);
+    }
+}
+
+async function saveFile() {
+    const path = document.getElementById('filePath').value.trim();
+    if (!path) {
+        addOutput('Erro: Informe um caminho/nome para o arquivo');
+        return;
+    }
+    
+    const content = document.getElementById('codeEditor').value;
+    addOutput(`Salvando arquivo: ${path}...`);
+    
+    const result = await apiCall('/api/save', { path, content });
+    
+    if (result.success) {
+        currentFile = path;
+        currentContent = content;
+        addOutput(`Arquivo salvo com sucesso: ${path}`);
+        await loadFileList();
+    } else {
+        addOutput(`Erro ao salvar arquivo: ${result.error}`);
+    }
+}
+
+// ============================================
+// Operacoes com projetos (API real)
+// ============================================
+async function loadProjects() {
+    const result = await apiCall('/api/load_projects', {});
+    
+    const projectListDiv = document.getElementById('projectList');
+    
+    if (result.success && result.projects) {
+        projectListDiv.innerHTML = '';
+        const projects = Object.values(result.projects);
+        if (projects.length === 0) {
+            projectListDiv.innerHTML = '<div style="color: #aaa;">Nenhum projeto criado</div>';
+        }
+        projects.forEach(project => {
+            const div = document.createElement('div');
+            div.className = 'project-item';
+            div.innerHTML = `<strong>${escapeHtml(project.name)}</strong><br><small>${escapeHtml(project.description || 'Sem descricao')}</small>`;
+            div.onclick = () => loadProject(project.id);
+            projectListDiv.appendChild(div);
+        });
+        addOutput(`Projetos carregados: ${projects.length}`);
+    } else {
+        projectListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+    }
+}
+
+async function createProject() {
+    const name = document.getElementById('projectName').value.trim();
+    const description = document.getElementById('projectDesc').value.trim();
+    
+    if (!name) {
+        addOutput('Digite um nome para o projeto');
+        return;
+    }
+    
+    const btnCreate = document.getElementById('btnCreateProject');
+    setButtonLoading(btnCreate, true, 'Criar Projeto');
+    addOutput(`Criando projeto: ${name}...`);
+    
+    const result = await apiCall('/api/create_project', { name, description });
+    
+    setButtonLoading(btnCreate, false);
+    
+    if (result.success) {
+        addOutput(`Projeto criado com sucesso! ID: ${result.project_id}`);
+        document.getElementById('projectName').value = '';
+        document.getElementById('projectDesc').value = '';
+        await loadProjects();
+    } else {
+        addOutput(`Erro ao criar projeto: ${result.error}`);
+    }
+}
+
+async function loadProject(projectId) {
+    addOutput(`Carregando projeto...`);
+    const result = await apiCall('/api/load_project', { project_id: projectId });
+    
+    if (result.success && result.project) {
+        addOutput(`Projeto carregado: ${result.project.name}`);
+        const files = result.project.files || {};
+        const fileNames = Object.keys(files);
+        if (fileNames.length > 0) {
+            const firstFile = fileNames[0];
+            document.getElementById('codeEditor').value = files[firstFile];
+            document.getElementById('filePath').value = firstFile;
+            currentFile = firstFile;
+            addOutput(`Arquivo "${firstFile}" carregado do projeto`);
+        } else {
+            addOutput(`Projeto vazio - sem arquivos`);
+        }
+    } else {
+        addOutput(`Erro ao carregar projeto: ${result.error}`);
+    }
+}
+
+// ============================================
+// Operacoes Git (API real)
+// ============================================
+async function gitStatus() {
+    addOutput(`Verificando status Git...`);
+    const result = await apiCall('/api/git_status', {});
+    
+    if (result.success) {
+        addOutput(`Status Git:\n${result.status || 'Working tree clean'}`);
+    } else {
+        addOutput(`Erro Git: ${result.error}`);
+    }
+}
+
+async function gitCommit() {
+    const message = document.getElementById('commitMsg').value.trim();
+    if (!message) {
+        addOutput('Digite uma mensagem para o commit');
+        return;
+    }
+    
+    const btnCommit = document.getElementById('btnGitCommit');
+    setButtonLoading(btnCommit, true, 'Commit');
+    addOutput(`Realizando commit: "${message}"...`);
+    
+    const result = await apiCall('/api/git_commit', { message });
+    
+    setButtonLoading(btnCommit, false);
+    
+    if (result.success) {
+        addOutput(`Commit realizado com sucesso: ${message}`);
+        document.getElementById('commitMsg').value = '';
+    } else {
+        addOutput(`Erro no commit: ${result.error}`);
+    }
+}
+
+// ============================================
+// Utilitarios
+// ============================================
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&';
+        if (m === '<') return '<';
+        if (m === '>') return '>';
+        return m;
+    });
+}
+
+function newFile() {
+    document.getElementById('codeEditor').value = '';
+    document.getElementById('filePath').value = '';
+    currentFile = null;
+    addOutput('Novo arquivo criado (nao salvo)');
+}
+
+function switchPanelTab(tabId) {
+    document.querySelectorAll('.panel-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.panel-header button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+}
+
+// ============================================
+// Inicializacao e Event Listeners
+// ============================================
+document.addEventListener('DOMContentLoaded', async () => {
+    // Botoes principais
+    document.getElementById('btnNew').onclick = newFile;
+    document.getElementById('btnOpen').onclick = () => {
+        const filename = prompt('Nome do arquivo para abrir:');
+        if (filename) openFile(filename);
+    };
+    document.getElementById('btnSave').onclick = saveFile;
+    document.getElementById('btnRun').onclick = executeCode;
+    document.getElementById('btnGenerate').onclick = generateCode;
+    document.getElementById('btnSearch').onclick = searchCode;
+    document.getElementById('btnCreateProject').onclick = createProject;
+    document.getElementById('btnGitStatus').onclick = gitStatus;
+    document.getElementById('btnGitCommit').onclick = gitCommit;
+    
+    // Painel de abas
+    document.querySelectorAll('.panel-header button').forEach(btn => {
+        btn.onclick = () => switchPanelTab(btn.dataset.tab);
+    });
+    
+    // Tecla de atalho Ctrl+Enter no editor
+    const editor = document.getElementById('codeEditor');
+    editor.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            executeCode();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveFile();
+        }
+    });
+    
+// Carregar dados iniciais
+             addOutput('Conectando ao backend Python (cookie_ide_app.py)...');
+             await loadFileList();
+             await loadProjects();
+             addOutput('CookieScript IDE pronta! Execucao client-side disponivel para JS, Python, Lua, CookieScript (simulado). Use os botoes para abrir, salvar e executar codigo.');
+});
                 const result = await response.json();
                 if (!response.ok) {
                     throw new Error(result.error || `HTTP ${response.status}`);
@@ -528,35 +1360,349 @@
             }
         }
         
-        // ============================================
-        // Execucao de codigo (API real)
-        // ============================================
-        async function executeCode() {
-            const code = document.getElementById('codeEditor').value;
-            const language = document.getElementById('languageSelect').value;
-            
-            if (!code.trim()) {
-                addOutput('Nenhum codigo para executar');
-                return;
-            }
-            
-            const btnRun = document.getElementById('btnRun');
-            setButtonLoading(btnRun, true, 'Executar');
-            addOutput(`Executando codigo (${language})...`);
-            
-            const result = await apiCall('/api/execute', { code, language });
-            
+// ============================================
+// Execucao de codigo (com suporte client-side para hospedagem estatica)
+// ============================================
+async function executeCode() {
+    const code = document.getElementById('codeEditor').value;
+    const language = document.getElementById('languageSelect').value;
+    
+    if (!code.trim()) {
+        addOutput('Nenhum codigo para executar');
+        return;
+    }
+    
+    const btnRun = document.getElementById('btnRun');
+    setButtonLoading(btnRun, true, 'Executar');
+    addOutput(`Executando codigo (${language})...`);
+    
+    try {
+        // Tentar execucao client-side primeiro (para hospedagem estatica como Netlify)
+        let result;
+        try {
+            result = await executeClientSide(language, code);
+            // Se chegou aqui, executou com sucesso client-side
+            addOutput(`Execucao concluida (client-side):\n${result}`);
             setButtonLoading(btnRun, false);
-            
-            if (result.success) {
-                addOutput(`Execucao concluida:\n${result.output || '(sem saida)'}`);
-            } else {
-                addOutput(`Erro na execucao: ${result.error}`);
-            }
+            return;
+        } catch (clientError) {
+            // Se client-side falhou, tentar backend como fallback
+            addOutput(`Client-side falhou: ${clientError.message}. Tentando backend...`);
         }
         
-        // ============================================
-        // Geracao de codigo com IA (usa jertruge_ai.py)
+        // Fallback para backend Python (cookie_ide_app.py)
+        const result = await apiCall('/api/execute', { code, language });
+        
+        setButtonLoading(btnRun, false);
+        
+        if (result.success) {
+            addOutput(`Execucao concluida (backend):\n${result.output || '(sem saida)'}`);
+        } else {
+            addOutput(`Erro na execucao: ${result.error}`);
+}
+    } catch (error) {
+        console.error('API Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================
+// Client-side Code Execution (for Netlify/static hosting)
+// ============================================
+
+// Load external libraries on demand
+let pyodideLoading = false;
+let pyodideInstance = null;
+let luaLoaded = false;
+
+// Initialize Lua environment when needed
+async function initLua() {
+    if (luaLoaded) return true;
+    luaLoaded = true;
+    return new Promise((resolve, reject) => {
+        // Lua.js is already included via script tag below
+        // Just check if it's available
+        if (typeof lua !== 'undefined') {
+            resolve(true);
+        } else {
+            // Fallback: load dynamically
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => reject(new Error('Failed to load lua.js'));
+            document.head.appendChild(script);
+        }
+    });
+}
+
+// Initialize Pyodide when needed
+async function initPyodide() {
+    if (pyodideInstance) return true;
+    if (pyodideLoading) {
+        // Wait for ongoing load
+        return new Promise((resolve) => {
+            const check = () => {
+                if (pyodideInstance) resolve(true);
+                else setTimeout(check, 100);
+            };
+            setTimeout(check, 100);
+        });
+    }
+    pyodideLoading = true;
+    try {
+        // Load pyodide.js if not already loaded
+        if (typeof loadPyodide === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+            script.onload = async () => {
+                pyodideInstance = await loadPyodide();
+                pyodideLoading = false;
+            };
+            script.onerror = () => {
+                pyodideLoading = false;
+                throw new Error('Failed to load pyodide.js');
+            };
+            document.head.appendChild(script);
+        } else {
+            pyodideInstance = await loadPyodide();
+            pyodideLoading = false;
+        }
+        return true;
+    } catch (e) {
+        pyodideLoading = false;
+        throw e;
+    }
+}
+
+// Execute JavaScript in sandboxed iframe
+function executeJavaScript(code) {
+    return new Promise((resolve, reject) => {
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = 'allow-scripts';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        iframe.onload = () => {
+            try {
+                // Capture console.log
+                const oldLog = console.log;
+                const logs = [];
+                console.log = (...args) => {
+                    logs.push(args.map(a => 
+                        typeof a === 'object' ? JSON.stringify(a) : String(a)
+                    ).join(' '));
+                    oldLog.apply(console, args);
+                };
+                
+                // Execute code
+                const result = iframe.contentWindow.eval(code);
+                console.log = oldLog; // restore
+                
+                const output = logs.join('\n');
+                if (result !== undefined) {
+                    const resultStr = typeof result === 'object' ? 
+                        JSON.stringify(result) : String(result);
+                    resolve(output ? `${output}\n${resultStr}` : resultStr);
+                } else {
+                    resolve(output || '(no output)');
+                }
+            } catch (e) {
+                console.log = oldLog; // restore
+                reject(e);
+            } finally {
+                document.body.removeChild(iframe);
+            }
+        };
+        
+        iframe.onerror = (e) => {
+            document.body.removeChild(iframe);
+            reject(e);
+        };
+        
+        // Write the HTML with script
+        iframe.srcdoc = `
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <script>
+                    ${code.replace(/<\/script>/g, '<\\/script>')}
+                </script>
+            </body>
+            </html>
+        `;
+    });
+}
+
+// Execute Lua code
+async function executeLua(code) {
+    await initLua();
+    if (typeof lua === 'undefined') {
+        throw new Error('Lua engine not available');
+    }
+    
+    // Capture print output
+    const originalPrint = print;
+    const outputLines = [];
+    print = function(...args) {
+        outputLines.push(args.map(String).join('\t'));
+    };
+    
+    try {
+        // Lua.js uses lua.doString
+        const result = lua.doString(code);
+        print = originalPrint; // restore
+        
+        const output = outputLines.join('\n');
+        if (result !== undefined && result !== null) {
+            return output ? `${output}\n${result}` : String(result);
+        }
+        return output || '(no output)';
+    } catch (e) {
+        print = originalPrint; // restore
+        throw e;
+    }
+}
+
+// Execute Python code via Pyodide
+async function executePython(code) {
+    const pyodide = await initPyodide();
+    if (!pyodide) throw new Error('Pyodide not initialized');
+    
+    // Create a fresh interpreter instance for isolation
+    let pyodideInstance = null;
+    try {
+        // Load pyodide if not done yet
+        if (typeof loadPyodide === 'undefined') {
+            // This shouldn't happen if initPyodide worked, but just in case
+            throw new Error('Pyodide loader not available');
+        }
+        pyodideInstance = await loadPyodide();
+        
+        // Execute code and capture stdout
+        return await pyodideInstance.runPythonAsync(`
+            import sys
+            from io import StringIO
+            old_stdout = sys.stdout
+            mystdout = StringIO()
+            sys.stdout = mystdout
+            try:
+                ${code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}
+            } finally:
+                output = mystdout.getvalue()
+                sys.stdout = old_stdout
+            output
+        `);
+    } finally {
+        // Clean up instance
+        if (pyodideInstance) {
+            try {
+                pyodideInstance.destroy();
+            } catch (e) {
+                console.warn('Error destroying pyodide instance:', e);
+            }
+        }
+    }
+}
+
+// Placeholder for other languages (to be implemented)
+async function executeRuby(code) {
+    throw new Error('Ruby execution not yet implemented client-side');
+}
+
+async function executePHP(code) {
+    throw new Error('PHP execution not yet implemented client-side');
+}
+
+async function executeScheme(code) {
+    throw new Error('Scheme execution not yet implemented client-side');
+}
+
+async function executeBasic(code) {
+    throw new Error('BASIC execution not yet implemented client-side');
+}
+
+async function executeForth(code) {
+    throw new Error('Forth execution not yet implemented client-side');
+}
+
+async function executeLisp(code) {
+    throw new Error('Lisp execution not yet implemented client-side');
+}
+
+// Main dispatcher for client-side execution
+async function executeClientSide(language, code) {
+    switch (language) {
+        case 'javascript':
+            return await executeJavaScript(code);
+        case 'python':
+            return await executePython(code);
+        case 'lua':
+            return await executeLua(code);
+        case 'ruby':
+            return await executeRuby(code);
+        case 'php':
+            return await executePHP(code);
+        case 'scheme':
+            return await executeScheme(code);
+        case 'basic':
+            return await executeBasic(code);
+        case 'forth':
+            return await executeForth(code);
+        case 'lisp':
+            return await executeLisp(code);
+        case 'cookiescript':
+            // Execute CookieScript code via Pyodide (attempt to run actual VM)
+async function executeCookieScript(code) {
+    try {
+        // Try to initialize Pyodide if not already done
+        const pyodide = await initPyodide();
+        if (!pyodide) throw new Error('Pyodide initialization failed');
+        
+        // We need to package the CookieScript VM with Pyodide
+        // For now, we'll try to load it if available, otherwise fall back
+        
+        // Check if we have the VM available via preloaded modules
+        try {
+            // Try to import our CookieScript VM
+            const result = await pyodide.runPythonAsync(`
+                import sys
+                import json
+                # Try to import the CookieScript VM
+                try:
+                    from cookiescript_vm import CookieScriptVM
+                    # Create a VM instance
+                    vm = CookieScriptVM()
+                    # Execute the code
+                    result = vm.execute(str(code))
+                    # Convert result to string if needed
+                    if result === undefined || result === null) {
+                        return '';
+                    }
+                    return JSON.stringify(result);
+                } catch (importError) {
+                    // If we can't import the VM, we'll need to provide it
+                    throw importError;
+                }
+            `);
+            return result;
+        } catch (vmError) {
+            // If we can't load the actual VM, try to provide a basic implementation
+            // or fall back to simulating common operations
+            throw new Error(`CookieScript VM not available: ${vmError.message}`);
+        }
+    } catch (e) {
+        throw new Error(`CookieScript execution failed: ${e.message}`);
+    }
+}
+        default:
+            throw new Error(`Language ${language} not supported client-side`);
+    }
+}
+
+// ============================================
+// Operacoes com arquivos (API real)
+// ============================================
+        // Geracao de codigo com IA (usa cookie_ai.py)
         // ============================================
         async function generateCode() {
             const prompt = document.getElementById('promptInput').value.trim();
@@ -585,7 +1731,7 @@
         }
         
         // ============================================
-        // Pesquisa de codigos (usa jertruge_ai.py)
+        // Pesquisa de codigos (usa cookie_ai.py)
         // ============================================
         async function searchCode() {
             const query = document.getElementById('searchQuery').value.trim();
@@ -815,11 +1961,11 @@
                 }
             });
             
-            // Carregar dados iniciais
-            addOutput('Conectando ao backend Python (jertruge_app.py)...');
-            await loadFileList();
-            await loadProjects();
-            addOutput('Jertruge IDE pronta! Use os botoes para abrir, salvar e executar codigo.');
+// Carregar dados iniciais
+             addOutput('Conectando ao backend Python (cookie_ide_app.py)...');
+             await loadFileList();
+             await loadProjects();
+             addOutput('CookieScript IDE pronta! Execucao client-side disponivel para JS, Python, Lua. Use os botoes para abrir, salvar e executar codigo.');
         });
     </script>
 </body>

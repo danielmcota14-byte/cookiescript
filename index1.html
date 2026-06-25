@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Jertruge AI - Plataforma de Desenvolvimento com IA</title>
+  <title>Cookie AI - Plataforma de Desenvolvimento com IA</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -370,7 +370,7 @@
 </head>
 <body>
 <div class="global-nav">
-  <a href="cookie_ide.html">Jertruge</a>
+  <a href="cookie_ide.html">CookieScript</a>
   <a href="index.html">Editor Profissional</a>
   <a href="index1.html" class="active">AI Assistant</a>
   <a href="index2.html">Wiki</a>
@@ -379,7 +379,7 @@
 <div class="container">
   <div class="site-header">
     <div class="logo-area">
-      <h1>Jertruge AI · Plataforma de Desenvolvimento</h1>
+      <h1>Cookie AI · Plataforma de Desenvolvimento</h1>
       <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
         <span class="badge-mini">Gemini</span>
         <span class="badge-mini">Groq</span>
@@ -404,8 +404,8 @@
         <select id="providerSelect">
           <option value="gemini">Google Gemini</option>
           <option value="groq">Groq Cloud</option>
-          <option value="enhanced">jertruge Potencializada (Groq + Local)</option>
-          <option value="local">jertruge Local (DeepSeek)</option>
+          <option value="enhanced">Cookie Potencializada (Groq + Local)</option>
+          <option value="local">Cookie Local (DeepSeek)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
@@ -458,7 +458,7 @@
 
   <div class="footer-note">
     <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita.
-    <strong>jertruge DeepSeek</strong> roda localmente no servidor.<br>
+    <strong>Cookie DeepSeek</strong> roda localmente no servidor.<br>
     A opção "Potencializada" usa Groq + IA Local para respostas refinadas.
   </div>
 </div>
@@ -559,13 +559,13 @@
     try {
       const res = await fetch('/health');
       if (res.ok) {
-        localStatusMsg.innerHTML = '✅ jertruge disponível e funcionando';
+        localStatusMsg.innerHTML = '✅ Cookie disponível e funcionando';
         localStatusMsg.style.color = 'var(--success)';
       } else {
         throw new Error();
       }
     } catch(e) {
-      localStatusMsg.innerHTML = '❌ jertruge não está respondendo. Verifique se o servidor cookie_ide.py está rodando.';
+      localStatusMsg.innerHTML = '❌ Cookie não está respondendo. Verifique se o servidor cookie_ide.py está rodando.';
       localStatusMsg.style.color = 'var(--danger)';
     }
   }
@@ -633,7 +633,7 @@
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     if (data.resposta) return data.resposta;
-    throw new Error('Resposta vazia da jertruge AI');
+    throw new Error('Resposta vazia da Cookie AI');
   }
 
   async function callEnhancedAI(prompt, groqModel) {
@@ -692,7 +692,7 @@
       } else if (friendly.includes('fetch') || friendly.includes('network')) {
         friendly = 'Erro de rede. Verifique sua conexão.';
       } else if (friendly.includes('Local AI') && friendly.includes('ECONNREFUSED')) {
-        friendly = 'jertruge não está rodando. Execute cookie_ide.py primeiro.';
+        friendly = 'Cookie não está rodando. Execute cookie_ide.py primeiro.';
       }
       setResponse(`Erro: ${friendly}`, true);
     } finally {

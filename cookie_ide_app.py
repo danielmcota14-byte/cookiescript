@@ -38,7 +38,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
         # Servir a página principal (cookie_ide.html ou index1.html)
         if path == '/' or path == '':
-            # Tenta servir index1.html (Jertruge AI) se existir, senão cookie_ide.html
+            # Tenta servir index1.html (Cookie AI) se existir, senão cookie_ide.html
             if (BASE_DIR / 'index1.html').exists():
                 self.path = '/index1.html'
             else:
@@ -378,7 +378,7 @@ def main():
 
     httpd = HTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
     print(f"\n{'='*50}")
-    print(f"CookieScript IDE + Jertruge AI iniciada com sucesso!")
+    print(f"CookieScript IDE + Cookie AI iniciada com sucesso!")
     print(f"Servidor rodando em: http://0.0.0.0:{PORT}")
     print(f"Endpoints disponíveis:")
     print(f"  - GET  /health           (status do servidor)")
