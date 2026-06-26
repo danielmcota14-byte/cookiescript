@@ -101,9 +101,17 @@ class CookieAIGenerator:
                 'low_cpu_mem_usage': True,
             }
             if self.DEEPSEEK_USE_CPU or not torch.cuda.is_available():
-                load_kwargs['torch_dtype'] = torch.float32
+                # float16 usa metade da RAM que float32 (essencial para cloud com pouca memória)
+                load_kwargs['torch_dtype'] = torch.float16
                 load_kwargs['device_map'] = 'cpu'
-                print("Usando CPU (pode ser lento, mas funciona)")
+                # Carrega pesos em 8bit para economizar ainda mais memória (~60% menos RAM)
+                try:
+                    import bitsandbytes
+                    load_kwargs['load_in_8bit'] = True
+                    load_kwargs.pop('torch_dtype', None)
+                    print("Usando CPU com quantização 8bit (baixo uso de memória)")
+                except ImportError:
+                    print("Usando CPU com float16 (memória reduzida)")
             else:
                 load_kwargs['torch_dtype'] = torch.float16
                 load_kwargs['device_map'] = 'auto'
