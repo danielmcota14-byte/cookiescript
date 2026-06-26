@@ -86,8 +86,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.api_git_status(data)
         elif path == '/api/git_commit':
             self.api_git_commit(data)
-        elif path == '/api/ask':                 # NOVO endpoint para IA local
+        elif path == '/api/ollama_status':
+            self.api_ollama_status(data)
+        elif path == '/api/ask':                 # endpoint para IA local
             self.api_ask(data)
+        elif path == '/api/ask_enhanced':        # endpoint para IA potencializada (Groq proxy)
+            self.api_ask_enhanced(data)
         else:
             self.send_json({'error': 'Rota não encontrada'}, 404)
 
@@ -345,50 +349,368 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
         except Exception as e:
             self.send_json({'error': str(e)})
 
+    def api_ollama_status(self, data):
+        import urllib.request
+        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+        try:
+            with urllib.request.urlopen(f'{OLLAMA_URL}/api/tags', timeout=3) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                models = [m['name'] for m in result.get('models', [])]
+                self.send_json({'online': True, 'models': models})
+        except Exception as e:
+            self.send_json({'online': False, 'error': str(e)})
+
     def send_logs(self):
         self.send_json({'logs': []})
 
     # -------------------- NOVO ENDPOINT para IA local (Cookie AI) --------------------
+    def _ollama_list_models(self):
+        """Retorna lista de modelos instalados no Ollama."""
+        import urllib.request
+        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+        try:
+            with urllib.request.urlopen(f'{OLLAMA_URL}/api/tags', timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return [m['name'] for m in data.get('models', [])]
+        except:
+            return []
+
+    def _ollama_pull(self, model):
+        """Baixa um modelo do Ollama (bloqueante)."""
+        import urllib.request
+        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+        print(f'[Ollama] Baixando modelo {model}... (pode demorar alguns minutos)')
+        payload = json.dumps({'name': model, 'stream': False}).encode('utf-8')
+        req = urllib.request.Request(
+            f'{OLLAMA_URL}/api/pull',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+            print(f'[Ollama] Modelo {model} pronto: {result.get("status", "")}')
+
+    def _ollama_request(self, pergunta, model=None):
+        """Chama Ollama localmente na porta 11434."""
+        import urllib.request, urllib.error
+        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+        PREFERRED_MODEL = os.environ.get('OLLAMA_MODEL', 'phi3')
+
+        # Se model não foi especificado, escolhe o melhor disponível
+        if model is None:
+            modelos = self._ollama_list_models()
+            print(f'[Ollama] Modelos instalados: {modelos}')
+            if modelos:
+                # Prefere phi3, phi, llama, gemma nessa ordem
+                for pref in [PREFERRED_MODEL, 'phi3', 'phi', 'llama3.2', 'llama3', 'gemma', 'mistral']:
+                    match = next((m for m in modelos if pref in m.lower()), None)
+                    if match:
+                        model = match
+                        break
+                if not model:
+                    model = modelos[0]  # qualquer um disponível
+            else:
+                # Nenhum modelo — baixa phi3 automaticamente
+                print('[Ollama] Nenhum modelo encontrado. Baixando phi3...')
+                try:
+                    self._ollama_pull('phi3')
+                    model = 'phi3'
+                except Exception as e:
+                    raise Exception(f'Ollama online mas sem modelos. Erro ao baixar phi3: {e}')
+
+        print(f'[Ollama] Usando modelo: {model}')
+        payload = json.dumps({'model': model, 'prompt': pergunta, 'stream': False}).encode('utf-8')
+        req = urllib.request.Request(
+            f'{OLLAMA_URL}/api/generate',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+            return result.get('response', '').strip()
+
     def api_ask(self, data):
         pergunta = data.get('pergunta', '')
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'})
             return
 
-        if CookieAIGenerator is None:
-            self.send_json({'error': 'CookieAIGenerator não disponível. Verifique o arquivo cookie_ai.py.'})
+        # Tenta Ollama primeiro (IA local sem API)
+        try:
+            resposta = self._ollama_request(pergunta)
+            if resposta:
+                self.send_json({'success': True, 'resposta': resposta})
+                return
+        except Exception as e:
+            print(f'[Ollama] Nao disponivel: {e}')
+
+        # Fallback: templates locais
+        if CookieAIGenerator:
+            try:
+                generator = CookieAIGenerator()
+                resposta = generator.responder(pergunta)
+                self.send_json({'success': True, 'resposta': resposta})
+                return
+            except Exception:
+                pass
+
+        self.send_json({
+            'success': False,
+            'error': 'Ollama nao esta rodando. Instale em https://ollama.com e execute: ollama run phi3'
+        })
+
+    def api_ask_enhanced(self, data):
+        """Proxy para Groq API - IA potencializada via modelo externo."""
+        import urllib.request
+        import urllib.error
+
+        pergunta = data.get('pergunta', '')
+        groq_model = data.get('groq_model', 'llama3-8b-8192')
+        groq_api_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
+
+        if not pergunta:
+            self.send_json({'error': 'Pergunta vazia'})
+            return
+
+        # Se não tiver chave Groq, fallback para IA local
+        if not groq_api_key:
+            if CookieAIGenerator:
+                try:
+                    generator = CookieAIGenerator()
+                    resposta = generator.responder(pergunta)
+                    self.send_json({'success': True, 'resposta': resposta})
+                    return
+                except Exception as e:
+                    self.send_json({'error': f'Sem chave Groq e IA local falhou: {str(e)}'})
+                    return
+            self.send_json({'error': 'Configure a variável GROQ_API_KEY ou use o provedor "Local".'})
             return
 
         try:
-            generator = CookieAIGenerator()
-            resposta = generator.responder(pergunta)
-            self.send_json({'success': True, 'resposta': resposta})
+            payload = json.dumps({
+                'model': groq_model,
+                'messages': [{'role': 'user', 'content': pergunta}],
+                'max_tokens': 1024,
+                'temperature': 0.7
+            }).encode('utf-8')
+
+            req = urllib.request.Request(
+                'https://api.groq.com/openai/v1/chat/completions',
+                data=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {groq_api_key}'
+                },
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                resposta = result['choices'][0]['message']['content']
+                self.send_json({'success': True, 'resposta': resposta})
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='ignore')
+            self.send_json({'error': f'Groq API error {e.code}: {body}'})
         except Exception as e:
-            self.send_json({'error': f'Erro ao gerar resposta: {str(e)}'})
+            self.send_json({'error': f'Erro ao chamar Groq: {str(e)}'})
+
+
+# ============================================================
+# AUTO-SETUP: instala Ollama e dependências automaticamente
+# ============================================================
+
+import platform
+import threading
+import time
+import urllib.request
+import urllib.error
+
+
+def _print_step(msg):
+    print(f"\n{'='*55}\n  {msg}\n{'='*55}")
+
+
+def _cmd(args, **kwargs):
+    """Roda comando e retorna (returncode, stdout+stderr)."""
+    result = subprocess.run(
+        args, capture_output=True, text=True,
+        **kwargs
+    )
+    return result.returncode, result.stdout + result.stderr
+
+
+def _is_ollama_installed():
+    code, _ = _cmd(['ollama', '--version'])
+    return code == 0
+
+
+def _install_ollama():
+    system = platform.system()
+    _print_step(f"Instalando Ollama ({system})...")
+
+    if system == 'Windows':
+        installer = BASE_DIR / '_ollama_setup.exe'
+        print("  Baixando instalador do Ollama...")
+        try:
+            urllib.request.urlretrieve(
+                'https://ollama.com/download/OllamaSetup.exe',
+                str(installer)
+            )
+            print("  Executando instalador (siga as instruções na tela)...")
+            subprocess.run([str(installer)], check=True)
+            installer.unlink(missing_ok=True)
+            print("  Ollama instalado!")
+            return True
+        except Exception as e:
+            print(f"  ERRO ao instalar Ollama: {e}")
+            print("  Instale manualmente em: https://ollama.com/download")
+            return False
+
+    elif system in ('Linux', 'Darwin'):
+        print("  Rodando instalador oficial do Ollama...")
+        try:
+            code, out = _cmd(
+                'curl -fsSL https://ollama.com/install.sh | sh',
+                shell=True
+            )
+            if code == 0:
+                print("  Ollama instalado!")
+                return True
+            else:
+                print(f"  ERRO: {out}")
+                print("  Instale manualmente: https://ollama.com")
+                return False
+        except Exception as e:
+            print(f"  ERRO: {e}")
+            return False
+    else:
+        print(f"  Sistema {system} não suportado para instalação automática.")
+        print("  Instale manualmente: https://ollama.com")
+        return False
+
+
+def _ollama_running():
+    try:
+        with urllib.request.urlopen('http://localhost:11434/api/tags', timeout=3) as r:
+            return r.status == 200
+    except:
+        return False
+
+
+def _start_ollama_server():
+    """Inicia ollama serve em background."""
+    if _ollama_running():
+        return
+    print("  Iniciando servidor Ollama em background...")
+    if platform.system() == 'Windows':
+        subprocess.Popen(
+            ['ollama', 'serve'],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
+        subprocess.Popen(
+            ['ollama', 'serve'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    # Aguarda subir
+    for _ in range(20):
+        time.sleep(1)
+        if _ollama_running():
+            print("  Ollama online!")
+            return
+    print("  AVISO: Ollama demorou para iniciar. A IA pode não responder imediatamente.")
+
+
+def _model_downloaded(model='phi3'):
+    try:
+        with urllib.request.urlopen('http://localhost:11434/api/tags', timeout=5) as r:
+            data = json.loads(r.read())
+            names = [m['name'] for m in data.get('models', [])]
+            return any(model in n for n in names)
+    except:
+        return False
+
+
+def _pull_model(model='phi3'):
+    _print_step(f"Baixando modelo de IA: {model} (~2GB, pode demorar...)")
+    print("  Por favor aguarde. Isso só acontece uma vez.")
+    code, out = _cmd(['ollama', 'pull', model])
+    if code == 0:
+        print(f"  Modelo {model} pronto!")
+        return True
+    else:
+        print(f"  ERRO ao baixar modelo: {out}")
+        return False
+
+
+def _install_pip_deps():
+    deps = ['requests']
+    for dep in deps:
+        try:
+            __import__(dep)
+        except ImportError:
+            print(f"  Instalando {dep}...")
+            _cmd([sys.executable, '-m', 'pip', 'install', dep, '--quiet'])
+
+
+def setup_auto():
+    """Configura tudo automaticamente: pip deps, Ollama, modelo."""
+    print("\n" + "="*55)
+    print("  CookieScript IDE — Configuração Automática")
+    print("="*55)
+
+    # 1. Dependências Python
+    print("\n[1/3] Verificando dependências Python...")
+    _install_pip_deps()
+    print("  OK")
+
+    # 2. Ollama
+    print("\n[2/3] Verificando Ollama...")
+    if not _is_ollama_installed():
+        ok = _install_ollama()
+        if not ok:
+            print("  AVISO: Ollama não instalado. IA local não estará disponível.")
+            return
+    else:
+        print("  Ollama já instalado.")
+
+    # Inicia servidor Ollama
+    _start_ollama_server()
+
+    # 3. Modelo
+    OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'phi3')
+    print(f"\n[3/3] Verificando modelo {OLLAMA_MODEL}...")
+    if not _model_downloaded(OLLAMA_MODEL):
+        _pull_model(OLLAMA_MODEL)
+    else:
+        print(f"  Modelo {OLLAMA_MODEL} já disponível.")
+
+    print("\n  Tudo pronto! IA local funcionando.")
 
 
 def main():
     os.chdir(BASE_DIR)
 
-    # Verifica se o arquivo HTML principal existe (pelo menos um dos dois)
-    if not (BASE_DIR / 'cookie_ide.html').exists() and not (BASE_DIR / 'index1.html').exists():
-        print("AVISO: Nenhum arquivo HTML encontrado (cookie_ide.html ou index1.html). A IA pode não funcionar corretamente.")
-    else:
-        print("Arquivo HTML encontrado. Servindo interface.")
+    # Auto-setup em thread separada para não travar o servidor
+    setup_thread = threading.Thread(target=setup_auto, daemon=True)
+    setup_thread.start()
+
+    # Aguarda pelo menos as dependências básicas
+    setup_thread.join(timeout=5)
 
     httpd = HTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
-    print(f"\n{'='*50}")
-    print(f"CookieScript IDE + Cookie AI iniciada com sucesso!")
-    print(f"Servidor rodando em: http://0.0.0.0:{PORT}")
-    print(f"Endpoints disponíveis:")
-    print(f"  - GET  /health           (status do servidor)")
-    print(f"  - POST /api/ask          (perguntar ao Cookie AI local)")
-    print(f"  - POST /api/generate     (gerar código)")
-    print(f"  - POST /api/execute      (executar código)")
-    print(f"  - ... e todos os outros endpoints originais")
-    print(f"{'='*50}\n")
 
-    # Tenta abrir navegador automaticamente (apenas em ambiente local)
+    print(f"\n{'='*55}")
+    print(f"  CookieScript IDE iniciada!")
+    print(f"  Acesse: http://localhost:{PORT}/")
+    print(f"  IA: configurando Ollama em background...")
+    print(f"{'='*55}\n")
+
+    # Abre navegador automaticamente
     if os.environ.get('RENDER') != 'true' and os.environ.get('PORT') is None:
         try:
             webbrowser.open(f'http://localhost:{PORT}/')

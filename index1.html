@@ -402,10 +402,10 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
-          <option value="gemini">Google Gemini</option>
-          <option value="groq">Groq Cloud</option>
+          <option value="local">🤖 Cookie AI Local (Ollama)</option>
+          <option value="gemini">Google Gemini (API gratuita)</option>
+          <option value="groq">Groq Cloud (API gratuita)</option>
           <option value="enhanced">Cookie Potencializada (Groq + Local)</option>
-          <option value="local">Cookie Local (DeepSeek)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
@@ -457,9 +457,8 @@
   </div>
 
   <div class="footer-note">
-    <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita.
-    <strong>Cookie DeepSeek</strong> roda localmente no servidor.<br>
-    A opção "Potencializada" usa Groq + IA Local para respostas refinadas.
+    <strong>Cookie AI Local</strong> usa Ollama (sem internet, sem API).<br>
+    <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita (opcional).
   </div>
 </div>
 
@@ -543,12 +542,12 @@
       localStatusDiv.classList.add('active');
       aiFlowInfo.classList.add('active');
       checkLocalHealth();
-    } else { // local
+    } else { // local = Ollama
       apiKeyField.style.display = 'none';
       groqModelDiv.classList.remove('active');
       localStatusDiv.classList.add('active');
       aiFlowInfo.classList.remove('active');
-      checkLocalHealth();
+      checkOllamaHealth();
     }
     
     responseContainer.innerHTML = `<div style="color:var(--gray-500);">Provedor alterado. Digite sua pergunta.</div>`;
@@ -669,6 +668,7 @@
         return;
       }
     }
+    // Local/Ollama não precisa de API key
 
     setLoading(true);
     try {
@@ -733,7 +733,9 @@
 
   updateUIForProvider();
   setInterval(() => {
-    if (providerSelect.value === 'local' || providerSelect.value === 'enhanced') {
+    if (providerSelect.value === 'local') {
+      checkOllamaHealth();
+    } else if (providerSelect.value === 'enhanced') {
       checkLocalHealth();
     }
   }, 15000);
