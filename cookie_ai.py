@@ -14,7 +14,7 @@ except ImportError:
 
 class CookieAIGenerator:
     # Modelo leve que roda em CPU (phi-2 precisa ~8GB RAM, flan-t5-base ~1GB)
-    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'microsoft/phi-2')   # ou 'google/flan-t5-base'
+    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-coder-1.3b-base')
     DEEPSEEK_USE_CPU = os.getenv('DEEPSEEK_USE_CPU', '1').lower() in ('1', 'true', 'yes')
 
     def __init__(self):
