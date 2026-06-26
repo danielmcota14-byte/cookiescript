@@ -437,83 +437,127 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
             self.send_json({'error': 'Pergunta vazia'})
             return
 
-        # Tenta Ollama primeiro (IA local sem API)
-        try:
-            resposta = self._ollama_request(pergunta)
-            if resposta:
-                self.send_json({'success': True, 'resposta': resposta})
-                return
-        except Exception as e:
-            print(f'[Ollama] Nao disponivel: {e}')
-
-        # Fallback: templates locais
+        # Usa DeepSeek local via torch + transformers
         if CookieAIGenerator:
             try:
                 generator = CookieAIGenerator()
+                # Carrega o modelo se ainda não carregou
+                generator._load_deepseek_model()
                 resposta = generator.responder(pergunta)
-                self.send_json({'success': True, 'resposta': resposta})
+                model_name = generator.DEEPSEEK_MODEL.split('/')[-1]
+                self.send_json({'success': True, 'resposta': resposta, 'model': model_name})
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                print(f'[DeepSeek Local] Erro: {e}')
+                self.send_json({'success': False, 'error': f'Erro no modelo local: {str(e)}'})
+                return
 
         self.send_json({
             'success': False,
-            'error': 'Ollama nao esta rodando. Instale em https://ollama.com e execute: ollama run phi3'
+            'error': 'torch e transformers nao instalados. Verifique o Dockerfile.'
         })
 
     def api_ask_enhanced(self, data):
-        """Proxy para Groq API - IA potencializada via modelo externo."""
+        """IA Potencializada: DeepSeek local gera resposta base, Groq refina e expande."""
         import urllib.request
         import urllib.error
 
         pergunta = data.get('pergunta', '')
-        groq_model = data.get('groq_model', 'llama3-8b-8192')
+        groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
         groq_api_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
 
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'})
             return
 
-        # Se não tiver chave Groq, fallback para IA local
-        if not groq_api_key:
-            if CookieAIGenerator:
-                try:
-                    generator = CookieAIGenerator()
-                    resposta = generator.responder(pergunta)
-                    self.send_json({'success': True, 'resposta': resposta})
+        # Passo 1: gera resposta base com DeepSeek local
+        resposta_local = None
+        if CookieAIGenerator:
+            try:
+                generator = CookieAIGenerator()
+                generator._load_deepseek_model()
+                resposta_local = generator.responder(pergunta)
+                print(f'[Enhanced] Resposta local gerada ({len(resposta_local)} chars)')
+            except Exception as e:
+                print(f'[Enhanced] DeepSeek local falhou: {e}')
+
+        # Passo 2: envia para Groq para refinar e potencializar
+        if groq_api_key:
+            try:
+                if resposta_local:
+                    system_prompt = (
+                        "Você é a Cookie AI Potencializada, uma IA avançada integrada ao CookieScript IDE. "
+                        "Uma IA local (DeepSeek) já gerou uma resposta inicial para a pergunta do usuário. "
+                        "Sua tarefa é: 1) Analisar e corrigir erros na resposta local se houver. "
+                        "2) Expandir e melhorar a resposta com mais detalhes e exemplos. "
+                        "3) Manter o foco na pergunta original. "
+                        "Responda sempre em português brasileiro."
+                    )
+                    user_content = (
+                        f"Pergunta original: {pergunta}
+
+"
+                        f"Resposta da IA local (DeepSeek):
+{resposta_local}
+
+"
+                        f"Por favor, analise, corrija se necessário e melhore esta resposta."
+                    )
+                else:
+                    system_prompt = (
+                        "Você é a Cookie AI Potencializada integrada ao CookieScript IDE. "
+                        "Responda de forma clara, completa e em português brasileiro."
+                    )
+                    user_content = pergunta
+
+                payload = json.dumps({
+                    'model': groq_model,
+                    'messages': [
+                        {'role': 'system', 'content': system_prompt},
+                        {'role': 'user', 'content': user_content}
+                    ],
+                    'max_tokens': 2048,
+                    'temperature': 0.7
+                }).encode('utf-8')
+
+                req = urllib.request.Request(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    data=payload,
+                    headers={
+                        'Content-Type': 'application/json',
+                        'Authorization': f'Bearer {groq_api_key}'
+                    },
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    result = json.loads(resp.read().decode('utf-8'))
+                    resposta_final = result['choices'][0]['message']['content']
+                    self.send_json({
+                        'success': True,
+                        'resposta': resposta_final,
+                        'model': f'DeepSeek Local + {groq_model} (Groq)',
+                        'resposta_local': resposta_local
+                    })
                     return
-                except Exception as e:
-                    self.send_json({'error': f'Sem chave Groq e IA local falhou: {str(e)}'})
-                    return
-            self.send_json({'error': 'Configure a variável GROQ_API_KEY ou use o provedor "Local".'})
+            except urllib.error.HTTPError as e:
+                body = e.read().decode('utf-8', errors='ignore')
+                print(f'[Enhanced] Groq erro {e.code}: {body}')
+            except Exception as e:
+                print(f'[Enhanced] Groq falhou: {e}')
+
+        # Fallback: retorna só a resposta local se Groq falhou ou sem chave
+        if resposta_local:
+            self.send_json({
+                'success': True,
+                'resposta': resposta_local,
+                'model': 'DeepSeek Local (Groq indisponível)'
+            })
             return
 
-        try:
-            payload = json.dumps({
-                'model': groq_model,
-                'messages': [{'role': 'user', 'content': pergunta}],
-                'max_tokens': 1024,
-                'temperature': 0.7
-            }).encode('utf-8')
-
-            req = urllib.request.Request(
-                'https://api.groq.com/openai/v1/chat/completions',
-                data=payload,
-                headers={
-                    'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {groq_api_key}'
-                },
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
-                resposta = result['choices'][0]['message']['content']
-                self.send_json({'success': True, 'resposta': resposta})
-        except urllib.error.HTTPError as e:
-            body = e.read().decode('utf-8', errors='ignore')
-            self.send_json({'error': f'Groq API error {e.code}: {body}'})
-        except Exception as e:
-            self.send_json({'error': f'Erro ao chamar Groq: {str(e)}'})
+        self.send_json({
+            'success': False,
+            'error': 'Configure GROQ_API_KEY para usar a IA Potencializada.'
+        })
 
 
 # ============================================================
