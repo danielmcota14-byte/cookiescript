@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -402,10 +403,10 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
-          <option value="local">🤖 Cookie AI Local (Ollama)</option>
+          <option value="local">🧠 DeepSeek Local (torch + transformers)</option>
           <option value="gemini">Google Gemini (API gratuita)</option>
           <option value="groq">Groq Cloud (API gratuita)</option>
-          <option value="enhanced">Cookie Potencializada (Groq + Local)</option>
+          <option value="enhanced">⚡ Cookie Potencializada (DeepSeek Local + Groq)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
@@ -422,9 +423,10 @@
       <div class="field">
         <label for="groqModelSelect">Modelo Groq</label>
         <select id="groqModelSelect">
-          <option value="llama-3.1-8b-instant">Llama 3.1 8B (rápido)</option>
+          <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 70B (recomendado)</option>
+          <option value="deepseek-r1-distill-qwen-32b">DeepSeek R1 32B (rápido)</option>
+          <option value="llama-3.1-8b-instant">Llama 3.1 8B (leve)</option>
           <option value="mixtral-8x7b-32768">Mixtral 8x7B (potente)</option>
-          <option value="llama-3.2-3b-preview">Llama 3.2 3B (leve)</option>
         </select>
       </div>
     </div>
@@ -457,7 +459,7 @@
   </div>
 
   <div class="footer-note">
-    <strong>Cookie AI Local</strong> usa Ollama (sem internet, sem API).<br>
+    <strong>DeepSeek Local</strong> usa torch + transformers direto no servidor (sem internet, sem API).<br>
     <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita (opcional).
   </div>
 </div>
