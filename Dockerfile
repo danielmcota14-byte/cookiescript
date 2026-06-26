@@ -1,22 +1,28 @@
-FROM python:3.11-slim
+# fly.toml - Configuração para Fly.io
 
-WORKDIR /app
+app = "cookiescript-ide"
+primary_region = "gru"
 
-COPY requirements.txt .
+[build]
+  dockerfile = "Dockerfile"
 
-# Instala dependências sem torch/transformers (muito pesados pra cloud)
-# Se quiser IA local via Ollama, ela se conecta externamente
-RUN pip install --no-cache-dir \
-    websockets \
-    requests \
-    flask \
-    fastapi \
-    uvicorn \
-    pillow \
-    psutil
+[env]
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
 
-COPY . .
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
 
-EXPOSE 8080
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
 
-CMD ["python3", "cookie_ide_app.py"]
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
