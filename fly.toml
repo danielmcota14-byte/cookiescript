@@ -1,13 +1,10 @@
 # fly.toml - Configuração para Fly.io
-# Deploy: fly launch (primeira vez) ou fly deploy (atualizações)
 
 app = "cookiescript-ide"
-primary_region = "gru"  # São Paulo - mais próximo do Brasil
+primary_region = "gru"
 
 [build]
-  # Usa Python nativo sem Docker
-  builder = "paketobuildpacks/builder:base"
-  buildpacks = ["gcr.io/buildpacks/builder:v1"]
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "8080"
