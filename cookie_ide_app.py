@@ -494,14 +494,9 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
                         "Responda sempre em português brasileiro."
                     )
                     user_content = (
-                        f"Pergunta original: {pergunta}
-
-"
-                        f"Resposta da IA local (DeepSeek):
-{resposta_local}
-
-"
-                        f"Por favor, analise, corrija se necessário e melhore esta resposta."
+                        "Pergunta original: " + pergunta + "\n\n"
+                        "Resposta da IA local (DeepSeek):\n" + str(resposta_local) + "\n\n"
+                        "Por favor, analise, corrija se necessário e melhore esta resposta."
                     )
                 else:
                     system_prompt = (
