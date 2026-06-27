@@ -2,15 +2,31 @@ import os
 import re
 from typing import Optional
 
-try:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    torch = None
-    AutoModelForCausalLM = None
-    AutoTokenizer = None
-    TRANSFORMERS_AVAILABLE = False
+# Lazy loading: não importar torch/transformers no topo
+# Isso será feito apenas quando necessário
+TRANSFORMERS_AVAILABLE = False
+torch = None
+AutoModelForCausalLM = None
+AutoTokenizer = None
+
+def _try_import_transformers():
+    """Tenta importar transformers apenas quando necessário."""
+    global TRANSFORMERS_AVAILABLE, torch, AutoModelForCausalLM, AutoTokenizer
+    
+    if TRANSFORMERS_AVAILABLE:
+        return True
+    
+    try:
+        import torch as _torch
+        from transformers import AutoModelForCausalLM as _AutoModelForCausalLM
+        from transformers import AutoTokenizer as _AutoTokenizer
+        torch = _torch
+        AutoModelForCausalLM = _AutoModelForCausalLM
+        AutoTokenizer = _AutoTokenizer
+        TRANSFORMERS_AVAILABLE = True
+        return True
+    except ImportError:
+        return False
 
 class CookieAIGenerator:
     # Modelo leve que roda em CPU (phi-2 precisa ~8GB RAM, flan-t5-base ~1GB)
@@ -80,14 +96,20 @@ class CookieAIGenerator:
 
     # ----- Métodos internos de modelo -----
     def _is_model_available(self) -> bool:
+        # Respeitar variável de ambiente DISABLE_LOCAL_AI
+        if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+            return False
         return TRANSFORMERS_AVAILABLE and self._model_loaded and self._deepseek_model is not None
 
     def _load_deepseek_model(self):
         if self._model_loaded:
             return
+        
+        # Tentar importar transformers se ainda não foi feito
         if not TRANSFORMERS_AVAILABLE:
-            print("Transformers não instalado. Execute: pip install torch transformers")
-            return
+            if not _try_import_transformers():
+                print("Transformers não instalado. Execute: pip install torch transformers")
+                return
 
         try:
             print(f"Carregando modelo {self.DEEPSEEK_MODEL}... (pode levar vários minutos na primeira vez)")
