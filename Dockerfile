@@ -18,7 +18,6 @@ RUN pip install --no-cache-dir \
     transformers \
     bitsandbytes \
     accelerate
-
 COPY . .
 
 EXPOSE 8080
