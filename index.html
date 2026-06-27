@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -463,7 +464,15 @@ async function apiCall(endpoint, data) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        const result = await response.json();
+        let result = {};
+        const text = await response.text();
+        if (text) {
+            try {
+                result = JSON.parse(text);
+            } catch (parseErr) {
+                throw new Error(`Resposta inválida do servidor: ${text.slice(0, 100)}`);
+            }
+        }
         if (!response.ok) {
             throw new Error(result.error || `HTTP ${response.status}`);
         }
@@ -1245,6 +1254,104 @@ function switchPanelTab(tabId) {
 }
 
 // ============================================
+// Execucao de codigo
+// ============================================
+async function executeCode() {
+    const code = document.getElementById('codeEditor').value;
+    const language = document.getElementById('languageSelect').value;
+    if (!code.trim()) { addOutput('Nenhum codigo para executar'); return; }
+    const btnRun = document.getElementById('btnRun');
+    setButtonLoading(btnRun, true, 'Executar');
+    addOutput(`Executando codigo (${language})...`);
+    try {
+        let clientResult;
+        try {
+            clientResult = await executeClientSide(language, code);
+            addOutput(`Execucao concluida (client-side):\n${clientResult}`);
+            setButtonLoading(btnRun, false);
+            return;
+        } catch (clientError) {
+            addOutput(`Client-side falhou: ${clientError.message}. Tentando backend...`);
+        }
+        const result = await apiCall('/api/execute', { code, language });
+        setButtonLoading(btnRun, false);
+        if (result.success) {
+            addOutput(`Execucao concluida (backend):\n${result.output || '(sem saida)'}`);
+        } else {
+            addOutput(`Erro na execucao: ${result.error}`);
+        }
+    } catch (error) {
+        setButtonLoading(btnRun, false);
+        addOutput(`Erro: ${error.message}`);
+    }
+}
+
+// ============================================
+// Geracao de codigo com IA
+// ============================================
+async function generateCode() {
+    const prompt = document.getElementById('promptInput').value.trim();
+    const language = document.getElementById('languageSelect').value;
+    if (!prompt) { addOutput('Digite um prompt para gerar codigo'); return; }
+    const btnGenerate = document.getElementById('btnGenerate');
+    setButtonLoading(btnGenerate, true, 'Gerar Codigo');
+    addOutput(`Gerando codigo com IA (${language})...`);
+    addOutput(`Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
+    const result = await apiCall('/api/generate', { prompt, language });
+    setButtonLoading(btnGenerate, false);
+    if (result.success && result.code) {
+        document.getElementById('codeEditor').value = result.code;
+        addOutput(`Codigo gerado com sucesso! (${result.code.length} caracteres)`);
+    } else {
+        addOutput(`Erro na geracao: ${result.error || 'Falha ao gerar codigo'}`);
+    }
+}
+
+// ============================================
+// Pesquisa de codigos
+// ============================================
+async function searchCode() {
+    const query = document.getElementById('searchQuery').value.trim();
+    const language = document.getElementById('languageSelect').value;
+    if (!query) { addOutput('Digite uma consulta para pesquisar'); return; }
+    const btnSearch = document.getElementById('btnSearch');
+    setButtonLoading(btnSearch, true, 'Pesquisar');
+    addOutput(`Pesquisando: "${query}" (${language})...`);
+    const result = await apiCall('/api/search', { query, language });
+    setButtonLoading(btnSearch, false);
+    const searchResultsDiv = document.getElementById('searchResults');
+    if (result.success) {
+        searchResultsDiv.innerHTML = '';
+        if (result.results && result.results.length > 0) {
+            addOutput(`Encontrados ${result.results.length} arquivos relacionados`);
+            result.results.forEach(r => {
+                const div = document.createElement('div');
+                div.style.cssText = 'padding:8px;margin-bottom:8px;background:#2a2a2a;border-radius:4px;cursor:pointer;border-left:3px solid #aaa;';
+                div.innerHTML = `<strong>${r.file}</strong><br><small>${(r.preview||'').substring(0,120)}</small>`;
+                div.onclick = () => openFile(r.file);
+                searchResultsDiv.appendChild(div);
+            });
+        } else {
+            searchResultsDiv.innerHTML = '<div style="color:#aaa;padding:8px;">Nenhum resultado encontrado</div>';
+        }
+        if (result.generated) {
+            addOutput('Codigo gerado pela IA disponivel!');
+            const genDiv = document.createElement('div');
+            genDiv.style.cssText = 'padding:8px;margin-top:12px;background:#2a5a2a;border-radius:4px;cursor:pointer;text-align:center;';
+            genDiv.innerHTML = '<strong>✨ Codigo IA gerado - clique para usar</strong>';
+            genDiv.onclick = () => {
+                document.getElementById('codeEditor').value = result.generated;
+                addOutput('Codigo gerado pela IA inserido no editor');
+            };
+            searchResultsDiv.appendChild(genDiv);
+        }
+    } else {
+        searchResultsDiv.innerHTML = `<div style="color:#f66;padding:8px;">Erro: ${result.error||'Falha na pesquisa'}</div>`;
+        addOutput(`Erro na pesquisa: ${result.error}`);
+    }
+}
+
+// ============================================
 // Inicializacao e Event Listeners
 // ============================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1286,687 +1393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
              await loadProjects();
              addOutput('CookieScript IDE pronta! Execucao client-side disponivel para JS, Python, Lua, CookieScript (simulado). Use os botoes para abrir, salvar e executar codigo.');
 });
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.error || `HTTP ${response.status}`);
-                }
-                return result;
-            } catch (error) {
-                console.error('API Error:', error);
-                return { success: false, error: error.message };
-            }
-        }
-        
-        // ============================================
-        // Operacoes com arquivos (API real)
-        // ============================================
-        async function loadFileList() {
-            const fileListDiv = document.getElementById('fileList');
-            fileListDiv.innerHTML = '<div>Carregando arquivos...</div>';
-            
-            const result = await apiCall('/api/files', {});
-            
-            if (result.success && result.files) {
-                fileListDiv.innerHTML = '';
-                if (result.files.length === 0) {
-                    fileListDiv.innerHTML = '<div style="color: #aaa;">Nenhum arquivo encontrado</div>';
-                }
-                result.files.forEach(file => {
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.textContent = file;
-                    div.onclick = () => openFile(file);
-                    fileListDiv.appendChild(div);
-                });
-            } else {
-                fileListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
-            }
-        }
-        
-        async function openFile(filename) {
-            addOutput(`Abrindo arquivo: ${filename}...`);
-            const result = await apiCall('/api/open', { path: filename });
-            
-            if (result.success) {
-                currentFile = filename;
-                document.getElementById('filePath').value = filename;
-                document.getElementById('codeEditor').value = result.content;
-                currentContent = result.content;
-                addOutput(`Arquivo aberto com sucesso: ${filename} (${result.content.length} caracteres)`);
-            } else {
-                addOutput(`Erro ao abrir arquivo: ${result.error}`);
-            }
-        }
-        
-        async function saveFile() {
-            const path = document.getElementById('filePath').value.trim();
-            if (!path) {
-                addOutput('Erro: Informe um caminho/nome para o arquivo');
-                return;
-            }
-            
-            const content = document.getElementById('codeEditor').value;
-            addOutput(`Salvando arquivo: ${path}...`);
-            
-            const result = await apiCall('/api/save', { path, content });
-            
-            if (result.success) {
-                currentFile = path;
-                currentContent = content;
-                addOutput(`Arquivo salvo com sucesso: ${path}`);
-                await loadFileList();
-            } else {
-                addOutput(`Erro ao salvar arquivo: ${result.error}`);
-            }
-        }
-        
-// ============================================
-// Execucao de codigo (com suporte client-side para hospedagem estatica)
-// ============================================
-async function executeCode() {
-    const code = document.getElementById('codeEditor').value;
-    const language = document.getElementById('languageSelect').value;
-    
-    if (!code.trim()) {
-        addOutput('Nenhum codigo para executar');
-        return;
-    }
-    
-    const btnRun = document.getElementById('btnRun');
-    setButtonLoading(btnRun, true, 'Executar');
-    addOutput(`Executando codigo (${language})...`);
-    
-    try {
-        // Tentar execucao client-side primeiro (para hospedagem estatica como Netlify)
-        let result;
-        try {
-            result = await executeClientSide(language, code);
-            // Se chegou aqui, executou com sucesso client-side
-            addOutput(`Execucao concluida (client-side):\n${result}`);
-            setButtonLoading(btnRun, false);
-            return;
-        } catch (clientError) {
-            // Se client-side falhou, tentar backend como fallback
-            addOutput(`Client-side falhou: ${clientError.message}. Tentando backend...`);
-        }
-        
-        // Fallback para backend Python (cookie_ide_app.py)
-        const result = await apiCall('/api/execute', { code, language });
-        
-        setButtonLoading(btnRun, false);
-        
-        if (result.success) {
-            addOutput(`Execucao concluida (backend):\n${result.output || '(sem saida)'}`);
-        } else {
-            addOutput(`Erro na execucao: ${result.error}`);
-}
-    } catch (error) {
-        console.error('API Error:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-// ============================================
-// Client-side Code Execution (for Netlify/static hosting)
-// ============================================
-
-// Load external libraries on demand
-let pyodideLoading = false;
-let pyodideInstance = null;
-let luaLoaded = false;
-
-// Initialize Lua environment when needed
-async function initLua() {
-    if (luaLoaded) return true;
-    luaLoaded = true;
-    return new Promise((resolve, reject) => {
-        // Lua.js is already included via script tag below
-        // Just check if it's available
-        if (typeof lua !== 'undefined') {
-            resolve(true);
-        } else {
-            // Fallback: load dynamically
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js';
-            script.onload = () => resolve(true);
-            script.onerror = () => reject(new Error('Failed to load lua.js'));
-            document.head.appendChild(script);
-        }
-    });
-}
-
-// Initialize Pyodide when needed
-async function initPyodide() {
-    if (pyodideInstance) return true;
-    if (pyodideLoading) {
-        // Wait for ongoing load
-        return new Promise((resolve) => {
-            const check = () => {
-                if (pyodideInstance) resolve(true);
-                else setTimeout(check, 100);
-            };
-            setTimeout(check, 100);
-        });
-    }
-    pyodideLoading = true;
-    try {
-        // Load pyodide.js if not already loaded
-        if (typeof loadPyodide === 'undefined') {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
-            script.onload = async () => {
-                pyodideInstance = await loadPyodide();
-                pyodideLoading = false;
-            };
-            script.onerror = () => {
-                pyodideLoading = false;
-                throw new Error('Failed to load pyodide.js');
-            };
-            document.head.appendChild(script);
-        } else {
-            pyodideInstance = await loadPyodide();
-            pyodideLoading = false;
-        }
-        return true;
-    } catch (e) {
-        pyodideLoading = false;
-        throw e;
-    }
-}
-
-// Execute JavaScript in sandboxed iframe
-function executeJavaScript(code) {
-    return new Promise((resolve, reject) => {
-        const iframe = document.createElement('iframe');
-        iframe.sandbox = 'allow-scripts';
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        
-        iframe.onload = () => {
-            try {
-                // Capture console.log
-                const oldLog = console.log;
-                const logs = [];
-                console.log = (...args) => {
-                    logs.push(args.map(a => 
-                        typeof a === 'object' ? JSON.stringify(a) : String(a)
-                    ).join(' '));
-                    oldLog.apply(console, args);
-                };
-                
-                // Execute code
-                const result = iframe.contentWindow.eval(code);
-                console.log = oldLog; // restore
-                
-                const output = logs.join('\n');
-                if (result !== undefined) {
-                    const resultStr = typeof result === 'object' ? 
-                        JSON.stringify(result) : String(result);
-                    resolve(output ? `${output}\n${resultStr}` : resultStr);
-                } else {
-                    resolve(output || '(no output)');
-                }
-            } catch (e) {
-                console.log = oldLog; // restore
-                reject(e);
-            } finally {
-                document.body.removeChild(iframe);
-            }
-        };
-        
-        iframe.onerror = (e) => {
-            document.body.removeChild(iframe);
-            reject(e);
-        };
-        
-        // Write the HTML with script
-        iframe.srcdoc = `
-            <!DOCTYPE html>
-            <html>
-            <body>
-                <script>
-                    ${code.replace(/<\/script>/g, '<\\/script>')}
-                </script>
-            </body>
-            </html>
-        `;
-    });
-}
-
-// Execute Lua code
-async function executeLua(code) {
-    await initLua();
-    if (typeof lua === 'undefined') {
-        throw new Error('Lua engine not available');
-    }
-    
-    // Capture print output
-    const originalPrint = print;
-    const outputLines = [];
-    print = function(...args) {
-        outputLines.push(args.map(String).join('\t'));
-    };
-    
-    try {
-        // Lua.js uses lua.doString
-        const result = lua.doString(code);
-        print = originalPrint; // restore
-        
-        const output = outputLines.join('\n');
-        if (result !== undefined && result !== null) {
-            return output ? `${output}\n${result}` : String(result);
-        }
-        return output || '(no output)';
-    } catch (e) {
-        print = originalPrint; // restore
-        throw e;
-    }
-}
-
-// Execute Python code via Pyodide
-async function executePython(code) {
-    const pyodide = await initPyodide();
-    if (!pyodide) throw new Error('Pyodide not initialized');
-    
-    // Create a fresh interpreter instance for isolation
-    let pyodideInstance = null;
-    try {
-        // Load pyodide if not done yet
-        if (typeof loadPyodide === 'undefined') {
-            // This shouldn't happen if initPyodide worked, but just in case
-            throw new Error('Pyodide loader not available');
-        }
-        pyodideInstance = await loadPyodide();
-        
-        // Execute code and capture stdout
-        return await pyodideInstance.runPythonAsync(`
-            import sys
-            from io import StringIO
-            old_stdout = sys.stdout
-            mystdout = StringIO()
-            sys.stdout = mystdout
-            try:
-                ${code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}
-            } finally:
-                output = mystdout.getvalue()
-                sys.stdout = old_stdout
-            output
-        `);
-    } finally {
-        // Clean up instance
-        if (pyodideInstance) {
-            try {
-                pyodideInstance.destroy();
-            } catch (e) {
-                console.warn('Error destroying pyodide instance:', e);
-            }
-        }
-    }
-}
-
-// Placeholder for other languages (to be implemented)
-async function executeRuby(code) {
-    throw new Error('Ruby execution not yet implemented client-side');
-}
-
-async function executePHP(code) {
-    throw new Error('PHP execution not yet implemented client-side');
-}
-
-async function executeScheme(code) {
-    throw new Error('Scheme execution not yet implemented client-side');
-}
-
-async function executeBasic(code) {
-    throw new Error('BASIC execution not yet implemented client-side');
-}
-
-async function executeForth(code) {
-    throw new Error('Forth execution not yet implemented client-side');
-}
-
-async function executeLisp(code) {
-    throw new Error('Lisp execution not yet implemented client-side');
-}
-
-// Main dispatcher for client-side execution
-async function executeClientSide(language, code) {
-    switch (language) {
-        case 'javascript':
-            return await executeJavaScript(code);
-        case 'python':
-            return await executePython(code);
-        case 'lua':
-            return await executeLua(code);
-        case 'ruby':
-            return await executeRuby(code);
-        case 'php':
-            return await executePHP(code);
-        case 'scheme':
-            return await executeScheme(code);
-        case 'basic':
-            return await executeBasic(code);
-        case 'forth':
-            return await executeForth(code);
-        case 'lisp':
-            return await executeLisp(code);
-        case 'cookiescript':
-            // Execute CookieScript code via Pyodide (attempt to run actual VM)
-async function executeCookieScript(code) {
-    try {
-        // Try to initialize Pyodide if not already done
-        const pyodide = await initPyodide();
-        if (!pyodide) throw new Error('Pyodide initialization failed');
-        
-        // We need to package the CookieScript VM with Pyodide
-        // For now, we'll try to load it if available, otherwise fall back
-        
-        // Check if we have the VM available via preloaded modules
-        try {
-            // Try to import our CookieScript VM
-            const result = await pyodide.runPythonAsync(`
-                import sys
-                import json
-                # Try to import the CookieScript VM
-                try:
-                    from cookiescript_vm import CookieScriptVM
-                    # Create a VM instance
-                    vm = CookieScriptVM()
-                    # Execute the code
-                    result = vm.execute(str(code))
-                    # Convert result to string if needed
-                    if result === undefined || result === null) {
-                        return '';
-                    }
-                    return JSON.stringify(result);
-                } catch (importError) {
-                    // If we can't import the VM, we'll need to provide it
-                    throw importError;
-                }
-            `);
-            return result;
-        } catch (vmError) {
-            // If we can't load the actual VM, try to provide a basic implementation
-            // or fall back to simulating common operations
-            throw new Error(`CookieScript VM not available: ${vmError.message}`);
-        }
-    } catch (e) {
-        throw new Error(`CookieScript execution failed: ${e.message}`);
-    }
-}
-        default:
-            throw new Error(`Language ${language} not supported client-side`);
-    }
-}
-
-// ============================================
-// Operacoes com arquivos (API real)
-// ============================================
-        // Geracao de codigo com IA (usa cookie_ai.py)
-        // ============================================
-        async function generateCode() {
-            const prompt = document.getElementById('promptInput').value.trim();
-            const language = document.getElementById('languageSelect').value;
-            
-            if (!prompt) {
-                addOutput('Digite um prompt para gerar codigo');
-                return;
-            }
-            
-            const btnGenerate = document.getElementById('btnGenerate');
-            setButtonLoading(btnGenerate, true, 'Gerar Codigo');
-            addOutput(`Gerando codigo com IA (${language})...`);
-            addOutput(`Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
-            
-            const result = await apiCall('/api/generate', { prompt, language });
-            
-            setButtonLoading(btnGenerate, false);
-            
-            if (result.success && result.code) {
-                document.getElementById('codeEditor').value = result.code;
-                addOutput(`Codigo gerado com sucesso! (${result.code.length} caracteres)`);
-            } else {
-                addOutput(`Erro na geracao: ${result.error || 'Falha ao gerar codigo'}`);
-            }
-        }
-        
-        // ============================================
-        // Pesquisa de codigos (usa cookie_ai.py)
-        // ============================================
-        async function searchCode() {
-            const query = document.getElementById('searchQuery').value.trim();
-            const language = document.getElementById('languageSelect').value;
-            
-            if (!query) {
-                addOutput('Digite uma consulta para pesquisar');
-                return;
-            }
-            
-            const btnSearch = document.getElementById('btnSearch');
-            setButtonLoading(btnSearch, true, 'Pesquisar');
-            addOutput(`Pesquisando: "${query}" (${language})...`);
-            
-            const result = await apiCall('/api/search', { query, language });
-            
-            setButtonLoading(btnSearch, false);
-            
-            const searchResultsDiv = document.getElementById('searchResults');
-            
-            if (result.success) {
-                searchResultsDiv.innerHTML = '';
-                
-                if (result.results && result.results.length > 0) {
-                    addOutput(`Encontrados ${result.results.length} arquivos relacionados`);
-                    result.results.forEach(r => {
-                        const div = document.createElement('div');
-                        div.style.cssText = 'padding: 8px; margin-bottom: 8px; background: #2a2a2a; border-radius: 4px; cursor: pointer; border-left: 3px solid #aaa;';
-                        div.innerHTML = `<strong>${r.file}</strong><br><small>${(r.preview || '').substring(0, 120)}${(r.preview || '').length > 120 ? '...' : ''}</small>`;
-                        div.onclick = () => openFile(r.file);
-                        searchResultsDiv.appendChild(div);
-                    });
-                } else {
-                    searchResultsDiv.innerHTML = '<div style="color: #aaa; padding: 8px;">Nenhum resultado encontrado</div>';
-                }
-                
-                if (result.generated) {
-                    addOutput('Codigo gerado pela IA disponivel! Clique em "Gerar Codigo" para usar.');
-                    const genDiv = document.createElement('div');
-                    genDiv.style.cssText = 'padding: 8px; margin-top: 12px; background: #2a5a2a; border-radius: 4px; cursor: pointer; text-align: center;';
-                    genDiv.innerHTML = '<strong>✨ Codigo IA gerado - clique para usar</strong>';
-                    genDiv.onclick = () => {
-                        document.getElementById('codeEditor').value = result.generated;
-                        addOutput('Codigo gerado pela IA inserido no editor');
-                    };
-                    searchResultsDiv.appendChild(genDiv);
-                }
-            } else {
-                searchResultsDiv.innerHTML = `<div style="color: #f66; padding: 8px;">Erro: ${result.error || 'Falha na pesquisa'}</div>`;
-                addOutput(`Erro na pesquisa: ${result.error}`);
-            }
-        }
-        
-        // ============================================
-        // Operacoes com projetos (API real)
-        // ============================================
-        async function loadProjects() {
-            const result = await apiCall('/api/load_projects', {});
-            
-            const projectListDiv = document.getElementById('projectList');
-            
-            if (result.success && result.projects) {
-                projectListDiv.innerHTML = '';
-                const projects = Object.values(result.projects);
-                if (projects.length === 0) {
-                    projectListDiv.innerHTML = '<div style="color: #aaa;">Nenhum projeto criado</div>';
-                }
-                projects.forEach(project => {
-                    const div = document.createElement('div');
-                    div.className = 'project-item';
-                    div.innerHTML = `<strong>${escapeHtml(project.name)}</strong><br><small>${escapeHtml(project.description || 'Sem descricao')}</small>`;
-                    div.onclick = () => loadProject(project.id);
-                    projectListDiv.appendChild(div);
-                });
-                addOutput(`Projetos carregados: ${projects.length}`);
-            } else {
-                projectListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
-            }
-        }
-        
-        async function createProject() {
-            const name = document.getElementById('projectName').value.trim();
-            const description = document.getElementById('projectDesc').value.trim();
-            
-            if (!name) {
-                addOutput('Digite um nome para o projeto');
-                return;
-            }
-            
-            const btnCreate = document.getElementById('btnCreateProject');
-            setButtonLoading(btnCreate, true, 'Criar Projeto');
-            addOutput(`Criando projeto: ${name}...`);
-            
-            const result = await apiCall('/api/create_project', { name, description });
-            
-            setButtonLoading(btnCreate, false);
-            
-            if (result.success) {
-                addOutput(`Projeto criado com sucesso! ID: ${result.project_id}`);
-                document.getElementById('projectName').value = '';
-                document.getElementById('projectDesc').value = '';
-                await loadProjects();
-            } else {
-                addOutput(`Erro ao criar projeto: ${result.error}`);
-            }
-        }
-        
-        async function loadProject(projectId) {
-            addOutput(`Carregando projeto...`);
-            const result = await apiCall('/api/load_project', { project_id: projectId });
-            
-            if (result.success && result.project) {
-                addOutput(`Projeto carregado: ${result.project.name}`);
-                const files = result.project.files || {};
-                const fileNames = Object.keys(files);
-                if (fileNames.length > 0) {
-                    const firstFile = fileNames[0];
-                    document.getElementById('codeEditor').value = files[firstFile];
-                    document.getElementById('filePath').value = firstFile;
-                    currentFile = firstFile;
-                    addOutput(`Arquivo "${firstFile}" carregado do projeto`);
-                } else {
-                    addOutput(`Projeto vazio - sem arquivos`);
-                }
-            } else {
-                addOutput(`Erro ao carregar projeto: ${result.error}`);
-            }
-        }
-        
-        // ============================================
-        // Operacoes Git (API real)
-        // ============================================
-        async function gitStatus() {
-            addOutput(`Verificando status Git...`);
-            const result = await apiCall('/api/git_status', {});
-            
-            if (result.success) {
-                addOutput(`Status Git:\n${result.status || 'Working tree clean'}`);
-            } else {
-                addOutput(`Erro Git: ${result.error}`);
-            }
-        }
-        
-        async function gitCommit() {
-            const message = document.getElementById('commitMsg').value.trim();
-            if (!message) {
-                addOutput('Digite uma mensagem para o commit');
-                return;
-            }
-            
-            const btnCommit = document.getElementById('btnGitCommit');
-            setButtonLoading(btnCommit, true, 'Commit');
-            addOutput(`Realizando commit: "${message}"...`);
-            
-            const result = await apiCall('/api/git_commit', { message });
-            
-            setButtonLoading(btnCommit, false);
-            
-            if (result.success) {
-                addOutput(`Commit realizado com sucesso: ${message}`);
-                document.getElementById('commitMsg').value = '';
-            } else {
-                addOutput(`Erro no commit: ${result.error}`);
-            }
-        }
-        
-        // ============================================
-        // Utilitarios
-        // ============================================
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-        
-        function newFile() {
-            document.getElementById('codeEditor').value = '';
-            document.getElementById('filePath').value = '';
-            currentFile = null;
-            addOutput('Novo arquivo criado (nao salvo)');
-        }
-        
-        function switchPanelTab(tabId) {
-            document.querySelectorAll('.panel-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.panel-header button').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-            document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-        }
-        
-        // ============================================
-        // Inicializacao e Event Listeners
-        // ============================================
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Botoes principais
-            document.getElementById('btnNew').onclick = newFile;
-            document.getElementById('btnOpen').onclick = () => {
-                const filename = prompt('Nome do arquivo para abrir:');
-                if (filename) openFile(filename);
-            };
-            document.getElementById('btnSave').onclick = saveFile;
-            document.getElementById('btnRun').onclick = executeCode;
-            document.getElementById('btnGenerate').onclick = generateCode;
-            document.getElementById('btnSearch').onclick = searchCode;
-            document.getElementById('btnCreateProject').onclick = createProject;
-            document.getElementById('btnGitStatus').onclick = gitStatus;
-            document.getElementById('btnGitCommit').onclick = gitCommit;
-            
-            // Painel de abas
-            document.querySelectorAll('.panel-header button').forEach(btn => {
-                btn.onclick = () => switchPanelTab(btn.dataset.tab);
-            });
-            
-            // Tecla de atalho Ctrl+Enter no editor
-            const editor = document.getElementById('codeEditor');
-            editor.addEventListener('keydown', (e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    executeCode();
-                }
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    saveFile();
-                }
-            });
-            
-// Carregar dados iniciais
-             addOutput('Conectando ao backend Python (cookie_ide_app.py)...');
-             await loadFileList();
-             await loadProjects();
-             addOutput('CookieScript IDE pronta! Execucao client-side disponivel para JS, Python, Lua. Use os botoes para abrir, salvar e executar codigo.');
-        });
     </script>
 </body>
 </html>
