@@ -1,4 +1,4 @@
-# fly.toml - Configuração para Fly.io
+# fly.toml - Configuração para Fly.io (respeitando limite de 4GB RAM)
 
 app = "cookiescript-ide"
 primary_region = "gru"
@@ -11,7 +11,12 @@ primary_region = "gru"
   PYTHONUNBUFFERED = "1"
   DEEPSEEK_USE_CPU = "1"
   DEEPSEEK_LAZY_LOAD = "1"
-  # Descomente a linha abaixo para desativar a IA local (fallback para API)
+
+  # OPÇÃO 1: Usar modelo mais leve (phi-2 ~1.5GB) – recomendado
+  DEEPSEEK_MODEL = "microsoft/phi-2"
+
+  # OPÇÃO 2: Desabilitar IA local completamente (usa apenas Groq/Gemini)
+  # Descomente a linha abaixo se preferir esta opção
   # DISABLE_LOCAL_AI = "true"
 
 [http_service]
@@ -27,13 +32,13 @@ primary_region = "gru"
     soft_limit = 20
 
   [[http_service.checks]]
-    grace_period = "180s"      # ← aumentado para 3 minutos (era 120s)
+    grace_period = "180s"      # 3 minutos para carregar o modelo
     interval = "15s"
     method = "GET"
     path = "/health"
     timeout = "10s"
 
 [[vm]]
-  memory = "8gb"               # ← aumentado para 8GB (era 4gb)
+  memory = "4gb"               # Máximo permitido no plano gratuito/standard
   cpu_kind = "shared"
   cpus = 2
