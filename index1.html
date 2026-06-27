@@ -584,10 +584,10 @@
     });
     if (!resp.ok) {
       let detail = `HTTP ${resp.status}`;
-      try { const errJson = await resp.json(); detail = errJson.error?.message || detail; } catch(e) {}
+      try { const errJson = JSON.parse(await resp.text()); detail = errJson.error?.message || detail; } catch(e) {}
       throw new Error(`Gemini: ${detail}`);
     }
-    const data = await resp.json();
+    const data = JSON.parse(await resp.text());
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
       return data.candidates[0].content.parts[0].text;
     }
@@ -611,43 +611,51 @@
     });
     if (!resp.ok) {
       let errMsg = `HTTP ${resp.status}`;
-      try { const errData = await resp.json(); errMsg = errData.error?.message || errMsg; } catch(e) {}
+      try { const errData = JSON.parse(await resp.text()); errMsg = errData.error?.message || errMsg; } catch(e) {}
       throw new Error(`Groq: ${errMsg}`);
     }
-    const data = await resp.json();
+    const data = JSON.parse(await resp.text());
     if (data.choices && data.choices[0]?.message?.content) {
       return data.choices[0].message.content;
     }
     throw new Error('Resposta inesperada da Groq');
   }
 
+  async function safeJsonFetch(url, options) {
+    const resp = await fetch(url, options);
+    const text = await resp.text();
+    if (!text || !text.trim()) {
+      throw new Error(`Servidor retornou resposta vazia (HTTP ${resp.status}). Verifique se o backend está rodando.`);
+    }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch(e) {
+      throw new Error(`Resposta inválida do servidor: ${text.slice(0, 120)}`);
+    }
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`);
+    }
+    return data;
+  }
+
   async function callLocalAI(prompt) {
-    const resp = await fetch(LOCAL_ASK_ENDPOINT, {
+    const data = await safeJsonFetch(LOCAL_ASK_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pergunta: prompt })
     });
-    if (!resp.ok) {
-      let errorText = await resp.text();
-      throw new Error(`Local AI: ${resp.status} - ${errorText}`);
-    }
-    const data = await resp.json();
     if (data.error) throw new Error(data.error);
     if (data.resposta) return data.resposta;
     throw new Error('Resposta vazia da Cookie AI');
   }
 
   async function callEnhancedAI(prompt, groqModel) {
-    const resp = await fetch(LOCAL_ENHANCED_ENDPOINT, {
+    const data = await safeJsonFetch(LOCAL_ENHANCED_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pergunta: prompt, groq_model: groqModel })
     });
-    if (!resp.ok) {
-      let errorText = await resp.text();
-      throw new Error(`Enhanced AI: ${resp.status} - ${errorText}`);
-    }
-    const data = await resp.json();
     if (data.error) throw new Error(data.error);
     if (data.resposta) return data.resposta;
     throw new Error('Resposta vazia da IA potencializada');
@@ -695,6 +703,10 @@
         friendly = 'Erro de rede. Verifique sua conexão.';
       } else if (friendly.includes('Local AI') && friendly.includes('ECONNREFUSED')) {
         friendly = 'Cookie não está rodando. Execute cookie_ide.py primeiro.';
+      } else if (friendly.includes('503') || friendly.includes('502') || friendly.includes('no known healthy')) {
+        friendly = 'Serviço temporariamente indisponível (503). O backend está reiniciando ou sem instâncias ativas. Aguarde alguns segundos e tente novamente.';
+      } else if (friendly.includes('Nenhum backend de IA')) {
+        friendly = 'Nenhuma IA local disponível. Instale o Ollama (https://ollama.com) e execute: ollama pull phi3';
       }
       setResponse(`Erro: ${friendly}`, true);
     } finally {
