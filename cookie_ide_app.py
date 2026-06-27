@@ -437,24 +437,45 @@ filesystem.escrever_arquivo("saida.txt", "Hello, World!")
             self.send_json({'error': 'Pergunta vazia'})
             return
 
-        # Usa DeepSeek local via torch + transformers
+        # Prioridade 1: DeepSeek local via torch + transformers (se disponível)
         if CookieAIGenerator:
             try:
                 generator = CookieAIGenerator()
-                # Carrega o modelo se ainda não carregou
                 generator._load_deepseek_model()
-                resposta = generator.responder(pergunta)
-                model_name = generator.DEEPSEEK_MODEL.split('/')[-1]
-                self.send_json({'success': True, 'resposta': resposta, 'model': model_name})
+                if generator._is_model_available():
+                    resposta = generator.responder(pergunta)
+                    model_name = generator.DEEPSEEK_MODEL.split('/')[-1]
+                    self.send_json({'success': True, 'resposta': resposta, 'model': model_name})
+                    return
+            except Exception as e:
+                print(f'[DeepSeek Local] Erro: {e} — tentando Ollama...')
+
+        # Prioridade 2: Ollama local (se disponível)
+        if _ollama_running():
+            try:
+                resposta = self._ollama_request(pergunta)
+                self.send_json({'success': True, 'resposta': resposta, 'model': 'ollama'})
                 return
             except Exception as e:
-                print(f'[DeepSeek Local] Erro: {e}')
-                self.send_json({'success': False, 'error': f'Erro no modelo local: {str(e)}'})
+                print(f'[Ollama] Erro: {e}')
+
+        # Prioridade 3: fallback via cookie_ai templates
+        if CookieAIGenerator:
+            try:
+                generator = CookieAIGenerator()
+                resposta = generator._fallback_resposta(pergunta)
+                self.send_json({'success': True, 'resposta': resposta, 'model': 'fallback'})
                 return
+            except Exception as e:
+                print(f'[Fallback] Erro: {e}')
 
         self.send_json({
             'success': False,
-            'error': 'torch e transformers nao instalados. Verifique o Dockerfile.'
+            'error': (
+                'Nenhum backend de IA disponível. '
+                'Instale o Ollama localmente (https://ollama.com) '
+                'ou configure torch + transformers.'
+            )
         })
 
     def api_ask_enhanced(self, data):
