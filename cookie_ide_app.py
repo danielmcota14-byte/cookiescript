@@ -697,7 +697,7 @@ def _install_pip_deps():
 
 
 def setup_auto():
-    """Configura tudo automaticamente: pip deps, Ollama, modelo."""
+    """Configuração automática — Ollama desativado em ambiente cloud."""
     print("\n" + "="*55)
     print("  CookieScript IDE — Configuração Automática")
     print("="*55)
@@ -707,28 +707,13 @@ def setup_auto():
     _install_pip_deps()
     print("  OK")
 
-    # 2. Ollama
-    print("\n[2/3] Verificando Ollama...")
-    if not _is_ollama_installed():
-        ok = _install_ollama()
-        if not ok:
-            print("  AVISO: Ollama não instalado. IA local não estará disponível.")
-            return
-    else:
-        print("  Ollama já instalado.")
+    # 2. Ollama desativado em cloud
+    print("\n[2/3] Ollama ignorado (ambiente cloud).")
+    print("  IA usando DeepSeek local via torch + transformers.")
 
-    # Inicia servidor Ollama
-    _start_ollama_server()
-
-    # 3. Modelo
-    OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'phi3')
-    print(f"\n[3/3] Verificando modelo {OLLAMA_MODEL}...")
-    if not _model_downloaded(OLLAMA_MODEL):
-        _pull_model(OLLAMA_MODEL)
-    else:
-        print(f"  Modelo {OLLAMA_MODEL} já disponível.")
-
-    print("\n  Tudo pronto! IA local funcionando.")
+    # 3. Modelo carrega sob demanda
+    print("\n[3/3] Modelo DeepSeek carregará sob demanda.")
+    print("\n  Tudo pronto!")
 
 
 def main():
