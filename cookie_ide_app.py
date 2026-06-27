@@ -1,752 +1,375 @@
 import os
-import json
-import subprocess
-import sys
-import webbrowser
-from pathlib import Path
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-
-# Tentativa de importar módulos opcionais (não obrigatórios)
-try:
-    from cookiescript_vm import CookieScriptVM
-except ImportError:
-    print("AVISO: cookiescript_vm não encontrado. Usando modo simplificado.")
-    CookieScriptVM = None
-
-try:
-    from cookie_ai import CookieAIGenerator
-except ImportError:
-    print("AVISO: cookie_ai não encontrado. Usando gerador simples.")
-    CookieAIGenerator = None
-
-BASE_DIR = Path(__file__).resolve().parent
-PORT = int(os.environ.get('PORT', 8080))
-
-class CookieIDEHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format, *args):
-        print(f"[LOG] {format % args}")
-
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path
-
-        # Endpoint de saúde para o frontend
-        if path == '/health':
-            self.send_json({'status': 'ok'})
-            return
-
-        # Servir a página principal (cookie_ide.html ou index1.html)
-        if path == '/' or path == '':
-            # Tenta servir index1.html (Cookie AI) se existir, senão cookie_ide.html
-            if (BASE_DIR / 'index1.html').exists():
-                self.path = '/index1.html'
-            else:
-                self.path = '/cookie_ide.html'
-        elif path == '/api/logs':
-            self.send_logs()
-            return
-        elif path.startswith('/api/'):
-            self.send_json({'error': 'Método não suportado'}, 405)
-            return
-
-        # Para arquivos estáticos (HTML, CSS, JS), usa o método padrão
-        return super().do_GET()
-
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length).decode('utf-8') if content_length else '{}'
-        try:
-            data = json.loads(body) if body else {}
-        except:
-            data = {}
-
-        parsed = urlparse(self.path)
-        path = parsed.path
-
-        if path == '/api/open':
-            self.api_open(data)
-        elif path == '/api/save':
-            self.api_save(data)
-        elif path == '/api/execute':
-            self.api_execute(data)
-        elif path == '/api/generate':
-            self.api_generate(data)
-        elif path == '/api/search':
-            self.api_search(data)
-        elif path == '/api/files':
-            self.api_files(data)
-        elif path == '/api/create_project':
-            self.api_create_project(data)
-        elif path == '/api/load_projects':
-            self.api_load_projects(data)
-        elif path == '/api/load_project':
-            self.api_load_project(data)
-        elif path == '/api/git_status':
-            self.api_git_status(data)
-        elif path == '/api/git_commit':
-            self.api_git_commit(data)
-        elif path == '/api/ollama_status':
-            self.api_ollama_status(data)
-        elif path == '/api/ask':                 # endpoint para IA local
-            self.api_ask(data)
-        elif path == '/api/ask_enhanced':        # endpoint para IA potencializada (Groq proxy)
-            self.api_ask_enhanced(data)
-        else:
-            self.send_json({'error': 'Rota não encontrada'}, 404)
-
-    # -------------------- Métodos auxiliares --------------------
-    def send_json(self, data, status=200):
-        response = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Content-Length', str(len(response)))
-        self.end_headers()
-        self.wfile.write(response)
-
-    # -------------------- Endpoints originais --------------------
-    def api_open(self, data):
-        path = data.get('path', '')
-        if not path:
-            self.send_json({'error': 'Caminho não informado'})
-            return
-        full_path = BASE_DIR / path
-        if not full_path.exists():
-            self.send_json({'error': f'Arquivo não encontrado: {path}'})
-            return
-        try:
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            self.send_json({'success': True, 'content': content, 'path': path})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_save(self, data):
-        path = data.get('path', '')
-        content = data.get('content', '')
-        if not path:
-            path = 'untitled.cookiescript'
-        full_path = BASE_DIR / path
-        try:
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            self.send_json({'success': True, 'path': path})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_execute(self, data):
-        code = data.get('code', '')
-        language = data.get('language', 'cookiescript')
-        if not code:
-            self.send_json({'error': 'Código vazio'})
-            return
-        output_lines = []
-        try:
-            if language == 'cookiescript' and CookieScriptVM:
-                vm = CookieScriptVM(modo='debug')
-                result = vm.executar(code)
-                output_lines.append(str(result))
-            elif language == 'python':
-                temp_file = BASE_DIR / '_temp_exec.py'
-                with open(temp_file, 'w', encoding='utf-8') as f:
-                    f.write(code)
-                result = subprocess.run(
-                    [sys.executable, str(temp_file)],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                temp_file.unlink(missing_ok=True)
-                if result.stdout:
-                    output_lines.append(result.stdout)
-                if result.stderr:
-                    output_lines.append(f"[ERRO] {result.stderr}")
-            elif language == 'javascript':
-                temp_file = BASE_DIR / '_temp_exec.js'
-                with open(temp_file, 'w', encoding='utf-8') as f:
-                    f.write(code)
-                node = subprocess.run(['node', '-v'], capture_output=True)
-                if node.returncode == 0:
-                    result = subprocess.run(
-                        ['node', str(temp_file)],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    temp_file.unlink(missing_ok=True)
-                    if result.stdout:
-                        output_lines.append(result.stdout)
-                    if result.stderr:
-                        output_lines.append(f"[ERRO] {result.stderr}")
-                else:
-                    output_lines.append("[ERRO] Node.js não encontrado")
-            else:
-                output_lines.append(f"Execução simulada para {language}")
-                output_lines.append(f"Código:\n{code[:500]}")
-            self.send_json({'success': True, 'output': '\n'.join(output_lines)})
-        except subprocess.TimeoutExpired:
-            self.send_json({'success': False, 'error': 'Timeout na execução'})
-        except Exception as e:
-            self.send_json({'success': False, 'error': str(e)})
-
-    def api_generate(self, data):
-        prompt = data.get('prompt', '')
-        language = data.get('language', 'cookiescript')
-        if not prompt:
-            self.send_json({'error': 'Prompt vazio'})
-            return
-        code = f'// Código gerado para: {prompt}\n// Linguagem: {language}\n\n'
-        if CookieAIGenerator:
-            try:
-                generator = CookieAIGenerator()
-                generated = generator.gerar_codigo(prompt, language)
-                if generated:
-                    code = generated
-            except Exception as e:
-                code += f'// Erro ao usar IA: {e}\n'
-        # Fallback
-        if language == 'python':
-            code += '''# Exemplo Python
-def main():
-    print("Hello, World!")
-
-if __name__ == "__main__":
-    main()
-'''
-        elif language == 'javascript':
-            code += '''// Exemplo JavaScript
-console.log("Hello, World!");
-'''
-        else:
-            code += '''// Exemplo CookieScript
-filesystem.escrever_arquivo("saida.txt", "Hello, World!")
-'''
-        self.send_json({'success': True, 'code': code})
-
-    def api_search(self, data):
-        query = data.get('query', '')
-        language = data.get('language', 'cookiescript')
-        if not query:
-            self.send_json({'error': 'Consulta vazia'})
-            return
-        results = []
-        for file in BASE_DIR.glob('*.cookiescript'):
-            if file.stat().st_size < 100000:
-                try:
-                    content = file.read_text(encoding='utf-8')
-                    if query.lower() in content.lower():
-                        results.append({
-                            'file': file.name,
-                            'preview': content[:200] + '...' if len(content) > 200 else content
-                        })
-                except:
-                    pass
-        if CookieAIGenerator:
-            try:
-                generator = CookieAIGenerator()
-                code = generator.pesquisar_codigo(query, language)
-                self.send_json({'success': True, 'results': results, 'generated': code})
-                return
-            except:
-                pass
-        self.send_json({'success': True, 'results': results, 'generated': None})
-
-    def api_files(self, data):
-        files = []
-        extensions = ('.cookiescript', '.cookie', '.py', '.js', '.txt', '.md')
-        for file in BASE_DIR.iterdir():
-            if file.is_file() and file.suffix in extensions:
-                files.append(file.name)
-        files.sort()
-        self.send_json({'success': True, 'files': files})
-
-    def api_create_project(self, data):
-        name = data.get('name', '')
-        description = data.get('description', '')
-        if not name:
-            self.send_json({'error': 'Nome do projeto não informado'})
-            return
-        projects_file = BASE_DIR / '.projects.json'
-        try:
-            if projects_file.exists():
-                with open(projects_file, 'r', encoding='utf-8') as f:
-                    projects = json.load(f)
-            else:
-                projects = {}
-            project_id = f"proj_{len(projects) + 1}_{int(os.path.getmtime(BASE_DIR))}"
-            projects[project_id] = {
-                'id': project_id,
-                'name': name,
-                'description': description,
-                'created': os.path.getmtime(BASE_DIR),
-                'files': {}
-            }
-            with open(projects_file, 'w', encoding='utf-8') as f:
-                json.dump(projects, f, indent=2)
-            self.send_json({'success': True, 'project_id': project_id})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_load_projects(self, data):
-        projects_file = BASE_DIR / '.projects.json'
-        try:
-            if projects_file.exists():
-                with open(projects_file, 'r', encoding='utf-8') as f:
-                    projects = json.load(f)
-                self.send_json({'success': True, 'projects': projects})
-            else:
-                self.send_json({'success': True, 'projects': {}})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_load_project(self, data):
-        project_id = data.get('project_id', '')
-        if not project_id:
-            self.send_json({'error': 'ID do projeto não informado'})
-            return
-        projects_file = BASE_DIR / '.projects.json'
-        try:
-            if projects_file.exists():
-                with open(projects_file, 'r', encoding='utf-8') as f:
-                    projects = json.load(f)
-                if project_id in projects:
-                    self.send_json({'success': True, 'project': projects[project_id]})
-                else:
-                    self.send_json({'error': 'Projeto não encontrado'})
-            else:
-                self.send_json({'error': 'Nenhum projeto encontrado'})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_git_status(self, data):
-        try:
-            result = subprocess.run(
-                ['git', 'status', '--porcelain'],
-                cwd=str(BASE_DIR),
-                capture_output=True,
-                text=True
-            )
-            status = result.stdout.strip() if result.stdout else "Nenhuma alteração"
-            self.send_json({'success': True, 'status': status})
-        except:
-            self.send_json({'success': False, 'error': 'Git não encontrado'})
-
-    def api_git_commit(self, data):
-        message = data.get('message', '')
-        if not message:
-            self.send_json({'error': 'Mensagem não informada'})
-            return
-        try:
-            subprocess.run(['git', 'add', '-A'], cwd=str(BASE_DIR), capture_output=True)
-            result = subprocess.run(
-                ['git', 'commit', '-m', message],
-                cwd=str(BASE_DIR),
-                capture_output=True,
-                text=True
-            )
-            self.send_json({'success': True, 'output': result.stdout or result.stderr})
-        except Exception as e:
-            self.send_json({'error': str(e)})
-
-    def api_ollama_status(self, data):
-        import urllib.request
-        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-        try:
-            with urllib.request.urlopen(f'{OLLAMA_URL}/api/tags', timeout=3) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
-                models = [m['name'] for m in result.get('models', [])]
-                self.send_json({'online': True, 'models': models})
-        except Exception as e:
-            self.send_json({'online': False, 'error': str(e)})
-
-    def send_logs(self):
-        self.send_json({'logs': []})
-
-    # -------------------- NOVO ENDPOINT para IA local (Cookie AI) --------------------
-    def _ollama_list_models(self):
-        """Retorna lista de modelos instalados no Ollama."""
-        import urllib.request
-        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-        try:
-            with urllib.request.urlopen(f'{OLLAMA_URL}/api/tags', timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                return [m['name'] for m in data.get('models', [])]
-        except:
-            return []
-
-    def _ollama_pull(self, model):
-        """Baixa um modelo do Ollama (bloqueante)."""
-        import urllib.request
-        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-        print(f'[Ollama] Baixando modelo {model}... (pode demorar alguns minutos)')
-        payload = json.dumps({'name': model, 'stream': False}).encode('utf-8')
-        req = urllib.request.Request(
-            f'{OLLAMA_URL}/api/pull',
-            data=payload,
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=600) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            print(f'[Ollama] Modelo {model} pronto: {result.get("status", "")}')
-
-    def _ollama_request(self, pergunta, model=None):
-        """Chama Ollama localmente na porta 11434."""
-        import urllib.request, urllib.error
-        OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-        PREFERRED_MODEL = os.environ.get('OLLAMA_MODEL', 'phi3')
-
-        # Se model não foi especificado, escolhe o melhor disponível
-        if model is None:
-            modelos = self._ollama_list_models()
-            print(f'[Ollama] Modelos instalados: {modelos}')
-            if modelos:
-                # Prefere phi3, phi, llama, gemma nessa ordem
-                for pref in [PREFERRED_MODEL, 'phi3', 'phi', 'llama3.2', 'llama3', 'gemma', 'mistral']:
-                    match = next((m for m in modelos if pref in m.lower()), None)
-                    if match:
-                        model = match
-                        break
-                if not model:
-                    model = modelos[0]  # qualquer um disponível
-            else:
-                # Nenhum modelo — baixa phi3 automaticamente
-                print('[Ollama] Nenhum modelo encontrado. Baixando phi3...')
-                try:
-                    self._ollama_pull('phi3')
-                    model = 'phi3'
-                except Exception as e:
-                    raise Exception(f'Ollama online mas sem modelos. Erro ao baixar phi3: {e}')
-
-        print(f'[Ollama] Usando modelo: {model}')
-        payload = json.dumps({'model': model, 'prompt': pergunta, 'stream': False}).encode('utf-8')
-        req = urllib.request.Request(
-            f'{OLLAMA_URL}/api/generate',
-            data=payload,
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            return result.get('response', '').strip()
-
-    def api_ask(self, data):
-        pergunta = data.get('pergunta', '')
-        if not pergunta:
-            self.send_json({'error': 'Pergunta vazia'})
-            return
-
-        # Usa DeepSeek local via torch + transformers
-        if CookieAIGenerator:
-            try:
-                generator = CookieAIGenerator()
-                # Carrega o modelo se ainda não carregou
-                generator._load_deepseek_model()
-                resposta = generator.responder(pergunta)
-                model_name = generator.DEEPSEEK_MODEL.split('/')[-1]
-                self.send_json({'success': True, 'resposta': resposta, 'model': model_name})
-                return
-            except Exception as e:
-                print(f'[DeepSeek Local] Erro: {e}')
-                self.send_json({'success': False, 'error': f'Erro no modelo local: {str(e)}'})
-                return
-
-        self.send_json({
-            'success': False,
-            'error': 'torch e transformers nao instalados. Verifique o Dockerfile.'
-        })
-
-    def api_ask_enhanced(self, data):
-        """IA Potencializada: DeepSeek local gera resposta base, Groq refina e expande."""
-        import urllib.request
-        import urllib.error
-
-        pergunta = data.get('pergunta', '')
-        groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
-        groq_api_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
-
-        if not pergunta:
-            self.send_json({'error': 'Pergunta vazia'})
-            return
-
-        # Passo 1: gera resposta base com DeepSeek local
-        resposta_local = None
-        if CookieAIGenerator:
-            try:
-                generator = CookieAIGenerator()
-                generator._load_deepseek_model()
-                resposta_local = generator.responder(pergunta)
-                print(f'[Enhanced] Resposta local gerada ({len(resposta_local)} chars)')
-            except Exception as e:
-                print(f'[Enhanced] DeepSeek local falhou: {e}')
-
-        # Passo 2: envia para Groq para refinar e potencializar
-        if groq_api_key:
-            try:
-                if resposta_local:
-                    system_prompt = (
-                        "Você é a Cookie AI Potencializada, uma IA avançada integrada ao CookieScript IDE. "
-                        "Uma IA local (DeepSeek) já gerou uma resposta inicial para a pergunta do usuário. "
-                        "Sua tarefa é: 1) Analisar e corrigir erros na resposta local se houver. "
-                        "2) Expandir e melhorar a resposta com mais detalhes e exemplos. "
-                        "3) Manter o foco na pergunta original. "
-                        "Responda sempre em português brasileiro."
-                    )
-                    user_content = (
-                        "Pergunta original: " + pergunta + "\n\n"
-                        "Resposta da IA local (DeepSeek):\n" + str(resposta_local) + "\n\n"
-                        "Por favor, analise, corrija se necessário e melhore esta resposta."
-                    )
-                else:
-                    system_prompt = (
-                        "Você é a Cookie AI Potencializada integrada ao CookieScript IDE. "
-                        "Responda de forma clara, completa e em português brasileiro."
-                    )
-                    user_content = pergunta
-
-                payload = json.dumps({
-                    'model': groq_model,
-                    'messages': [
-                        {'role': 'system', 'content': system_prompt},
-                        {'role': 'user', 'content': user_content}
-                    ],
-                    'max_tokens': 2048,
-                    'temperature': 0.7
-                }).encode('utf-8')
-
-                req = urllib.request.Request(
-                    'https://api.groq.com/openai/v1/chat/completions',
-                    data=payload,
-                    headers={
-                        'Content-Type': 'application/json',
-                        'Authorization': f'Bearer {groq_api_key}'
-                    },
-                    method='POST'
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    result = json.loads(resp.read().decode('utf-8'))
-                    resposta_final = result['choices'][0]['message']['content']
-                    self.send_json({
-                        'success': True,
-                        'resposta': resposta_final,
-                        'model': f'DeepSeek Local + {groq_model} (Groq)',
-                        'resposta_local': resposta_local
-                    })
-                    return
-            except urllib.error.HTTPError as e:
-                body = e.read().decode('utf-8', errors='ignore')
-                print(f'[Enhanced] Groq erro {e.code}: {body}')
-            except Exception as e:
-                print(f'[Enhanced] Groq falhou: {e}')
-
-        # Fallback: retorna só a resposta local se Groq falhou ou sem chave
-        if resposta_local:
-            self.send_json({
-                'success': True,
-                'resposta': resposta_local,
-                'model': 'DeepSeek Local (Groq indisponível)'
-            })
-            return
-
-        self.send_json({
-            'success': False,
-            'error': 'Configure GROQ_API_KEY para usar a IA Potencializada.'
-        })
-
-
-# ============================================================
-# AUTO-SETUP: instala Ollama e dependências automaticamente
-# ============================================================
-
-import platform
-import threading
-import time
-import urllib.request
-import urllib.error
-
-
-def _print_step(msg):
-    print(f"\n{'='*55}\n  {msg}\n{'='*55}")
-
-
-def _cmd(args, **kwargs):
-    """Roda comando e retorna (returncode, stdout+stderr)."""
-    result = subprocess.run(
-        args, capture_output=True, text=True,
-        **kwargs
-    )
-    return result.returncode, result.stdout + result.stderr
-
-
-def _is_ollama_installed():
-    code, _ = _cmd(['ollama', '--version'])
-    return code == 0
-
-
-def _install_ollama():
-    system = platform.system()
-    _print_step(f"Instalando Ollama ({system})...")
-
-    if system == 'Windows':
-        installer = BASE_DIR / '_ollama_setup.exe'
-        print("  Baixando instalador do Ollama...")
-        try:
-            urllib.request.urlretrieve(
-                'https://ollama.com/download/OllamaSetup.exe',
-                str(installer)
-            )
-            print("  Executando instalador (siga as instruções na tela)...")
-            subprocess.run([str(installer)], check=True)
-            installer.unlink(missing_ok=True)
-            print("  Ollama instalado!")
-            return True
-        except Exception as e:
-            print(f"  ERRO ao instalar Ollama: {e}")
-            print("  Instale manualmente em: https://ollama.com/download")
-            return False
-
-    elif system in ('Linux', 'Darwin'):
-        print("  Rodando instalador oficial do Ollama...")
-        try:
-            code, out = _cmd(
-                'curl -fsSL https://ollama.com/install.sh | sh',
-                shell=True
-            )
-            if code == 0:
-                print("  Ollama instalado!")
-                return True
-            else:
-                print(f"  ERRO: {out}")
-                print("  Instale manualmente: https://ollama.com")
-                return False
-        except Exception as e:
-            print(f"  ERRO: {e}")
-            return False
-    else:
-        print(f"  Sistema {system} não suportado para instalação automática.")
-        print("  Instale manualmente: https://ollama.com")
-        return False
-
-
-def _ollama_running():
-    try:
-        with urllib.request.urlopen('http://localhost:11434/api/tags', timeout=3) as r:
-            return r.status == 200
-    except:
-        return False
-
-
-def _start_ollama_server():
-    """Inicia ollama serve em background."""
-    if _ollama_running():
-        return
-    print("  Iniciando servidor Ollama em background...")
-    if platform.system() == 'Windows':
-        subprocess.Popen(
-            ['ollama', 'serve'],
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    else:
-        subprocess.Popen(
-            ['ollama', 'serve'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    # Aguarda subir
-    for _ in range(20):
-        time.sleep(1)
-        if _ollama_running():
-            print("  Ollama online!")
-            return
-    print("  AVISO: Ollama demorou para iniciar. A IA pode não responder imediatamente.")
-
-
-def _model_downloaded(model='phi3'):
-    try:
-        with urllib.request.urlopen('http://localhost:11434/api/tags', timeout=5) as r:
-            data = json.loads(r.read())
-            names = [m['name'] for m in data.get('models', [])]
-            return any(model in n for n in names)
-    except:
-        return False
-
-
-def _pull_model(model='phi3'):
-    _print_step(f"Baixando modelo de IA: {model} (~2GB, pode demorar...)")
-    print("  Por favor aguarde. Isso só acontece uma vez.")
-    code, out = _cmd(['ollama', 'pull', model])
-    if code == 0:
-        print(f"  Modelo {model} pronto!")
+import re
+from typing import Optional
+
+# Lazy loading: não importar torch/transformers no topo
+# Isso será feito apenas quando necessário
+TRANSFORMERS_AVAILABLE = False
+torch = None
+AutoModelForCausalLM = None
+AutoTokenizer = None
+
+def _try_import_transformers():
+    """Tenta importar transformers apenas quando necessário."""
+    global TRANSFORMERS_AVAILABLE, torch, AutoModelForCausalLM, AutoTokenizer
+    
+    if TRANSFORMERS_AVAILABLE:
         return True
-    else:
-        print(f"  ERRO ao baixar modelo: {out}")
+    
+    try:
+        import torch as _torch
+        from transformers import AutoModelForCausalLM as _AutoModelForCausalLM
+        from transformers import AutoTokenizer as _AutoTokenizer
+        torch = _torch
+        AutoModelForCausalLM = _AutoModelForCausalLM
+        AutoTokenizer = _AutoTokenizer
+        TRANSFORMERS_AVAILABLE = True
+        return True
+    except ImportError:
         return False
 
+class CookieAIGenerator:
+    # Modelo leve que roda em CPU (phi-2 precisa ~8GB RAM, flan-t5-base ~1GB)
+    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-coder-1.3b-base')
+    DEEPSEEK_USE_CPU = os.getenv('DEEPSEEK_USE_CPU', '1').lower() in ('1', 'true', 'yes')
 
-def _install_pip_deps():
-    deps = ['requests']
-    for dep in deps:
+    def __init__(self):
+        self._deepseek_tokenizer = None
+        self._deepseek_model = None
+        self._model_loaded = False   # flag para saber se carregou
+
+    # ----- Métodos públicos -----
+    def responder(self, pergunta: str) -> str:
+        pergunta = pergunta.strip()
+        if not pergunta:
+            return "Por favor, faça uma pergunta."
+
+        if self._is_model_available():
+            resposta = self._gerar_com_deepseek(pergunta, mode='chat')
+            if resposta:
+                return resposta
+        return self._fallback_resposta(pergunta)
+
+    def gerar_codigo(self, prompt: str, language: str = 'cookiescript') -> str:
+        prompt_text = prompt.strip()
+        language = language.lower().strip() if language else 'cookiescript'
+
+        if prompt_text and self._is_model_available():
+            deepseek_result = self._gerar_com_deepseek(prompt_text, language, mode='code')
+            if deepseek_result:
+                return deepseek_result
+
+        # Fallback para templates locais
+        if language == 'python':
+            return self._gerar_python(prompt_text)
+        if language in ['js', 'javascript', 'node']:
+            return self._gerar_javascript(prompt_text)
+
+        prompt = prompt_text.lower()
+        if not prompt:
+            return self._exemplo_basico()
+        if "abrir arquivo" in prompt or "ler arquivo" in prompt:
+            return self._gerar_abrir_arquivo(prompt)
+        if "escrever arquivo" in prompt or "salvar arquivo" in prompt:
+            return self._gerar_escrever_arquivo(prompt)
+        if "http" in prompt or "request" in prompt or "api" in prompt:
+            return self._gerar_requisicao_http(prompt)
+        if "json" in prompt:
+            return self._gerar_json(prompt)
+        if "loop" in prompt or "repetir" in prompt or "for" in prompt:
+            return self._gerar_loop(prompt)
+        if "função" in prompt or "function" in prompt:
+            return self._gerar_funcao(prompt)
+
+        return self._gerar_alvo_geral(prompt)
+
+    def pesquisar_codigo(self, query: str, language: str = 'cookiescript') -> str:
+        language = language.lower().strip() if language else 'cookiescript'
+        if query.strip() and self._is_model_available():
+            result = self._gerar_com_deepseek(
+                f'Provide a concise code example for the following request using only valid {"CookieScript" if language == "cookiescript" else ("JavaScript" if language in ["js", "javascript", "node"] else language.capitalize())} code. Request: {query}',
+                language, mode='code'
+            )
+            if result:
+                return result
+        return self._pesquisa_local(query, language)
+
+    # ----- Métodos internos de modelo -----
+    def _is_model_available(self) -> bool:
+        # Respeitar variável de ambiente DISABLE_LOCAL_AI
+        if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+            return False
+        return TRANSFORMERS_AVAILABLE and self._model_loaded and self._deepseek_model is not None
+
+    def _load_deepseek_model(self):
+        if self._model_loaded:
+            return
+        
+        # Tentar importar transformers se ainda não foi feito
+        if not TRANSFORMERS_AVAILABLE:
+            if not _try_import_transformers():
+                print("Transformers não instalado. Execute: pip install torch transformers")
+                return
+
         try:
-            __import__(dep)
-        except ImportError:
-            print(f"  Instalando {dep}...")
-            _cmd([sys.executable, '-m', 'pip', 'install', dep, '--quiet'])
+            print(f"Carregando modelo {self.DEEPSEEK_MODEL}... (pode levar vários minutos na primeira vez)")
+            self._deepseek_tokenizer = AutoTokenizer.from_pretrained(
+                self.DEEPSEEK_MODEL,
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            load_kwargs = {
+                'trust_remote_code': True,
+                'low_cpu_mem_usage': True,
+            }
+            if self.DEEPSEEK_USE_CPU or not torch.cuda.is_available():
+                # float16 usa metade da RAM que float32 (essencial para cloud com pouca memória)
+                load_kwargs['torch_dtype'] = torch.float16
+                load_kwargs['device_map'] = 'cpu'
+                # Carrega pesos em 8bit para economizar ainda mais memória (~60% menos RAM)
+                try:
+                    import bitsandbytes
+                    load_kwargs['load_in_8bit'] = True
+                    load_kwargs.pop('torch_dtype', None)
+                    print("Usando CPU com quantização 8bit (baixo uso de memória)")
+                except ImportError:
+                    print("Usando CPU com float16 (memória reduzida)")
+            else:
+                load_kwargs['torch_dtype'] = torch.float16
+                load_kwargs['device_map'] = 'auto'
+                print("Usando GPU se disponível")
 
+            self._deepseek_model = AutoModelForCausalLM.from_pretrained(
+                self.DEEPSEEK_MODEL,
+                **load_kwargs,
+            )
+            self._model_loaded = True
+            print("Modelo carregado com sucesso!")
+        except Exception as err:
+            print(f'ERRO ao carregar modelo: {err}')
+            self._deepseek_model = None
+            self._deepseek_tokenizer = None
+            self._model_loaded = False
 
-def setup_auto():
-    """Configuração automática — Ollama desativado em ambiente cloud."""
-    print("\n" + "="*55)
-    print("  CookieScript IDE — Configuração Automática")
-    print("="*55)
+    def _gerar_com_deepseek(self, prompt: str, language: str = '', mode: str = 'code') -> str:
+        self._load_deepseek_model()
+        if not self._is_model_available():
+            return ''
 
-    # 1. Dependências Python
-    print("\n[1/3] Verificando dependências Python...")
-    _install_pip_deps()
-    print("  OK")
+        if mode == 'chat':
+            instruction = (
+                "You are a helpful assistant. Answer the user's question concisely in the same language.\n\n"
+                f"Pergunta: {prompt}\n\nResposta:"
+            )
+        else:  # code
+            lang_name = 'CookieScript' if language == 'cookiescript' else ('JavaScript' if language in ['js','javascript','node'] else language.capitalize())
+            instruction = (
+                f"Generate only valid {lang_name} code for: {prompt}\n"
+                "Do not add explanations. Return only executable code.\n\n"
+                f"### Response:\n"
+            )
 
-    # 2. Ollama desativado em cloud
-    print("\n[2/3] Ollama ignorado (ambiente cloud).")
-    print("  IA usando DeepSeek local via torch + transformers.")
-
-    # 3. Modelo carrega sob demanda
-    print("\n[3/3] Modelo DeepSeek carregará sob demanda.")
-    print("\n  Tudo pronto!")
-
-
-def main():
-    os.chdir(BASE_DIR)
-
-    # Auto-setup em thread separada para não travar o servidor
-    setup_thread = threading.Thread(target=setup_auto, daemon=True)
-    setup_thread.start()
-
-    # Aguarda pelo menos as dependências básicas
-    setup_thread.join(timeout=5)
-
-    httpd = HTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
-
-    print(f"\n{'='*55}")
-    print(f"  CookieScript IDE iniciada!")
-    print(f"  Acesse: http://localhost:{PORT}/")
-    print(f"  IA: configurando Ollama em background...")
-    print(f"{'='*55}\n")
-
-    # Abre navegador automaticamente
-    if os.environ.get('RENDER') != 'true' and os.environ.get('PORT') is None:
         try:
-            webbrowser.open(f'http://localhost:{PORT}/')
-        except:
-            pass
+            encoded = self._deepseek_tokenizer(instruction, return_tensors='pt', truncation=True, max_length=1024)
+            device = next(self._deepseek_model.parameters()).device
+            encoded = {k: v.to(device) for k, v in encoded.items()}
+            outputs = self._deepseek_model.generate(
+                **encoded,
+                max_new_tokens=512,
+                do_sample=False,
+                temperature=0.2,
+                pad_token_id=self._deepseek_tokenizer.eos_token_id
+            )
+            decoded = self._deepseek_tokenizer.decode(outputs[0], skip_special_tokens=True)
+            if decoded.startswith(instruction):
+                decoded = decoded[len(instruction):]
+            return decoded.strip()
+        except Exception as e:
+            print(f"Erro na geração: {e}")
+            return ''
 
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nEncerrando servidor...")
-        httpd.shutdown()
+    def _fallback_resposta(self, pergunta: str) -> str:
+        pergunta_lower = pergunta.lower()
+        if "capital" in pergunta_lower and ("brasil" in pergunta_lower or "brazil" in pergunta_lower):
+            return "A capital do Brasil é Brasília."
+        if "capital" in pergunta_lower and "frança" in pergunta_lower:
+            return "A capital da França é Paris."
+        if "olá" in pergunta_lower or "oi" in pergunta_lower:
+            return "Olá! Como posso ajudar?"
+        return f"Pergunta recebida: '{pergunta}'. (Modelo não disponível. Verifique o terminal para erros.)"
 
+    # ------------------- TODOS OS MÉTODOS DE FALLBACK (gerar código, templates, pesquisa) -------------------
+    def _exemplo_basico(self) -> str:
+        return '''// Exemplo CookieScript gerado automaticamente
+filesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE funcionando!", modo="w")
+resultado_http = network.http_request(url="https://httpbin.org/get", metodo="GET")
+filesystem.escrever_arquivo(caminho="api_response.txt", conteudo=resultado_http['body'], modo="w")'''
 
-if __name__ == '__main__':
-    main()
+    def _gerar_abrir_arquivo(self, prompt: str) -> str:
+        caminho = self._extrair_caminho(prompt) or "entrada.txt"
+        return f'''// Abrir arquivo e exibir conteúdo
+conteudo = filesystem.ler_arquivo(caminho="{caminho}")
+filesystem.escrever_arquivo(caminho="arquivo_lido.txt", conteudo=conteudo, modo="w")'''
+
+    def _gerar_escrever_arquivo(self, prompt: str) -> str:
+        caminho = self._extrair_caminho(prompt) or "saida.txt"
+        texto = self._extrair_texto(prompt) or "Texto gerado pelo CookieScript IDE"
+        return f'''// Escrever arquivo a partir de prompt
+filesystem.escrever_arquivo(caminho="{caminho}", conteudo="{texto}", modo="w")'''
+
+    def _gerar_requisicao_http(self, prompt: str) -> str:
+        url = self._extrair_url(prompt) or "https://httpbin.org/get"
+        return f'''// Requisição HTTP gerada automaticamente
+resultado_http = network.http_request(url="{url}", metodo="GET")
+filesystem.escrever_arquivo(caminho="http_response.txt", conteudo=resultado_http['body'], modo="w")'''
+
+    def _gerar_json(self, prompt: str) -> str:
+        return '''// Conversão JSON
+texto_json = '{"nome": "CookieScript", "versao": 1}'
+dados = json.parse_json(texto_json)
+filesystem.escrever_arquivo(caminho="json_saida.txt", conteudo=json.stringify_json(dados), modo="w")'''
+
+    def _gerar_loop(self, prompt: str) -> str:
+        return '''// Loop de repetição em CookieScript
+contador = 0
+for i in [1, 2, 3, 4, 5] {
+    contador = contador + i
+}
+filesystem.escrever_arquivo(caminho="loop_resultado.txt", conteudo="Contador: " + contador, modo="w")'''
+
+    def _gerar_funcao(self, prompt: str) -> str:
+        return '''// Função simples em CookieScript
+function somar(a, b) {
+    return a + b
+}
+resultado = somar(5, 7)
+filesystem.escrever_arquivo(caminho="funcao_resultado.txt", conteudo="Resultado: " + resultado, modo="w")'''
+
+    def _gerar_alvo_geral(self, prompt: str) -> str:
+        return f'''// Código CookieScript gerado para: {prompt}
+filesystem.escrever_arquivo(caminho="pedido.txt", conteudo="{prompt}", modo="w")'''
+
+    def _gerar_python(self, prompt: str) -> str:
+        prompt_lower = prompt.lower()
+        if "abrir arquivo" in prompt_lower or "ler arquivo" in prompt_lower:
+            return '''# Abrir arquivo em Python
+with open('entrada.txt', 'r', encoding='utf-8') as f:
+    conteudo = f.read()
+
+with open('arquivo_lido.txt', 'w', encoding='utf-8') as out:
+    out.write(conteudo)'''
+        if "escrever arquivo" in prompt_lower or "salvar arquivo" in prompt_lower:
+            return '''# Escrever arquivo em Python
+with open('saida.txt', 'w', encoding='utf-8') as f:
+    f.write('Texto gerado pelo CookieScript IDE')'''
+        if "http" in prompt_lower or "request" in prompt_lower or "api" in prompt_lower:
+            return '''# Requisição HTTP em Python
+import urllib.request
+
+url = 'https://httpbin.org/get'
+with urllib.request.urlopen(url) as response:
+    body = response.read().decode('utf-8')
+
+with open('http_response.txt', 'w', encoding='utf-8') as f:
+    f.write(body)'''
+        if "json" in prompt_lower:
+            return '''# Manipulação JSON em Python
+import json
+
+dados = {'nome': 'CookieScript', 'versao': 1}
+texto_json = json.dumps(dados)
+parsed = json.loads(texto_json)
+with open('json_saida.txt', 'w', encoding='utf-8') as f:
+    f.write(texto_json)'''
+        if "loop" in prompt_lower or "repetir" in prompt_lower or "for" in prompt_lower:
+            return '''# Loop em Python
+soma = 0
+for i in range(1, 6):
+    soma += i
+
+with open('loop_resultado.txt', 'w', encoding='utf-8') as f:
+    f.write(f'Soma: {soma}')'''
+        if "função" in prompt_lower or "function" in prompt_lower:
+            return '''# Função em Python
+def somar(a, b):
+    return a + b
+
+resultado = somar(5, 7)
+with open('funcao_resultado.txt', 'w', encoding='utf-8') as f:
+    f.write(f'Resultado: {resultado}')'''
+        return '''# Código Python gerado para o prompt
+print('Insira um prompt mais específico para gerar código Python.')'''
+
+    def _gerar_javascript(self, prompt: str) -> str:
+        prompt_lower = prompt.lower()
+        if "arquivo" in prompt_lower or "ler arquivo" in prompt_lower:
+            return '''// Operações de arquivo em Node.js
+const fs = require('fs');
+const conteudo = fs.readFileSync('entrada.txt', 'utf-8');
+fs.writeFileSync('arquivo_lido.txt', conteudo);'''
+        if "escrever arquivo" in prompt_lower or "salvar arquivo" in prompt_lower:
+            return '''// Escrever arquivo em Node.js
+const fs = require('fs');
+fs.writeFileSync('saida.txt', 'Texto gerado pelo CookieScript IDE');'''
+        if "http" in prompt_lower or "request" in prompt_lower or "api" in prompt_lower:
+            return '''// Requisição HTTP em Node.js
+const https = require('https');
+
+https.get('https://httpbin.org/get', (res) => {
+  let data = '';
+  res.on('data', (chunk) => { data += chunk; });
+  res.on('end', () => {
+    console.log(data);
+  });
+});'''
+        if "json" in prompt_lower:
+            return '''// Manipulação JSON em JavaScript
+const dados = { nome: 'CookieScript', versao: 1 };
+const textoJson = JSON.stringify(dados, null, 2);
+console.log(textoJson);'''
+        if "loop" in prompt_lower or "repetir" in prompt_lower or "for" in prompt_lower:
+            return '''// Loop em JavaScript
+let soma = 0;
+for (let i = 1; i <= 5; i++) {
+  soma += i;
+}
+console.log('Soma:', soma);'''
+        if "função" in prompt_lower or "function" in prompt_lower:
+            return '''// Função em JavaScript
+function somar(a, b) {
+  return a + b;
+}
+
+const resultado = somar(5, 7);
+console.log('Resultado:', resultado);'''
+        return '''// Código JavaScript gerado para o prompt
+console.log('Insira um prompt mais específico para gerar código JavaScript.');'''
+
+    def _extrair_caminho(self, prompt: str) -> Optional[str]:
+        match = re.search(r'["\']([^"\']*)["\']', prompt)
+        if match:
+            return match.group(1)
+        # Fallback: look for words after certain keywords
+        match = re.search(r'(?:arquivo|file|path)[\s:=]+["\']?([^\s\'"]+)["\']?', prompt, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return None
+
+    def _extrair_texto(self, prompt: str) -> Optional[str]:
+        # Look for quoted text
+        match = re.search(r'["\']([^"\']*)["\']', prompt)
+        if match:
+            return match.group(1)
+        return None
+
+    def _extrair_url(self, prompt: str) -> Optional[str]:
+        # Look for a URL pattern
+        match = re.search(r'https?://[^\s]+', prompt)
+        if match:
+            return match.group(0)
+        return None
+
+    def _pesquisa_local(self, query: str, language: str) -> str:
+        # This is a placeholder for local search (we keep the original fallback)
+        # We'll return a simple message indicating no local search implementation
+        return "// Pesquisa local não implementada nesta versão de fallback."
