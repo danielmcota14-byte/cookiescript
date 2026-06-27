@@ -11,6 +11,8 @@ primary_region = "gru"
   PYTHONUNBUFFERED = "1"
   DEEPSEEK_USE_CPU = "1"
   DEEPSEEK_LAZY_LOAD = "1"
+  # Descomente a linha abaixo para desativar a IA local (fallback para API)
+  # DISABLE_LOCAL_AI = "true"
 
 [http_service]
   internal_port = 8080
@@ -25,13 +27,13 @@ primary_region = "gru"
     soft_limit = 20
 
   [[http_service.checks]]
-  grace_period = "120s"      # ← aumentado para 2 minutos
-  interval = "15s"
-  method = "GET"
-  path = "/health"
-  timeout = "10s"
+    grace_period = "180s"      # ← aumentado para 3 minutos (era 120s)
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    timeout = "10s"
 
 [[vm]]
-  memory = "4gb"
+  memory = "8gb"               # ← aumentado para 8GB (era 4gb)
   cpu_kind = "shared"
   cpus = 2
