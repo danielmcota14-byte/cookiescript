@@ -95,11 +95,7 @@ class CookieAIGenerator:
     def _load_deepseek_model(self):
         if self._model_loaded:
             return
-        # Nunca carregar modelo em cloud/Fly.io — causaria timeout
         if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
-            return
-        if os.getenv('FLY_APP_NAME') or os.getenv('FLY_REGION') or os.getenv('RENDER'):
-            print('[AI] Ambiente cloud detectado — modelo local desativado.')
             return
         if not _try_import_transformers():
             print('[AI] torch/transformers não instalados.')
@@ -155,20 +151,22 @@ class CookieAIGenerator:
     def _fallback_resposta(self, pergunta: str) -> str:
         p = pergunta.lower()
         if 'capital' in p and ('brasil' in p or 'brazil' in p):
-            return 'A capital do Brasil é Brasília.'
+            return 'Olá! Sou a Cookie AI 🍪\nA capital do Brasil é Brasília.'
         if 'capital' in p and 'frança' in p:
-            return 'A capital da França é Paris.'
-        if any(x in p for x in ('olá', 'ola', 'oi', 'hey', 'hello')):
-            return 'Olá! Sou a Cookie AI. Como posso ajudar com CookieScript?'
+            return 'Olá! Sou a Cookie AI 🍪\nA capital da França é Paris.'
+        if any(x in p for x in ('olá', 'ola', 'oi', 'hey', 'hello', 'tudo bem', 'tudo bom')):
+            return 'Olá! Sou a Cookie AI 🍪, assistente oficial do CookieScript IDE. Como posso ajudar você hoje?'
+        if 'quem' in p and ('você' in p or 'voce' in p):
+            return 'Sou a Cookie AI 🍪, a inteligência artificial integrada ao CookieScript IDE! Fui criada para ajudar você a programar em CookieScript e outras linguagens.'
         if 'cookiescript' in p:
-            return 'CookieScript é uma linguagem de programação para automação e scripting com suporte a filesystem, HTTP, JSON e mais.'
+            return 'Cookie AI aqui! 🍪\nCookieScript é uma linguagem de programação para automação e scripting, com suporte nativo a filesystem, HTTP, JSON e muito mais.'
         if 'ler arquivo' in p or 'abrir arquivo' in p:
-            return 'Para ler um arquivo em CookieScript:\n\nconteudo = filesystem.ler_arquivo(caminho="meu_arquivo.txt")'
+            return 'Cookie AI aqui! 🍪\nPara ler um arquivo:\n\nconteudo = filesystem.ler_arquivo(caminho="meu_arquivo.txt")'
         if 'escrever arquivo' in p:
-            return 'Para escrever em arquivo:\n\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="texto", modo="w")'
-        if 'http' in p or 'request' in p:
-            return 'Para fazer requisição HTTP:\n\nresult = network.http_request(url="https://api.exemplo.com", metodo="GET")'
-        return f'Recebi: "{pergunta}". Para respostas completas com IA real, configure uma chave Groq (gratuita em groq.com) ou Gemini.'
+            return 'Cookie AI aqui! 🍪\nPara escrever em arquivo:\n\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="texto", modo="w")'
+        if 'http' in p or 'request' in p or 'requisição' in p:
+            return 'Cookie AI aqui! 🍪\nPara fazer requisição HTTP:\n\nresult = network.http_request(url="https://api.exemplo.com", metodo="GET")'
+        return f'Oi! Sou a Cookie AI 🍪\nRecebi sua pergunta: "{pergunta}"\nPara respostas completas, use o provedor Groq no AI Assistant!'
 
     def _exemplo_basico(self) -> str:
         return '// Exemplo CookieScript\nfilesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE!", modo="w")\nresultado = network.http_request(url="https://httpbin.org/get", metodo="GET")'

@@ -7,8 +7,10 @@ primary_region = "gru"
 [env]
   PORT = "8080"
   PYTHONUNBUFFERED = "1"
-  DISABLE_LOCAL_AI = "true"
-  GROQ_API_KEY = "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"
+  DISABLE_LOCAL_AI = "false"
+  DEEPSEEK_USE_CPU = "1"
+  DEEPSEEK_LAZY_LOAD = "1"
+  GROQ_API_KEY = "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"
 
 [http_service]
   internal_port = 8080
@@ -23,13 +25,13 @@ primary_region = "gru"
     soft_limit = 20
 
   [[http_service.checks]]
-    grace_period = "30s"
+    grace_period = "60s"
     interval = "15s"
     method = "GET"
     path = "/health"
     timeout = "10s"
 
 [[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
-  cpus = 1
+  memory = "8gb"
+  cpu_kind = "performance"
+  cpus = 4
