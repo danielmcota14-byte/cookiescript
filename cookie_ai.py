@@ -1,103 +1,93 @@
-
 import os
 import re
 from typing import Optional
 
-# Lazy loading: não importar torch/transformers no topo
-# Isso será feito apenas quando necessário
 TRANSFORMERS_AVAILABLE = False
 torch = None
 AutoModelForCausalLM = None
 AutoTokenizer = None
 
+
 def _try_import_transformers():
-    """Tenta importar transformers apenas quando necessário."""
     global TRANSFORMERS_AVAILABLE, torch, AutoModelForCausalLM, AutoTokenizer
-    
     if TRANSFORMERS_AVAILABLE:
         return True
-    
     try:
         import torch as _torch
-        from transformers import AutoModelForCausalLM as _AutoModelForCausalLM
-        from transformers import AutoTokenizer as _AutoTokenizer
+        from transformers import AutoModelForCausalLM as _AMFC, AutoTokenizer as _AT
         torch = _torch
-        AutoModelForCausalLM = _AutoModelForCausalLM
-        AutoTokenizer = _AutoTokenizer
+        AutoModelForCausalLM = _AMFC
+        AutoTokenizer = _AT
         TRANSFORMERS_AVAILABLE = True
         return True
     except ImportError:
         return False
 
+
 class CookieAIGenerator:
-    # Modelo leve que roda em CPU (phi-2 precisa ~8GB RAM, flan-t5-base ~1GB)
     DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-coder-1.3b-base')
     DEEPSEEK_USE_CPU = os.getenv('DEEPSEEK_USE_CPU', '1').lower() in ('1', 'true', 'yes')
 
     def __init__(self):
         self._deepseek_tokenizer = None
         self._deepseek_model = None
-        self._model_loaded = False   # flag para saber se carregou
+        self._model_loaded = False
 
-    # ----- Métodos públicos -----
+    # ── público ───────────────────────────────────────────────────────────────
+
     def responder(self, pergunta: str) -> str:
         pergunta = pergunta.strip()
         if not pergunta:
-            return "Por favor, faça uma pergunta."
-
+            return 'Por favor, faça uma pergunta.'
         if self._is_model_available():
-            resposta = self._gerar_com_deepseek(pergunta, mode='chat')
-            if resposta:
-                return resposta
+            r = self._gerar_com_deepseek(pergunta, mode='chat')
+            if r:
+                return r
         return self._fallback_resposta(pergunta)
 
     def gerar_codigo(self, prompt: str, language: str = 'cookiescript') -> str:
-        prompt_text = prompt.strip()
-        language = language.lower().strip() if language else 'cookiescript'
-
-        if prompt_text and self._is_model_available():
-            deepseek_result = self._gerar_com_deepseek(prompt_text, language, mode='code')
-            if deepseek_result:
-                return deepseek_result
-
-        # Fallback para templates locais
+        prompt = prompt.strip()
+        language = (language or 'cookiescript').lower().strip()
+        if prompt and self._is_model_available():
+            r = self._gerar_com_deepseek(prompt, language, mode='code')
+            if r:
+                return r
         if language == 'python':
-            return self._gerar_python(prompt_text)
-        if language in ['js', 'javascript', 'node']:
-            return self._gerar_javascript(prompt_text)
-
-        prompt = prompt_text.lower()
-        if not prompt:
+            return self._gerar_python(prompt)
+        if language in ('js', 'javascript', 'node'):
+            return self._gerar_javascript(prompt)
+        p = prompt.lower()
+        if not p:
             return self._exemplo_basico()
-        if "abrir arquivo" in prompt or "ler arquivo" in prompt:
-            return self._gerar_abrir_arquivo(prompt)
-        if "escrever arquivo" in prompt or "salvar arquivo" in prompt:
-            return self._gerar_escrever_arquivo(prompt)
-        if "http" in prompt or "request" in prompt or "api" in prompt:
-            return self._gerar_requisicao_http(prompt)
-        if "json" in prompt:
-            return self._gerar_json(prompt)
-        if "loop" in prompt or "repetir" in prompt or "for" in prompt:
-            return self._gerar_loop(prompt)
-        if "função" in prompt or "function" in prompt:
-            return self._gerar_funcao(prompt)
-
-        return self._gerar_alvo_geral(prompt)
+        if 'abrir arquivo' in p or 'ler arquivo' in p:
+            return self._gerar_abrir_arquivo(p)
+        if 'escrever arquivo' in p or 'salvar arquivo' in p:
+            return self._gerar_escrever_arquivo(p)
+        if 'http' in p or 'request' in p or 'api' in p:
+            return self._gerar_requisicao_http(p)
+        if 'json' in p:
+            return self._gerar_json(p)
+        if 'loop' in p or 'repetir' in p or 'for' in p:
+            return self._gerar_loop(p)
+        if 'função' in p or 'function' in p:
+            return self._gerar_funcao(p)
+        return self._gerar_alvo_geral(p)
 
     def pesquisar_codigo(self, query: str, language: str = 'cookiescript') -> str:
-        language = language.lower().strip() if language else 'cookiescript'
+        language = (language or 'cookiescript').lower().strip()
         if query.strip() and self._is_model_available():
-            result = self._gerar_com_deepseek(
-                f'Provide a concise code example for the following request using only valid {"CookieScript" if language == "cookiescript" else ("JavaScript" if language in ["js", "javascript", "node"] else language.capitalize())} code. Request: {query}',
+            lang_name = 'CookieScript' if language == 'cookiescript' else language.capitalize()
+            r = self._gerar_com_deepseek(
+                f'Provide a code example for: {query} using {lang_name}',
                 language, mode='code'
             )
-            if result:
-                return result
+            if r:
+                return r
         return self._pesquisa_local(query, language)
 
-    # ----- Métodos internos de modelo -----
+    # ── modelo ────────────────────────────────────────────────────────────────
+
     def _is_model_available(self) -> bool:
-        # Respeitar variável de ambiente DISABLE_LOCAL_AI
         if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
             return False
         return TRANSFORMERS_AVAILABLE and self._model_loaded and self._deepseek_model is not None
@@ -105,49 +95,32 @@ class CookieAIGenerator:
     def _load_deepseek_model(self):
         if self._model_loaded:
             return
-        
-        # Tentar importar transformers se ainda não foi feito
-        if not TRANSFORMERS_AVAILABLE:
-            if not _try_import_transformers():
-                print("Transformers não instalado. Execute: pip install torch transformers")
-                return
-
+        # Nunca carregar modelo em cloud/Fly.io — causaria timeout
+        if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+            return
+        if os.getenv('FLY_APP_NAME') or os.getenv('FLY_REGION') or os.getenv('RENDER'):
+            print('[AI] Ambiente cloud detectado — modelo local desativado.')
+            return
+        if not _try_import_transformers():
+            print('[AI] torch/transformers não instalados.')
+            return
         try:
-            print(f"Carregando modelo {self.DEEPSEEK_MODEL}... (pode levar vários minutos na primeira vez)")
+            print(f'[AI] Carregando {self.DEEPSEEK_MODEL}...')
             self._deepseek_tokenizer = AutoTokenizer.from_pretrained(
-                self.DEEPSEEK_MODEL,
-                trust_remote_code=True,
-                use_fast=False,
+                self.DEEPSEEK_MODEL, trust_remote_code=True, use_fast=False
             )
-            load_kwargs = {
-                'trust_remote_code': True,
-                'low_cpu_mem_usage': True,
-            }
+            kwargs = {'trust_remote_code': True, 'low_cpu_mem_usage': True}
             if self.DEEPSEEK_USE_CPU or not torch.cuda.is_available():
-                # float16 usa metade da RAM que float32 (essencial para cloud com pouca memória)
-                load_kwargs['torch_dtype'] = torch.float16
-                load_kwargs['device_map'] = 'cpu'
-                # Carrega pesos em 8bit para economizar ainda mais memória (~60% menos RAM)
-                try:
-                    import bitsandbytes
-                    load_kwargs['load_in_8bit'] = True
-                    load_kwargs.pop('torch_dtype', None)
-                    print("Usando CPU com quantização 8bit (baixo uso de memória)")
-                except ImportError:
-                    print("Usando CPU com float16 (memória reduzida)")
+                kwargs['torch_dtype'] = torch.float16
+                kwargs['device_map'] = 'cpu'
             else:
-                load_kwargs['torch_dtype'] = torch.float16
-                load_kwargs['device_map'] = 'auto'
-                print("Usando GPU se disponível")
-
-            self._deepseek_model = AutoModelForCausalLM.from_pretrained(
-                self.DEEPSEEK_MODEL,
-                **load_kwargs,
-            )
+                kwargs['torch_dtype'] = torch.float16
+                kwargs['device_map'] = 'auto'
+            self._deepseek_model = AutoModelForCausalLM.from_pretrained(self.DEEPSEEK_MODEL, **kwargs)
             self._model_loaded = True
-            print("Modelo carregado com sucesso!")
-        except Exception as err:
-            print(f'ERRO ao carregar modelo: {err}')
+            print('[AI] Modelo carregado!')
+        except Exception as e:
+            print(f'[AI] Erro ao carregar modelo: {e}')
             self._deepseek_model = None
             self._deepseek_tokenizer = None
             self._model_loaded = False
@@ -156,221 +129,112 @@ class CookieAIGenerator:
         self._load_deepseek_model()
         if not self._is_model_available():
             return ''
-
         if mode == 'chat':
-            instruction = (
-                "You are a helpful assistant. Answer the user's question concisely in the same language.\n\n"
-                f"Pergunta: {prompt}\n\nResposta:"
-            )
-        else:  # code
-            lang_name = 'CookieScript' if language == 'cookiescript' else ('JavaScript' if language in ['js','javascript','node'] else language.capitalize())
-            instruction = (
-                f"Generate only valid {lang_name} code for: {prompt}\n"
-                "Do not add explanations. Return only executable code.\n\n"
-                f"### Response:\n"
-            )
-
+            instruction = f"You are a helpful assistant. Answer concisely.\n\nPergunta: {prompt}\n\nResposta:"
+        else:
+            lang_name = 'CookieScript' if language == 'cookiescript' else ('JavaScript' if language in ('js','javascript','node') else language.capitalize())
+            instruction = f"Generate only valid {lang_name} code for: {prompt}\nReturn only executable code.\n\n### Response:\n"
         try:
-            encoded = self._deepseek_tokenizer(instruction, return_tensors='pt', truncation=True, max_length=1024)
+            enc = self._deepseek_tokenizer(instruction, return_tensors='pt', truncation=True, max_length=1024)
             device = next(self._deepseek_model.parameters()).device
-            encoded = {k: v.to(device) for k, v in encoded.items()}
-            outputs = self._deepseek_model.generate(
-                **encoded,
-                max_new_tokens=512,
-                do_sample=False,
-                temperature=0.2,
+            enc = {k: v.to(device) for k, v in enc.items()}
+            out = self._deepseek_model.generate(
+                **enc, max_new_tokens=512, do_sample=False, temperature=0.2,
                 pad_token_id=self._deepseek_tokenizer.eos_token_id
             )
-            decoded = self._deepseek_tokenizer.decode(outputs[0], skip_special_tokens=True)
+            decoded = self._deepseek_tokenizer.decode(out[0], skip_special_tokens=True)
             if decoded.startswith(instruction):
                 decoded = decoded[len(instruction):]
             return decoded.strip()
         except Exception as e:
-            print(f"Erro na geração: {e}")
+            print(f'[AI] Erro na geração: {e}')
             return ''
 
-    def _fallback_resposta(self, pergunta: str) -> str:
-        pergunta_lower = pergunta.lower()
-        if "capital" in pergunta_lower and ("brasil" in pergunta_lower or "brazil" in pergunta_lower):
-            return "A capital do Brasil é Brasília."
-        if "capital" in pergunta_lower and "frança" in pergunta_lower:
-            return "A capital da França é Paris."
-        if "olá" in pergunta_lower or "oi" in pergunta_lower:
-            return "Olá! Como posso ajudar?"
-        return f"Pergunta recebida: '{pergunta}'. (Modelo não disponível. Verifique o terminal para erros.)"
+    # ── fallbacks ─────────────────────────────────────────────────────────────
 
-    # ------------------- TODOS OS MÉTODOS DE FALLBACK (gerar código, templates, pesquisa) -------------------
+    def _fallback_resposta(self, pergunta: str) -> str:
+        p = pergunta.lower()
+        if 'capital' in p and ('brasil' in p or 'brazil' in p):
+            return 'A capital do Brasil é Brasília.'
+        if 'capital' in p and 'frança' in p:
+            return 'A capital da França é Paris.'
+        if any(x in p for x in ('olá', 'ola', 'oi', 'hey', 'hello')):
+            return 'Olá! Sou a Cookie AI. Como posso ajudar com CookieScript?'
+        if 'cookiescript' in p:
+            return 'CookieScript é uma linguagem de programação para automação e scripting com suporte a filesystem, HTTP, JSON e mais.'
+        if 'ler arquivo' in p or 'abrir arquivo' in p:
+            return 'Para ler um arquivo em CookieScript:\n\nconteudo = filesystem.ler_arquivo(caminho="meu_arquivo.txt")'
+        if 'escrever arquivo' in p:
+            return 'Para escrever em arquivo:\n\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="texto", modo="w")'
+        if 'http' in p or 'request' in p:
+            return 'Para fazer requisição HTTP:\n\nresult = network.http_request(url="https://api.exemplo.com", metodo="GET")'
+        return f'Recebi: "{pergunta}". Para respostas completas com IA real, configure uma chave Groq (gratuita em groq.com) ou Gemini.'
+
     def _exemplo_basico(self) -> str:
-        return '''// Exemplo CookieScript gerado automaticamente
-filesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE funcionando!", modo="w")
-resultado_http = network.http_request(url="https://httpbin.org/get", metodo="GET")
-filesystem.escrever_arquivo(caminho="api_response.txt", conteudo=resultado_http['body'], modo="w")'''
+        return '// Exemplo CookieScript\nfilesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE!", modo="w")\nresultado = network.http_request(url="https://httpbin.org/get", metodo="GET")'
 
     def _gerar_abrir_arquivo(self, prompt: str) -> str:
-        caminho = self._extrair_caminho(prompt) or "entrada.txt"
-        return f'''// Abrir arquivo e exibir conteúdo
-conteudo = filesystem.ler_arquivo(caminho="{caminho}")
-filesystem.escrever_arquivo(caminho="arquivo_lido.txt", conteudo=conteudo, modo="w")'''
+        caminho = self._extrair_caminho(prompt) or 'entrada.txt'
+        return f'// Abrir arquivo\nconteudo = filesystem.ler_arquivo(caminho="{caminho}")\nfilesystem.escrever_arquivo(caminho="lido.txt", conteudo=conteudo, modo="w")'
 
     def _gerar_escrever_arquivo(self, prompt: str) -> str:
-        caminho = self._extrair_caminho(prompt) or "saida.txt"
-        texto = self._extrair_texto(prompt) or "Texto gerado pelo CookieScript IDE"
-        return f'''// Escrever arquivo a partir de prompt
-filesystem.escrever_arquivo(caminho="{caminho}", conteudo="{texto}", modo="w")'''
+        caminho = self._extrair_caminho(prompt) or 'saida.txt'
+        texto = self._extrair_texto(prompt) or 'Texto gerado'
+        return f'// Escrever arquivo\nfilesystem.escrever_arquivo(caminho="{caminho}", conteudo="{texto}", modo="w")'
 
     def _gerar_requisicao_http(self, prompt: str) -> str:
-        url = self._extrair_url(prompt) or "https://httpbin.org/get"
-        return f'''// Requisição HTTP gerada automaticamente
-resultado_http = network.http_request(url="{url}", metodo="GET")
-filesystem.escrever_arquivo(caminho="http_response.txt", conteudo=resultado_http['body'], modo="w")'''
+        url = self._extrair_url(prompt) or 'https://httpbin.org/get'
+        return f'// Requisição HTTP\nresultado = network.http_request(url="{url}", metodo="GET")\nfilesystem.escrever_arquivo(caminho="response.txt", conteudo=resultado["body"], modo="w")'
 
     def _gerar_json(self, prompt: str) -> str:
-        return '''// Conversão JSON
-texto_json = '{"nome": "CookieScript", "versao": 1}'
-dados = json.parse_json(texto_json)
-filesystem.escrever_arquivo(caminho="json_saida.txt", conteudo=json.stringify_json(dados), modo="w")'''
+        return '// JSON\ntexto = \'{"nome": "CookieScript", "versao": 1}\'\ndados = json.parse_json(texto)\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo=json.stringify_json(dados), modo="w")'
 
     def _gerar_loop(self, prompt: str) -> str:
-        return '''// Loop de repetição em CookieScript
-contador = 0
-for i in [1, 2, 3, 4, 5] {
-    contador = contador + i
-}
-filesystem.escrever_arquivo(caminho="loop_resultado.txt", conteudo="Contador: " + contador, modo="w")'''
+        return '// Loop\ncontador = 0\nfor i in [1, 2, 3, 4, 5] {\n    contador = contador + i\n}\nfilesystem.escrever_arquivo(caminho="resultado.txt", conteudo="Soma: " + contador, modo="w")'
 
     def _gerar_funcao(self, prompt: str) -> str:
-        return '''// Função simples em CookieScript
-function somar(a, b) {
-    return a + b
-}
-resultado = somar(5, 7)
-filesystem.escrever_arquivo(caminho="funcao_resultado.txt", conteudo="Resultado: " + resultado, modo="w")'''
+        return '// Função\nfunction somar(a, b) {\n    return a + b\n}\nresultado = somar(5, 7)\nfilesystem.escrever_arquivo(caminho="resultado.txt", conteudo="Resultado: " + resultado, modo="w")'
 
     def _gerar_alvo_geral(self, prompt: str) -> str:
-        return f'''// Código CookieScript gerado para: {prompt}
-filesystem.escrever_arquivo(caminho="pedido.txt", conteudo="{prompt}", modo="w")'''
+        return f'// CookieScript para: {prompt}\nfilesystem.escrever_arquivo(caminho="pedido.txt", conteudo="{prompt}", modo="w")'
 
     def _gerar_python(self, prompt: str) -> str:
-        prompt_lower = prompt.lower()
-        if "abrir arquivo" in prompt_lower or "ler arquivo" in prompt_lower:
-            return '''# Abrir arquivo em Python
-with open('entrada.txt', 'r', encoding='utf-8') as f:
-    conteudo = f.read()
-
-with open('arquivo_lido.txt', 'w', encoding='utf-8') as out:
-    out.write(conteudo)'''
-        if "escrever arquivo" in prompt_lower or "salvar arquivo" in prompt_lower:
-            return '''# Escrever arquivo em Python
-with open('saida.txt', 'w', encoding='utf-8') as f:
-    f.write('Texto gerado pelo CookieScript IDE')'''
-        if "http" in prompt_lower or "request" in prompt_lower or "api" in prompt_lower:
-            return '''# Requisição HTTP em Python
-import urllib.request
-
-url = 'https://httpbin.org/get'
-with urllib.request.urlopen(url) as response:
-    body = response.read().decode('utf-8')
-
-with open('http_response.txt', 'w', encoding='utf-8') as f:
-    f.write(body)'''
-        if "json" in prompt_lower:
-            return '''# Manipulação JSON em Python
-import json
-
-dados = {'nome': 'CookieScript', 'versao': 1}
-texto_json = json.dumps(dados)
-parsed = json.loads(texto_json)
-with open('json_saida.txt', 'w', encoding='utf-8') as f:
-    f.write(texto_json)'''
-        if "loop" in prompt_lower or "repetir" in prompt_lower or "for" in prompt_lower:
-            return '''# Loop em Python
-soma = 0
-for i in range(1, 6):
-    soma += i
-
-with open('loop_resultado.txt', 'w', encoding='utf-8') as f:
-    f.write(f'Soma: {soma}')'''
-        if "função" in prompt_lower or "function" in prompt_lower:
-            return '''# Função em Python
-def somar(a, b):
-    return a + b
-
-resultado = somar(5, 7)
-with open('funcao_resultado.txt', 'w', encoding='utf-8') as f:
-    f.write(f'Resultado: {resultado}')'''
-        return '''# Código Python gerado para o prompt
-print('Insira um prompt mais específico para gerar código Python.')'''
+        p = prompt.lower()
+        if 'arquivo' in p or 'ler' in p:
+            return "with open('entrada.txt', 'r', encoding='utf-8') as f:\n    conteudo = f.read()\nprint(conteudo)"
+        if 'http' in p or 'request' in p:
+            return "import urllib.request\nwith urllib.request.urlopen('https://httpbin.org/get') as r:\n    print(r.read().decode())"
+        if 'json' in p:
+            return "import json\ndados = {'nome': 'CookieScript'}\nprint(json.dumps(dados, indent=2))"
+        if 'loop' in p or 'for' in p:
+            return "soma = 0\nfor i in range(1, 6):\n    soma += i\nprint(f'Soma: {soma}')"
+        return "def main():\n    print('Hello, World!')\n\nif __name__ == '__main__':\n    main()"
 
     def _gerar_javascript(self, prompt: str) -> str:
-        prompt_lower = prompt.lower()
-        if "arquivo" in prompt_lower or "ler arquivo" in prompt_lower:
-            return '''// Operações de arquivo em Node.js
-const fs = require('fs');
-const conteudo = fs.readFileSync('entrada.txt', 'utf-8');
-fs.writeFileSync('arquivo_lido.txt', conteudo);'''
-        if "escrever arquivo" in prompt_lower or "salvar arquivo" in prompt_lower:
-            return '''// Escrever arquivo em Node.js
-const fs = require('fs');
-fs.writeFileSync('saida.txt', 'Texto gerado pelo CookieScript IDE');'''
-        if "http" in prompt_lower or "request" in prompt_lower or "api" in prompt_lower:
-            return '''// Requisição HTTP em Node.js
-const https = require('https');
-
-https.get('https://httpbin.org/get', (res) => {
-  let data = '';
-  res.on('data', (chunk) => { data += chunk; });
-  res.on('end', () => {
-    console.log(data);
-  });
-});'''
-        if "json" in prompt_lower:
-            return '''// Manipulação JSON em JavaScript
-const dados = { nome: 'CookieScript', versao: 1 };
-const textoJson = JSON.stringify(dados, null, 2);
-console.log(textoJson);'''
-        if "loop" in prompt_lower or "repetir" in prompt_lower or "for" in prompt_lower:
-            return '''// Loop em JavaScript
-let soma = 0;
-for (let i = 1; i <= 5; i++) {
-  soma += i;
-}
-console.log('Soma:', soma);'''
-        if "função" in prompt_lower or "function" in prompt_lower:
-            return '''// Função em JavaScript
-function somar(a, b) {
-  return a + b;
-}
-
-const resultado = somar(5, 7);
-console.log('Resultado:', resultado);'''
-        return '''// Código JavaScript gerado para o prompt
-console.log('Insira um prompt mais específico para gerar código JavaScript.');'''
+        p = prompt.lower()
+        if 'arquivo' in p:
+            return "const fs = require('fs');\nconst c = fs.readFileSync('entrada.txt', 'utf-8');\nconsole.log(c);"
+        if 'http' in p or 'request' in p:
+            return "const https = require('https');\nhttps.get('https://httpbin.org/get', r => {\n  let d = '';\n  r.on('data', c => d += c);\n  r.on('end', () => console.log(d));\n});"
+        if 'json' in p:
+            return "const dados = { nome: 'CookieScript', versao: 1 };\nconsole.log(JSON.stringify(dados, null, 2));"
+        if 'loop' in p or 'for' in p:
+            return "let soma = 0;\nfor (let i = 1; i <= 5; i++) soma += i;\nconsole.log('Soma:', soma);"
+        return "function somar(a, b) { return a + b; }\nconsole.log('Resultado:', somar(5, 7));"
 
     def _extrair_caminho(self, prompt: str) -> Optional[str]:
-        match = re.search(r'["\']([^"\']*)["\']', prompt)
-        if match:
-            return match.group(1)
-        # Fallback: look for words after certain keywords
-        match = re.search(r'(?:arquivo|file|path)[\s:=]+["\']?([^\s\'"]+)["\']?', prompt, re.IGNORECASE)
-        if match:
-            return match.group(1)
-        return None
+        m = re.search(r'["\']([^"\']+)["\']', prompt)
+        if m: return m.group(1)
+        m = re.search(r'(?:arquivo|file|path)[\s:=]+["\']?([^\s\'"]+)["\']?', prompt, re.I)
+        return m.group(1) if m else None
 
     def _extrair_texto(self, prompt: str) -> Optional[str]:
-        # Look for quoted text
-        match = re.search(r'["\']([^"\']*)["\']', prompt)
-        if match:
-            return match.group(1)
-        return None
+        m = re.search(r'["\']([^"\']+)["\']', prompt)
+        return m.group(1) if m else None
 
     def _extrair_url(self, prompt: str) -> Optional[str]:
-        # Look for a URL pattern
-        match = re.search(r'https?://[^\s]+', prompt)
-        if match:
-            return match.group(0)
-        return None
+        m = re.search(r'https?://[^\s]+', prompt)
+        return m.group(0) if m else None
 
     def _pesquisa_local(self, query: str, language: str) -> str:
-        # This is a placeholder for local search (we keep the original fallback)
-        # We'll return a simple message indicating no local search implementation
-        return "// Pesquisa local não implementada nesta versão de fallback."
+        return f'// Exemplo para: {query}\nfilesystem.escrever_arquivo(caminho="resultado.txt", conteudo="{query}", modo="w")'
