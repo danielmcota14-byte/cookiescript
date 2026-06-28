@@ -25,7 +25,7 @@ primary_region = "gru"
     soft_limit = 20
 
   [[http_service.checks]]
-    grace_period = "120s"
+    grace_period = "60s"
     interval = "15s"
     method = "GET"
     path = "/health"
