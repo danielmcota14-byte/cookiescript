@@ -107,10 +107,10 @@ class CookieAIGenerator:
             )
             kwargs = {'trust_remote_code': True, 'low_cpu_mem_usage': True}
             if self.DEEPSEEK_USE_CPU or not torch.cuda.is_available():
-                kwargs['torch_dtype'] = torch.float16
+                kwargs['dtype'] = torch.float16
                 kwargs['device_map'] = 'cpu'
             else:
-                kwargs['torch_dtype'] = torch.float16
+                kwargs['dtype'] = torch.float16
                 kwargs['device_map'] = 'auto'
             self._deepseek_model = AutoModelForCausalLM.from_pretrained(self.DEEPSEEK_MODEL, **kwargs)
             self._model_loaded = True
