@@ -222,13 +222,13 @@
         <select id="providerSelect">
           <option value="local">🧠 DeepSeek Local (sem API)</option>
           <option value="gemini">Google Gemini (API gratuita)</option>
-          <option value="groq">Groq Cloud (API gratuita)</option>
+          <option value="groq" selected>Groq Cloud (API gratuita)</option>
           <option value="enhanced">⚡ Cookie Potencializada (DeepSeek + Groq)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
         <label for="apiKeyInput">API Key (Gemini/Groq)</label>
-        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off">
+        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off" value="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">
         <div class="api-hint">
           <span id="keyHint">necessária apenas para Gemini/Groq</span>
           <a href="#" id="getKeyLink" target="_blank">obter chave →</a>
@@ -298,6 +298,7 @@
 
   const GEMINI_ENDPOINT        = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
   const GROQ_ENDPOINT          = 'https://api.groq.com/openai/v1/chat/completions';
+  const DEFAULT_GROQ_KEY = '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';
   const LOCAL_ASK_ENDPOINT     = '/api/ask';
   const LOCAL_ENHANCED_ENDPOINT= '/api/ask_enhanced';
 
@@ -491,7 +492,7 @@
 
     let apiKey = '';
     if (provider === 'gemini' || provider === 'groq') {
-      apiKey = apiKeyInput.value.trim();
+      apiKey = apiKeyInput.value.trim() || (provider === 'groq' ? DEFAULT_GROQ_KEY : '');
       if (!apiKey) { setResponse(`É necessária uma API Key para ${provider === 'gemini' ? 'Gemini' : 'Groq'}.`, true); return; }
     }
 

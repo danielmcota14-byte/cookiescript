@@ -8,6 +8,7 @@ primary_region = "gru"
   PORT = "8080"
   PYTHONUNBUFFERED = "1"
   DISABLE_LOCAL_AI = "true"
+  GROQ_API_KEY = "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"
 
 [http_service]
   internal_port = 8080

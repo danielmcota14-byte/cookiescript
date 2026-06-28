@@ -337,7 +337,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         import urllib.request, urllib.error
         pergunta = data.get('pergunta', '').strip()
         groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
-        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
+        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '') or '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'
 
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'}); return
