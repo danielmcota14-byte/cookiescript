@@ -297,89 +297,47 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             return json.loads(resp.read()).get('response', '').strip()
 
     def api_ask(self, data):
-        import urllib.request, urllib.error
         pergunta = data.get('pergunta', '').strip()
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'}); return
 
-        groq_key = os.environ.get('GROQ_API_KEY', '') or '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'
-
-        # 1. Groq (principal — funciona em cloud)
-        if groq_key:
-            try:
-                payload = json.dumps({
-                    'model': 'llama-3.1-8b-instant',
-                    'messages': [
-                        {'role': 'system', 'content': (
-                            'Você é a Cookie AI, assistente oficial do CookieScript IDE criado por Daniel. '
-                            'Sempre se apresente e responda como Cookie AI. '
-                            'Seja amigável, direto e especializado em programação e CookieScript. '
-                            'Responda em português brasileiro.'
-                        )},
-                        {'role': 'user', 'content': pergunta}
-                    ],
-                    'max_tokens': 1024,
-                    'temperature': 0.7
-                }).encode()
-                req = urllib.request.Request(
-                    'https://api.groq.com/openai/v1/chat/completions',
-                    data=payload,
-                    headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {groq_key}'},
-                    method='POST'
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    result = json.loads(resp.read())
-                    resposta = result['choices'][0]['message']['content']
-                    self.send_json({'success': True, 'resposta': resposta, 'model': 'Cookie AI (Groq)'})
-                    return
-            except urllib.error.HTTPError as e:
-                err_body = e.read().decode('utf-8', errors='ignore')
-                print(f'[Groq/ask] HTTP {e.code}: {err_body}')
-                # Erros de auth — retornar direto, não tem fallback útil
-                if e.code in (401, 403):
-                    self.send_json({'success': False, 'error': f'Cookie AI: chave Groq inválida (HTTP {e.code}). Verifique a chave nas configurações.'})
-                    return
-                # Outros erros HTTP — tentar fallback
-            except Exception as e:
-                print(f'[Groq/ask] {e}')
-
-        # 2. DeepSeek local (se disponível)
+        # 1. DeepSeek local (se disponível e não em cloud)
         if CookieAIGenerator:
             try:
                 gen = CookieAIGenerator()
                 gen._load_deepseek_model()
                 if gen._is_model_available():
                     resposta = gen.responder(pergunta)
-                    self.send_json({'success': True, 'resposta': resposta, 'model': 'Cookie AI (Local)'})
+                    self.send_json({'success': True, 'resposta': resposta, 'model': gen.DEEPSEEK_MODEL.split('/')[-1]})
                     return
             except Exception as e:
                 print(f'[DeepSeek] {e}')
 
-        # 3. Ollama local
+        # 2. Ollama local
         if self._ollama_running():
             try:
                 resposta = self._ollama_request(pergunta)
-                self.send_json({'success': True, 'resposta': resposta, 'model': 'Cookie AI (Ollama)'})
+                self.send_json({'success': True, 'resposta': resposta, 'model': 'ollama'})
                 return
             except Exception as e:
                 print(f'[Ollama] {e}')
 
-        # 4. Fallback de templates
+        # 3. Fallback de templates
         if CookieAIGenerator:
             try:
                 resposta = CookieAIGenerator()._fallback_resposta(pergunta)
-                self.send_json({'success': True, 'resposta': resposta, 'model': 'Cookie AI'})
+                self.send_json({'success': True, 'resposta': resposta, 'model': 'fallback'})
                 return
             except Exception as e:
                 print(f'[Fallback] {e}')
 
-        self.send_json({'success': False, 'error': 'Cookie AI indisponível no momento. Tente novamente.'})
+        self.send_json({'success': False, 'error': 'Nenhum backend de IA disponível. Configure Ollama ou uma API Key de Groq/Gemini.'})
 
     def api_ask_enhanced(self, data):
         import urllib.request, urllib.error
         pergunta = data.get('pergunta', '').strip()
         groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
-        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '') or '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'
+        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '') or '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'
 
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'}); return
@@ -398,10 +356,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if groq_key:
             try:
                 if resposta_local:
-                    system = 'Você é a Cookie AI, assistente oficial do CookieScript IDE. Responda sempre como Cookie AI, com personalidade amigável, clara e focada em programação. Uma IA local já gerou uma resposta — corrija erros, expanda e melhore. Responda em português.'
+                    system = 'Você é a Cookie AI Potencializada. Uma IA local já gerou uma resposta. Corrija erros, expanda e melhore. Responda em português.'
                     user = f'Pergunta: {pergunta}\n\nResposta local:\n{resposta_local}\n\nMelhore esta resposta.'
                 else:
-                    system = 'Você é a Cookie AI, assistente oficial do CookieScript IDE criado por Daniel. Responda sempre se identificando como Cookie AI, com personalidade amigável, direta e especializada em programação e CookieScript. Responda em português.'
+                    system = 'Você é a Cookie AI integrada ao CookieScript IDE. Responda em português de forma clara.'
                     user = pergunta
 
                 payload = json.dumps({
@@ -432,30 +390,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
 # ── inicialização ─────────────────────────────────────────────────────────────
 
-def _preload_model_background():
-    import time
-    time.sleep(5)  # aguarda o servidor subir e passar no health check
-    if CookieAIGenerator and os.getenv('DISABLE_LOCAL_AI', '').lower() not in ('1', 'true', 'yes'):
-        try:
-            print('[AI] Pré-carregando modelo em background...')
-            gen = CookieAIGenerator()
-            gen._load_deepseek_model()
-            if gen._is_model_available():
-                print('[AI] Modelo pronto!')
-            else:
-                print('[AI] Modelo não disponível — usando Groq como fallback.')
-        except Exception as e:
-            print(f'[AI] Erro ao pré-carregar modelo: {e}')
-
-
 def main():
     os.chdir(BASE_DIR)
-
-    # Inicia carregamento do modelo em background (não bloqueia o HTTP)
-    import threading
-    t = threading.Thread(target=_preload_model_background, daemon=True)
-    t.start()
-
     httpd = HTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
     print(f'\n{"="*50}')
     print(f'  CookieScript IDE — http://localhost:{PORT}/')
