@@ -143,8 +143,8 @@
       transition: border-color 0.2s;
     }
     .api-hint a:hover { border-color: var(--primary); }
-    .groq-model-wrap, .local-status-wrap { display: none; }
-    .groq-model-wrap.active, .local-status-wrap.active { display: block; }
+    .groq-model-wrap, .local-status-wrap, .claude-code-wrap { display: none; }
+    .groq-model-wrap.active, .local-status-wrap.active, .claude-code-wrap.active { display: block; }
     button {
       background: var(--primary);
       border: none;
@@ -199,9 +199,10 @@
     <div class="logo-area">
       <h1>Cookie AI · Plataforma de Desenvolvimento</h1>
       <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <span class="badge-mini accent">Claude Code Local</span>
         <span class="badge-mini">Gemini</span>
         <span class="badge-mini">Groq</span>
-        <span class="badge-mini accent">IA Local</span>
+        <span class="badge-mini">IA Local</span>
       </div>
     </div>
   </div>
@@ -220,19 +221,27 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
+          <option value="claude_code" selected>🤖 Claude Code Local (CLI)</option>
           <option value="local">🧠 DeepSeek Local (sem API)</option>
           <option value="gemini">Google Gemini (API gratuita)</option>
-          <option value="groq" selected>Groq Cloud (API gratuita)</option>
+          <option value="groq">Groq Cloud (API gratuita)</option>
           <option value="enhanced">⚡ Cookie Potencializada (DeepSeek + Groq)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
         <label for="apiKeyInput">API Key (Gemini/Groq)</label>
-        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off" value="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">
+        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off">
         <div class="api-hint">
           <span id="keyHint">necessária apenas para Gemini/Groq</span>
           <a href="#" id="getKeyLink" target="_blank">obter chave →</a>
         </div>
+      </div>
+    </div>
+
+    <div class="claude-code-wrap" id="claudeCodeStatusDiv">
+      <div class="field">
+        <label>Status do Claude Code CLI</label>
+        <div id="claudeCodeStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">⏳ Verificando instalação local...</div>
       </div>
     </div>
 
@@ -276,6 +285,7 @@
   </div>
 
   <div class="footer-note">
+    <strong>Claude Code Local</strong> usa o CLI <code>claude</code> já instalado/autenticado no seu computador (sem chave de API extra).<br>
     <strong>DeepSeek Local</strong> usa torch + transformers direto no servidor (sem internet, sem API).<br>
     <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita (opcional).
   </div>
@@ -288,6 +298,8 @@
   const groqModelDiv      = document.getElementById('groqModelDiv');
   const localStatusDiv    = document.getElementById('localStatusDiv');
   const localStatusMsg    = document.getElementById('localStatusMsg');
+  const claudeCodeStatusDiv = document.getElementById('claudeCodeStatusDiv');
+  const claudeCodeStatusMsg = document.getElementById('claudeCodeStatusMsg');
   const groqModelSelect   = document.getElementById('groqModelSelect');
   const promptTextarea    = document.getElementById('promptInput');
   const sendBtn           = document.getElementById('sendBtn');
@@ -298,7 +310,7 @@
 
   const GEMINI_ENDPOINT        = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
   const GROQ_ENDPOINT          = 'https://api.groq.com/openai/v1/chat/completions';
-  const DEFAULT_GROQ_KEY = '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';
+  const DEFAULT_GROQ_KEY = '';
   const LOCAL_ASK_ENDPOINT     = '/api/ask';
   const LOCAL_ENHANCED_ENDPOINT= '/api/ask_enhanced';
 
@@ -417,6 +429,17 @@
     throw new Error('Resposta vazia da Cookie AI.');
   }
 
+  async function callClaudeCodeAI(prompt) {
+    const data = await safeJsonFetch(LOCAL_ASK_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pergunta: prompt, provider: 'claude_code' })
+    });
+    if (data.error) throw new Error(data.error);
+    if (data.resposta) return data.resposta;
+    throw new Error('Resposta vazia do Claude Code.');
+  }
+
   async function callEnhancedAI(prompt, groqModel) {
     const data = await safeJsonFetch(LOCAL_ENHANCED_ENDPOINT, {
       method: 'POST',
@@ -445,11 +468,35 @@
     }
   }
 
+  async function checkClaudeCodeStatus() {
+    try {
+      const data = await safeJsonFetch('/api/claude_code_status', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+      if (data.online) {
+        claudeCodeStatusMsg.innerHTML = `✅ Claude Code CLI detectado${data.version ? ' — ' + escapeHtml(data.version) : ''}`;
+        claudeCodeStatusMsg.style.color = 'var(--success)';
+      } else {
+        claudeCodeStatusMsg.innerHTML = `⚠️ ${escapeHtml(data.error || 'Claude Code CLI não encontrado nesta máquina.')}`;
+        claudeCodeStatusMsg.style.color = 'var(--danger)';
+      }
+    } catch (e) {
+      claudeCodeStatusMsg.innerHTML = '❌ Não foi possível verificar o Claude Code. O backend (cookie_ide_app.py) está rodando?';
+      claudeCodeStatusMsg.style.color = 'var(--danger)';
+    }
+  }
+
   // ── UI ─────────────────────────────────────────────────────────────────────
 
   function updateUIForProvider() {
     const provider = providerSelect.value;
-    if (provider === 'gemini') {
+    claudeCodeStatusDiv.classList.remove('active');
+    if (provider === 'claude_code') {
+      apiKeyField.style.display = 'none';
+      groqModelDiv.classList.remove('active');
+      localStatusDiv.classList.remove('active');
+      aiFlowInfo.classList.remove('active');
+      claudeCodeStatusDiv.classList.add('active');
+      checkClaudeCodeStatus();
+    } else if (provider === 'gemini') {
       apiKeyField.style.display = 'block';
       groqModelDiv.classList.remove('active');
       localStatusDiv.classList.remove('active');
@@ -499,7 +546,9 @@
     setLoading(true);
     try {
       let result = '';
-      if (provider === 'gemini') {
+      if (provider === 'claude_code') {
+        result = await callClaudeCodeAI(prompt);
+      } else if (provider === 'gemini') {
         result = await callGemini(apiKey, prompt);
       } else if (provider === 'groq') {
         result = await callGroq(apiKey, groqModelSelect.value, prompt);
@@ -545,6 +594,8 @@
   setInterval(() => {
     if (providerSelect.value === 'local' || providerSelect.value === 'enhanced') {
       checkServerHealth();
+    } else if (providerSelect.value === 'claude_code') {
+      checkClaudeCodeStatus();
     }
   }, 15000);
 </script>

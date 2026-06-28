@@ -17,6 +17,11 @@ try:
 except ImportError:
     CookieAIGenerator = None
 
+try:
+    from claude_code_ai import ClaudeCodeAI
+except ImportError:
+    ClaudeCodeAI = None
+
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.environ.get('PORT', 8080))
 
@@ -64,6 +69,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/git_status':     self.api_git_status,
             '/api/git_commit':     self.api_git_commit,
             '/api/ollama_status':  self.api_ollama_status,
+            '/api/claude_code_status': self.api_claude_code_status,
             '/api/ask':            self.api_ask,
             '/api/ask_enhanced':   self.api_ask_enhanced,
         }
@@ -154,7 +160,20 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not prompt:
             self.send_json({'error': 'Prompt vazio'}); return
         code = ''
-        if CookieAIGenerator:
+        modelo_usado = None
+        # 1. Claude Code local (se instalado/autenticado na máquina)
+        if ClaudeCodeAI:
+            try:
+                cc = ClaudeCodeAI()
+                if cc.disponivel():
+                    r = cc.gerar_codigo(prompt, language)
+                    if r.get('success') and r.get('texto'):
+                        code = r['texto']
+                        modelo_usado = 'claude-code'
+            except Exception as e:
+                print(f'[ClaudeCode] {e}')
+        # 2. DeepSeek local / templates (fallback)
+        if not code and CookieAIGenerator:
             try:
                 code = CookieAIGenerator().gerar_codigo(prompt, language) or ''
             except Exception:
@@ -166,7 +185,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 code = f'// Gerado para: {prompt}\nconsole.log("Hello, World!");\n'
             else:
                 code = f'// Gerado para: {prompt}\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="Hello, CookieScript!", modo="w")\n'
-        self.send_json({'success': True, 'code': code})
+        self.send_json({'success': True, 'code': code, 'model': modelo_usado or 'fallback'})
 
     def api_search(self, data):
         query = data.get('query', '')
@@ -182,7 +201,16 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
         generated = None
-        if CookieAIGenerator:
+        if ClaudeCodeAI:
+            try:
+                cc = ClaudeCodeAI()
+                if cc.disponivel():
+                    r = cc.pesquisar_codigo(query, language)
+                    if r.get('success') and r.get('texto'):
+                        generated = r['texto']
+            except Exception as e:
+                print(f'[ClaudeCode] {e}')
+        if generated is None and CookieAIGenerator:
             try:
                 generated = CookieAIGenerator().pesquisar_codigo(query, language)
             except Exception:
@@ -259,6 +287,24 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json({'online': False, 'error': str(e)})
 
+    def api_claude_code_status(self, data):
+        if not ClaudeCodeAI:
+            self.send_json({'online': False, 'error': 'Módulo claude_code_ai.py não encontrado.'})
+            return
+        try:
+            cc = ClaudeCodeAI()
+            disponivel = cc.disponivel()
+            self.send_json({
+                'online': disponivel,
+                'version': cc.versao() if disponivel else None,
+                'error': None if disponivel else (
+                    "Claude Code CLI não encontrado. Instale com: "
+                    "npm install -g @anthropic-ai/claude-code e depois rode: claude"
+                ),
+            })
+        except Exception as e:
+            self.send_json({'online': False, 'error': str(e)})
+
     # ── IA local ──────────────────────────────────────────────────────────────
 
     def _ollama_running(self):
@@ -298,10 +344,46 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
     def api_ask(self, data):
         pergunta = data.get('pergunta', '').strip()
+        provider = (data.get('provider') or '').strip().lower()
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'}); return
 
-        # 1. DeepSeek local (se disponível e não em cloud)
+        # Provider explícito: o front-end pediu Claude Code Local especificamente.
+        if provider == 'claude_code':
+            if not ClaudeCodeAI:
+                self.send_json({'success': False, 'error': 'Módulo claude_code_ai.py não encontrado.'})
+                return
+            cc = ClaudeCodeAI()
+            if not cc.disponivel():
+                self.send_json({
+                    'success': False,
+                    'error': (
+                        'Claude Code CLI não encontrado nesta máquina. Instale com: '
+                        'npm install -g @anthropic-ai/claude-code, depois rode "claude" '
+                        'uma vez para autenticar.'
+                    ),
+                })
+                return
+            r = cc.responder(pergunta)
+            if r.get('success'):
+                self.send_json({'success': True, 'resposta': r['texto'], 'model': 'claude-code'})
+            else:
+                self.send_json({'success': False, 'error': r.get('error') or 'Erro ao consultar o Claude Code.'})
+            return
+
+        # 1. Claude Code local (prioridade quando disponível e nenhum provider foi forçado)
+        if ClaudeCodeAI and os.getenv('DISABLE_CLAUDE_CODE', '').lower() not in ('1', 'true', 'yes'):
+            try:
+                cc = ClaudeCodeAI()
+                if cc.disponivel():
+                    r = cc.responder(pergunta)
+                    if r.get('success') and r.get('texto'):
+                        self.send_json({'success': True, 'resposta': r['texto'], 'model': 'claude-code'})
+                        return
+            except Exception as e:
+                print(f'[ClaudeCode] {e}')
+
+        # 2. DeepSeek local (se disponível e não em cloud)
         if CookieAIGenerator:
             try:
                 gen = CookieAIGenerator()
@@ -313,7 +395,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[DeepSeek] {e}')
 
-        # 2. Ollama local
+        # 3. Ollama local
         if self._ollama_running():
             try:
                 resposta = self._ollama_request(pergunta)
@@ -322,7 +404,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Ollama] {e}')
 
-        # 3. Fallback de templates
+        # 4. Fallback de templates
         if CookieAIGenerator:
             try:
                 resposta = CookieAIGenerator()._fallback_resposta(pergunta)
@@ -331,13 +413,13 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Fallback] {e}')
 
-        self.send_json({'success': False, 'error': 'Nenhum backend de IA disponível. Configure Ollama ou uma API Key de Groq/Gemini.'})
+        self.send_json({'success': False, 'error': 'Nenhum backend de IA disponível. Configure o Claude Code, Ollama ou uma API Key de Groq/Gemini.'})
 
     def api_ask_enhanced(self, data):
         import urllib.request, urllib.error
         pergunta = data.get('pergunta', '').strip()
         groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
-        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '') or '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'
+        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
 
         if not pergunta:
             self.send_json({'error': 'Pergunta vazia'}); return
