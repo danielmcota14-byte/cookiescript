@@ -355,10 +355,6 @@
     <option value="lua">Lua</option>
     <option value="ruby">Ruby</option>
     <option value="php">PHP</option>
-    <option value="scheme">Scheme</option>
-    <option value="basic">BASIC</option>
-    <option value="forth">Forth</option>
-    <option value="lisp">Lisp</option>
 </select>
         </div>
     </div>
@@ -401,6 +397,7 @@
             <div class="panel-content">
                 <div id="tab-generate" class="panel-tab active">
                     <label style="display: block; margin-bottom: 8px;">Gerar codigo com IA</label>
+                    <input type="password" id="groqKey" placeholder="Chave Groq (gratis em console.groq.com) - ativa a IA real" style="width:100%;margin-bottom:8px;padding:6px;">
                     <textarea id="promptInput" class="prompt-area" placeholder="Descreva o codigo que voce quer gerar..."></textarea>
                     <button id="btnGenerate" style="width: 100%;">Gerar Codigo</button>
                 </div>
@@ -1266,7 +1263,7 @@ async function executeCode() {
     try {
         // CookieScript e Python rodam no backend (interpretador real).
         // O "client-side" de CookieScript era apenas um simulador, entao nao e usado.
-        const backendFirst = (language === 'cookiescript' || language === 'python');
+        const backendFirst = (language !== 'javascript');
         if (!backendFirst) {
             try {
                 const clientResult = await executeClientSide(language, code);
@@ -1286,12 +1283,12 @@ async function executeCode() {
                 const clientResult = await executeClientSide(language, code);
                 addOutput(`Execucao concluida (navegador):\n${clientResult}`);
             } catch (clientError) {
-                addOutput(`Erro na execucao: ${result.error}`);
+                addOutput(`Erro na execucao: ${result.error}${result.output ? '\n' + result.output : ''}`);
             }
             setButtonLoading(btnRun, false);
         } else {
             setButtonLoading(btnRun, false);
-            addOutput(`Erro na execucao: ${result.error}`);
+            addOutput(`Erro na execucao: ${result.error}${result.output ? '\n' + result.output : ''}`);
         }
     } catch (error) {
         setButtonLoading(btnRun, false);
@@ -1310,11 +1307,15 @@ async function generateCode() {
     setButtonLoading(btnGenerate, true, 'Gerar Codigo');
     addOutput(`Gerando codigo com IA (${language})...`);
     addOutput(`Prompt: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
-    const result = await apiCall('/api/generate', { prompt, language });
+    let groqKey = '';
+    try { groqKey = document.getElementById('groqKey').value.trim() || localStorage.getItem('groqKey') || ''; if (groqKey) localStorage.setItem('groqKey', groqKey); } catch (_) {}
+    const result = await apiCall('/api/generate', { prompt, language, groq_api_key: groqKey });
     setButtonLoading(btnGenerate, false);
     if (result.success && result.code) {
         document.getElementById('codeEditor').value = result.code;
-        addOutput(`Codigo gerado com sucesso! (${result.code.length} caracteres)`);
+        addOutput(`Codigo gerado por ${result.model} (${result.code.length} caracteres)`);
+        if (result.aviso) addOutput(result.aviso);
+        if (result.model === 'fallback') addOutput('ATENCAO: nenhuma IA real disponivel - este codigo veio de um modelo simples de templates. Cole uma chave Groq (gratis) no campo do painel Gerar para respostas reais.');
     } else {
         addOutput(`Erro na geracao: ${result.error || 'Falha ao gerar codigo'}`);
     }
@@ -1376,6 +1377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     document.getElementById('btnSave').onclick = saveFile;
     document.getElementById('btnRun').onclick = executeCode;
+    try { const k = localStorage.getItem('groqKey'); if (k) document.getElementById('groqKey').value = k; } catch (_) {}
     document.getElementById('btnGenerate').onclick = generateCode;
     document.getElementById('btnSearch').onclick = searchCode;
     document.getElementById('btnCreateProject').onclick = createProject;

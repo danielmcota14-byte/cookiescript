@@ -249,10 +249,8 @@
       <div class="field">
         <label for="groqModelSelect">Modelo Groq</label>
         <select id="groqModelSelect">
-          <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 70B (recomendado)</option>
-          <option value="deepseek-r1-distill-qwen-32b">DeepSeek R1 32B (rápido)</option>
-          <option value="llama-3.1-8b-instant">Llama 3.1 8B (leve)</option>
-          <option value="mixtral-8x7b-32768">Mixtral 8x7B (potente)</option>
+          <option value="openai/gpt-oss-120b">GPT-OSS 120B (recomendado)</option>
+          <option value="openai/gpt-oss-20b">GPT-OSS 20B (rápido)</option>
         </select>
       </div>
     </div>
@@ -413,17 +411,34 @@
     throw new Error('Resposta inválida do Gemini.');
   }
 
+  const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+
   async function callGroq(apiKey, modelId, prompt) {
-    const data = await safeJsonFetch(GROQ_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model:modelId, messages:[{role:'user',content:prompt}], temperature:0.7, max_tokens:1024 })
-    });
-    if (data.choices && data.choices[0]?.message?.content) {
-      return data.choices[0].message.content;
+    // Se o modelo escolhido foi aposentado pela Groq, tenta os modelos atuais.
+    const candidatos = [modelId, ...GROQ_FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
+    let ultimoErro = 'Resposta inesperada da Groq.';
+    for (const modelo of candidatos) {
+      const corpo = { model: modelo, messages: [{role:'user',content:prompt}], temperature: 0.7, max_tokens: 4096 };
+      if (modelo.startsWith('openai/gpt-oss')) corpo.reasoning_effort = 'low';
+      let resp, data;
+      try {
+        resp = await fetch(GROQ_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify(corpo)
+        });
+        data = await resp.json();
+      } catch (e) {
+        throw new Error('Não foi possível falar com a Groq. Verifique sua internet.');
+      }
+      const texto = data.choices && data.choices[0]?.message?.content;
+      if (texto) return texto;
+      ultimoErro = errText(data.error) || ultimoErro;
+      const baixo = String(ultimoErro).toLowerCase();
+      const modeloIndisponivel = ['decommission', 'does not exist', 'not found', 'no longer supported', 'access to it'].some(t => baixo.includes(t));
+      if (!modeloIndisponivel) break;   // outro erro (chave inválida, limite...) - não adianta trocar de modelo
     }
-    if (data.error) throw new Error(`Groq: ${errText(data.error)}`);
-    throw new Error('Resposta inesperada da Groq.');
+    throw new Error(`Groq: ${ultimoErro}`);
   }
 
   async function callLocalAI(prompt) {

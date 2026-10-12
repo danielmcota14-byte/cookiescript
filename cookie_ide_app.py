@@ -162,50 +162,125 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json({'error': str(e)})
 
+    # ── execução de código ────────────────────────────────────────────────────
+
+    # linguagem -> (executável, extensão). Só roda se o interpretador existir na máquina.
+    _RUNNERS = {
+        'python':     (None, '.py'),          # usa sys.executable
+        'javascript': ('node', '.js'),
+        'lua':        ('lua', '.lua'),
+        'ruby':       ('ruby', '.rb'),
+        'php':        ('php', '.php'),
+    }
+
     def api_execute(self, data):
+        import shutil, tempfile
         code = data.get('code', '')
-        language = data.get('language', 'cookiescript')
-        if not code:
-            self.send_json({'error': 'Código vazio'}); return
-        output = []
+        language = (data.get('language') or 'cookiescript').lower()
+        if not code.strip():
+            self.send_json({'success': False, 'error': 'Código vazio'}); return
         try:
-            if language == 'cookiescript' and CookieScriptVM:
+            if language == 'cookiescript':
+                if not CookieScriptVM:
+                    self.send_json({'success': False, 'error': 'Interpretador CookieScript (cookiescript_vm.py) não encontrado.'}); return
                 vm = CookieScriptVM(modo='debug')
-                output.append(str(vm.executar(code)))
-            elif language == 'python':
-                tmp = BASE_DIR / '_temp_exec.py'
-                tmp.write_text(code, 'utf-8')
-                r = subprocess.run([sys.executable, str(tmp)], capture_output=True, text=True, timeout=10)
-                tmp.unlink(missing_ok=True)
-                if r.stdout: output.append(r.stdout)
-                if r.stderr: output.append(f'[ERRO] {r.stderr}')
-            elif language == 'javascript':
-                tmp = BASE_DIR / '_temp_exec.js'
-                tmp.write_text(code, 'utf-8')
-                if subprocess.run(['node', '-v'], capture_output=True).returncode == 0:
-                    r = subprocess.run(['node', str(tmp)], capture_output=True, text=True, timeout=10)
-                    tmp.unlink(missing_ok=True)
-                    if r.stdout: output.append(r.stdout)
-                    if r.stderr: output.append(f'[ERRO] {r.stderr}')
-                else:
-                    output.append('[ERRO] Node.js não encontrado')
-            else:
-                output.append(f'Execução simulada para {language}\n{code[:500]}')
-            self.send_json({'success': True, 'output': '\n'.join(output)})
+                self.send_json({'success': True, 'output': str(vm.executar(code))}); return
+            if language not in self._RUNNERS:
+                self.send_json({'success': False, 'error': f'Linguagem "{language}" não é suportada.'}); return
+            exe, ext = self._RUNNERS[language]
+            exe = sys.executable if exe is None else shutil.which(exe)
+            if not exe:
+                self.send_json({'success': False, 'error': f'"{language}" não está instalado neste servidor, então não é possível executar.'}); return
+            with tempfile.TemporaryDirectory() as tmpdir:
+                f = Path(tmpdir) / f'main{ext}'
+                f.write_text(code, 'utf-8')
+                r = subprocess.run([exe, str(f)], capture_output=True, text=True, timeout=10, cwd=tmpdir)
+            out = (r.stdout or '')
+            if r.stderr:
+                out += ('\n' if out else '') + '[ERRO] ' + r.stderr
+            self.send_json({'success': r.returncode == 0, 'output': out.strip() or '(sem saída)',
+                            **({} if r.returncode == 0 else {'error': f'O programa terminou com código {r.returncode}.'})})
         except subprocess.TimeoutExpired:
-            self.send_json({'success': False, 'error': 'Timeout na execução'})
+            self.send_json({'success': False, 'error': 'Timeout: a execução passou de 10 segundos.'})
         except Exception as e:
             self.send_json({'success': False, 'error': str(e)})
+
+    # Modelos de produção da Groq (a Groq aposenta modelos com frequência;
+    # confira https://console.groq.com/docs/deprecations). O primeiro é o padrão.
+    GROQ_MODELOS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']
+
+    def _groq_chat(self, system, user, key, model=None, temperature=0.3):
+        """Chama a Groq. Se o modelo pedido foi aposentado/não existe, tenta os modelos atuais.
+        Retorna (texto, modelo_usado). Levanta RuntimeError com a mensagem real da Groq."""
+        import urllib.request, urllib.error
+        url = os.environ.get('GROQ_URL', 'https://api.groq.com/openai/v1/chat/completions')
+        candidatos = []
+        for m in [model] + self.GROQ_MODELOS:
+            if m and m not in candidatos:
+                candidatos.append(m)
+        ultimo = 'Falha desconhecida na Groq.'
+        for m in candidatos:
+            corpo = {'model': m, 'temperature': temperature, 'max_tokens': 4096,
+                     'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}]}
+            if m.startswith('openai/gpt-oss'):
+                corpo['reasoning_effort'] = 'low'   # evita gastar tokens só "pensando"
+            req = urllib.request.Request(url, data=json.dumps(corpo).encode(), method='POST',
+                                         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    texto = json.loads(resp.read())['choices'][0]['message'].get('content') or ''
+                    if not texto.strip():
+                        raise RuntimeError(f'O modelo {m} devolveu resposta vazia.')
+                    return texto, m
+            except urllib.error.HTTPError as e:
+                try:
+                    msg = json.loads(e.read().decode()).get('error', {}).get('message') or f'HTTP {e.code}'
+                except Exception:
+                    msg = f'HTTP {e.code}'
+                ultimo = msg
+                baixo = msg.lower()
+                if e.code in (400, 404) and any(t in baixo for t in ('decommission', 'does not exist', 'not found', 'no longer supported', 'access to it')):
+                    print(f'[Groq] modelo {m} indisponível: {msg}')
+                    continue   # tenta o próximo modelo
+                raise RuntimeError(msg)
+        raise RuntimeError(ultimo)
+
+    @staticmethod
+    def _so_codigo(texto):
+        """Se a IA devolveu markdown com ```bloco```, extrai só o código."""
+        import re
+        m = re.search(r'```[\w+-]*\n(.*?)```', texto, re.S)
+        return (m.group(1) if m else texto).strip()
 
     def api_generate(self, data):
         prompt = data.get('prompt', '')
         language = data.get('language', 'cookiescript')
         if not prompt:
-            self.send_json({'error': 'Prompt vazio'}); return
+            self.send_json({'success': False, 'error': 'Prompt vazio'}); return
         code = ''
         modelo_usado = None
-        # 1. Claude Code local (se instalado/autenticado na máquina)
-        if ClaudeCodeAI:
+        aviso = None
+        # 1. Groq (IA de verdade) — chave enviada pela página ou GROQ_API_KEY do servidor
+        key = data.get('groq_api_key') or os.environ.get('GROQ_API_KEY', '')
+        model = data.get('groq_model') or self.GROQ_MODELOS[0]
+        if key:
+            try:
+                extra = ''
+                if language == 'cookiescript':
+                    extra = (' CookieScript tem sintaxe própria: variáveis (x = 5), log("texto " + x), '
+                             'filesystem.escrever_arquivo(caminho="a.txt", conteudo="..", modo="w"), '
+                             'network.http_request(url=.., metodo="GET"), math.*, json.*, function nome(a) { resultado = ... }, '
+                             'for i in [1,2,3] { }, if/else, ler_entrada(prompt="..").')
+                system = (f'Você gera código {language}. Responda APENAS com o código, sem explicações, '
+                          f'sem markdown.{extra}')
+                texto, usado = self._groq_chat(system, prompt, key, model)
+                code = self._so_codigo(texto)
+                modelo_usado = f'Groq/{usado}'
+            except Exception as e:
+                aviso = f'Groq falhou: {e}'
+                print(f'[Groq] {e}')
+        # 2. Claude Code local (se instalado/autenticado na máquina)
+        if not code and ClaudeCodeAI:
             try:
                 cc = ClaudeCodeAI()
                 if cc.disponivel():
@@ -215,20 +290,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                         modelo_usado = 'claude-code'
             except Exception as e:
                 print(f'[ClaudeCode] {e}')
-        # 2. DeepSeek local / templates (fallback)
+        # 3. DeepSeek local / templates (fallback)
         if not code and CookieAIGenerator:
             try:
                 code = CookieAIGenerator().gerar_codigo(prompt, language) or ''
             except Exception:
                 pass
         if not code:
-            if language == 'python':
-                code = f'# Gerado para: {prompt}\ndef main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()\n'
-            elif language in ('javascript', 'js'):
-                code = f'// Gerado para: {prompt}\nconsole.log("Hello, World!");\n'
-            else:
-                code = f'// Gerado para: {prompt}\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="Hello, CookieScript!", modo="w")\n'
-        self.send_json({'success': True, 'code': code, 'model': modelo_usado or 'fallback'})
+            code = f'// Gerado para: {prompt}\n'
+        resp = {'success': True, 'code': code, 'model': modelo_usado or 'fallback'}
+        if aviso:
+            resp['aviso'] = aviso
+        self.send_json(resp)
 
     def api_search(self, data):
         query = data.get('query', '')
@@ -461,7 +534,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
     def api_ask_enhanced(self, data):
         import urllib.request, urllib.error
         pergunta = data.get('pergunta', '').strip()
-        groq_model = data.get('groq_model', 'deepseek-r1-distill-llama-70b')
+        groq_model = data.get('groq_model') or self.GROQ_MODELOS[0]
+        erro_groq = None
         groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
 
         if not pergunta:
@@ -487,30 +561,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                     system = 'Você é a Cookie AI integrada ao CookieScript IDE. Responda em português de forma clara.'
                     user = pergunta
 
-                payload = json.dumps({
-                    'model': groq_model,
-                    'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
-                    'max_tokens': 2048, 'temperature': 0.7
-                }).encode()
-                req = urllib.request.Request(
-                    'https://api.groq.com/openai/v1/chat/completions', data=payload,
-                    headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {groq_key}'},
-                    method='POST'
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    result = json.loads(resp.read())
-                    self.send_json({'success': True, 'resposta': result['choices'][0]['message']['content'], 'model': f'Groq/{groq_model}'})
-                    return
-            except urllib.error.HTTPError as e:
-                print(f'[Groq] HTTP {e.code}: {e.read().decode()}')
+                texto, usado = self._groq_chat(system, user, groq_key, groq_model, temperature=0.7)
+                self.send_json({'success': True, 'resposta': texto, 'model': f'Groq/{usado}'})
+                return
             except Exception as e:
+                erro_groq = str(e)
                 print(f'[Groq] {e}')
 
         if resposta_local:
             self.send_json({'success': True, 'resposta': resposta_local, 'model': 'DeepSeek Local'})
             return
 
-        self.send_json({'success': False, 'error': 'Configure GROQ_API_KEY ou instale torch+transformers para usar a IA Potencializada.'})
+        self.send_json({'success': False, 'error': ('Groq: ' + erro_groq) if erro_groq else 'Configure GROQ_API_KEY ou instale torch+transformers para usar a IA Potencializada.'})
 
 
 # ── inicialização ─────────────────────────────────────────────────────────────
