@@ -47,6 +47,17 @@ class StringOps:
         """Encontra todas as ocorrências de um padrão regex"""
         return re.findall(padrao, texto)
 
+    def numero_para_texto(self, numero: Union[int, float]) -> str:
+        """Converte número para string (alias de encoding.numero_para_texto)"""
+        return str(numero)
+
+    def texto_para_numero(self, texto: str) -> Union[int, float]:
+        """Converte string para número (int se possível, senão float)"""
+        try:
+            return int(texto)
+        except ValueError:
+            return float(texto)
+
 class JsonOps:
     """Operações com JSON"""
 

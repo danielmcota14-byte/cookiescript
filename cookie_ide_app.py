@@ -5,6 +5,7 @@ import sys
 import webbrowser
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
 try:
@@ -24,6 +25,15 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.environ.get('PORT', 8080))
+
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    """HTTPServer que atende cada requisição numa thread própria. Necessário
+    porque /api/execute pode rodar CookieScript que chama ler_entrada()
+    (input() bloqueante, ex.: jogo.cookiescript); com o HTTPServer padrão
+    (single-threaded) isso travaria a IDE inteira para todo mundo até o
+    timeout da requisição."""
+    daemon_threads = True
 
 
 class CookieIDEHandler(SimpleHTTPRequestHandler):
@@ -85,6 +95,24 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _resolver_caminho_seguro(path: str):
+        """Resolve 'path' relativo a BASE_DIR e garante que o resultado
+        continua dentro de BASE_DIR. Sem isso, um 'path' como
+        '../../etc/passwd' ou até um caminho absoluto tipo '/etc/passwd'
+        (Path ignora a base quando o segundo operando é absoluto) permitiria
+        ler ou sobrescrever qualquer arquivo da máquina — grave, já que este
+        servidor roda exposto na web. Retorna None se o caminho escapar de
+        BASE_DIR."""
+        # Remover barra inicial para impedir que Path trate como absoluto e
+        # descarte BASE_DIR por completo.
+        candidato = (BASE_DIR / path.lstrip('/\\')).resolve()
+        try:
+            candidato.relative_to(BASE_DIR.resolve())
+        except ValueError:
+            return None
+        return candidato
+
     def send_json(self, data, status=200):
         response = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
@@ -100,7 +128,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         path = data.get('path', '')
         if not path:
             self.send_json({'error': 'Caminho não informado'}); return
-        full = BASE_DIR / path
+        full = self._resolver_caminho_seguro(path)
+        if full is None:
+            self.send_json({'error': 'Caminho inválido'}); return
         if not full.exists():
             self.send_json({'error': f'Arquivo não encontrado: {path}'}); return
         try:
@@ -111,7 +141,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
     def api_save(self, data):
         path = data.get('path', '') or 'untitled.cookiescript'
         content = data.get('content', '')
-        full = BASE_DIR / path
+        full = self._resolver_caminho_seguro(path)
+        if full is None:
+            self.send_json({'error': 'Caminho inválido'}); return
         try:
             full.parent.mkdir(parents=True, exist_ok=True)
             full.write_text(content, 'utf-8')
@@ -474,7 +506,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
 def main():
     os.chdir(BASE_DIR)
-    httpd = HTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
+    httpd = ThreadingHTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
     print(f'\n{"="*50}')
     print(f'  CookieScript IDE — http://localhost:{PORT}/')
     print(f'{"="*50}\n')

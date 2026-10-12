@@ -365,6 +365,8 @@ class TypeSystem:
         if operation in ['+', '-', '*', '/', '%', '==', '!=', '<', '>', '<=', '>=']:
             if operation == '+' and all(t in string_types for t in [left_type, right_type]):
                 return True  # concatenação de strings
+            if operation == '+' and all(t == 'list' for t in [left_type, right_type]):
+                return True  # concatenação de listas
             if all(t in numeric_types for t in [left_type, right_type]):
                 return True  # operações numéricas
             if operation in ['==', '!=']:
@@ -419,6 +421,16 @@ class TypeSystem:
         else:
             return left_type  # tipo padrão
 
+class FuncaoNaoEncontrada(ValueError):
+    """Erro específico para chamada de função/comando inexistente. É uma
+    subclasse de ValueError (mantém compatibilidade com quem já captura
+    ValueError genérico), mas tem um tipo próprio para que os pontos do
+    interpretador que tentam avaliação especulativa (e por segurança
+    engolem exceções genéricas para cair de volta em outro parsing) possam
+    distinguir "não é isso que eu pensava" de "o usuário chamou algo que
+    não existe" — este último deve sempre ser reportado, nunca escondido."""
+    pass
+
 class ReturnValue(Exception):
     def __init__(self, value: Any = None):
         self.value = value
@@ -457,14 +469,45 @@ class CookieScriptVM:
     def registrar_modulo(self, nome: str, modulo: Any):
         self.modulos[nome] = modulo
 
+    @staticmethod
+    def _remover_comentario(linha: str) -> str:
+        """Remove um comentário // no final da linha, sem mexer em // que esteja
+        dentro de uma string literal (aspas simples ou duplas)."""
+        dentro_string = None
+        escape = False
+        i = 0
+        while i < len(linha) - 1:
+            char = linha[i]
+            if escape:
+                escape = False
+                i += 1
+                continue
+            if char == '\\':
+                escape = True
+                i += 1
+                continue
+            if char in ('"', "'"):
+                if not dentro_string:
+                    dentro_string = char
+                elif dentro_string == char:
+                    dentro_string = None
+                i += 1
+                continue
+            if not dentro_string and char == '/' and linha[i + 1] == '/':
+                return linha[:i].rstrip()
+            i += 1
+        return linha
+
     def executar(self, codigo_cookiescript: str) -> Any:
         resultado = None
-        linhas = codigo_cookiescript.splitlines()
+        # Remove comentários de fim de linha uma única vez, preservando o
+        # número de linhas (importante para a contagem de { } nos blocos).
+        linhas = [self._remover_comentario(l) for l in codigo_cookiescript.splitlines()]
         i = 0
 
         while i < len(linhas):
             linha = linhas[i].strip()
-            if not linha or linha.startswith('//'):
+            if not linha:
                 i += 1
                 continue
 
@@ -488,6 +531,13 @@ class CookieScriptVM:
                 i = resultado_for.get('nova_posicao', i + 1)
                 continue
 
+            # Controle de fluxo: while
+            elif linha.startswith('while '):
+                resultado_while = self._processar_while(linhas, i)
+                resultado = resultado_while.get('resultado')
+                i = resultado_while.get('nova_posicao', i + 1)
+                continue
+
             # Controle de fluxo: try/catch
             elif linha.startswith('try {'):
                 resultado_try = self._processar_try_catch(linhas, i)
@@ -495,31 +545,144 @@ class CookieScriptVM:
                 i = resultado_try.get('nova_posicao', i + 1)
                 continue
 
-            # Atribuição normal
-            primeiro_paren = linha.find('(')
-            primeiro_eq = linha.find('=')
-            has_assignment = primeiro_eq != -1 and (primeiro_paren == -1 or primeiro_eq < primeiro_paren)
-
-            if has_assignment:
-                var_name, comando = [p.strip() for p in linha.split('=', 1)]
-                resultado = self._executar_comando(comando)
-                self.vars[var_name] = resultado
-                if self.modo == 'debug':
-                    print(f'[VAR] {var_name} = {resultado}')
-            else:
-                resultado = self._executar_comando(linha)
-
-            i += 1
+            # Comando/atribuição normal (pode se estender por várias linhas)
+            linha_logica, prox_i = self._linha_logica(linhas, i)
+            resultado = self._executar_linha_comando(linha_logica)
+            i = prox_i
 
         return resultado
+
+    @staticmethod
+    def _contar_balanco(texto: str) -> int:
+        """Conta (abre - fecha) de (), [], {} em texto, ignorando o que está
+        dentro de strings literais."""
+        dentro_string = None
+        escape = False
+        saldo = 0
+        for char in texto:
+            if escape:
+                escape = False
+                continue
+            if char == '\\':
+                escape = True
+                continue
+            if char in ('"', "'"):
+                if not dentro_string:
+                    dentro_string = char
+                elif dentro_string == char:
+                    dentro_string = None
+                continue
+            if not dentro_string:
+                if char in '([{':
+                    saldo += 1
+                elif char in ')]}':
+                    saldo -= 1
+        return saldo
+
+    def _linha_logica(self, linhas: List[str], i: int):
+        """Para comandos/atribuições normais (fora de abertura de bloco), junta
+        linhas físicas subsequentes enquanto parênteses/colchetes/chaves não
+        fecharem — permite chamadas de função e literais de lista/dict que
+        ocupam várias linhas."""
+        saldo = self._contar_balanco(linhas[i])
+        partes = [linhas[i].strip()]
+        j = i
+        limite = len(linhas)
+        while saldo > 0 and j + 1 < limite:
+            j += 1
+            partes.append(linhas[j].strip())
+            saldo += self._contar_balanco(linhas[j])
+        return ' '.join(p for p in partes if p), j + 1
+
+    def _executar_linha_comando(self, linha: str) -> Any:
+        """Executa uma linha simples: atribuição (var = expr) ou comando solto."""
+        var_name, comando = self._split_assignment(linha)
+        if var_name is not None:
+            resultado = self._executar_comando(comando)
+            self.vars[var_name] = resultado
+            if self.modo == 'debug':
+                print(f'[VAR] {var_name} = {resultado}')
+            return resultado
+        return self._executar_comando(linha)
+
+    def _split_assignment(self, linha: str):
+        """Detecta 'nome = expressao' no nível superior da linha, sem confundir
+        com '==', '!=', '>=', '<=' nem com '=' dentro de strings/parênteses."""
+        dentro_string = None
+        escape = False
+        profundidade = 0
+        i = 0
+        while i < len(linha):
+            char = linha[i]
+            if escape:
+                escape = False
+                i += 1
+                continue
+            if char == '\\':
+                escape = True
+                i += 1
+                continue
+            if char in ('"', "'"):
+                if not dentro_string:
+                    dentro_string = char
+                elif dentro_string == char:
+                    dentro_string = None
+                i += 1
+                continue
+            if not dentro_string:
+                if char in '([{':
+                    profundidade += 1
+                elif char in ')]}':
+                    profundidade -= 1
+                elif char == '=' and profundidade == 0:
+                    anterior = linha[i - 1] if i > 0 else ''
+                    proximo = linha[i + 1] if i + 1 < len(linha) else ''
+                    if anterior not in ('=', '!', '>', '<') and proximo != '=':
+                        nome = linha[:i].strip()
+                        if nome and re.match(r'^[A-Za-z_]\w*$', nome):
+                            return nome, linha[i + 1:].strip()
+                        return None, linha
+            i += 1
+        return None, linha
+
+    _OPERADORES_ARITMETICOS = [' + ', ' - ', ' * ', ' / ', ' % ']
+
+    def _tem_operador_aritmetico_top_level(self, expr: str) -> bool:
+        """Detecta, de forma segura (ignorando strings e o que está dentro de
+        parênteses/colchetes/chaves), se existe um operador aritmético de
+        nível superior em expr. Substitui a checagem ingênua 'op in expr',
+        que confundia, por exemplo, 'log("a" + b)' — um simples comando que
+        só por acaso contém ' + ' dentro dos parênteses do argumento — com
+        uma expressão aritmética de nível superior."""
+        for op in self._OPERADORES_ARITMETICOS:
+            if self._split_top_level(expr, op) is not None:
+                return True
+        return False
+
+    def _eh_expressao_condicional(self, comando: str) -> bool:
+        """Detecta, de forma segura (ignorando strings/parênteses), se o
+        comando é uma comparação (==, !=, >, <, >=, <=) ou expressão lógica
+        (and/or/not) de nível superior — para que possa ser avaliado e
+        atribuído a uma variável como valor booleano."""
+        for op in [' and ', ' or ', '==', '!=', '>=', '<=', '>', '<']:
+            if self._split_top_level(comando, op) is not None:
+                return True
+        return bool(re.match(r'^not\s+\S', comando))
 
     def _executar_comando(self, comando: str) -> Any:
         comando = comando.strip()
         if not comando:
             return None
 
-        # Verificar se é expressão aritmética ou de concatenação
-        if any(op in comando for op in [' + ', ' - ', ' * ', ' / ', ' % ']):
+        # Verificar se é uma comparação/expressão lógica (prioridade sobre aritmética,
+        # para que "a > b + 1" seja tratado como comparação, não como soma)
+        if self._eh_expressao_condicional(comando):
+            return self._avaliar_condicao(comando)
+
+        # Verificar se é expressão aritmética ou de concatenação (apenas no
+        # nível superior — um ' + ' dentro dos parênteses de uma chamada de
+        # função, como em log("a" + b), não conta)
+        if self._tem_operador_aritmetico_top_level(comando):
             return self._avaliar_expressao(comando)
 
         if '(' not in comando:
@@ -546,9 +709,34 @@ class CookieScriptVM:
             if func:
                 return func(*args, **kwargs)
 
+        # 'log' é uma função nativa sempre disponível (equivalente a um print),
+        # mesmo que a aplicação hospedeira não registre nada explicitamente.
         if nome_func == 'log':
-            print(f'[DEBUG_CALL] comando={comando} args={args} kwargs={kwargs}')
-        raise ValueError(f'Função não encontrada: {nome_func}')
+            if args:
+                mensagem = ' '.join(str(a) for a in args)
+            elif kwargs:
+                mensagem = ' '.join(f'{k}={v}' for k, v in kwargs.items())
+            else:
+                mensagem = ''
+            print(mensagem)
+            return mensagem
+
+        # 'ler_entrada' é outra função nativa sempre disponível: lê uma
+        # linha do usuário (equivalente a um input()), usada por scripts
+        # interativos como jogos de texto.
+        if nome_func == 'ler_entrada':
+            prompt = kwargs.get('prompt', '')
+            if not prompt and args:
+                prompt = args[0]
+            try:
+                return input(str(prompt) if prompt else '')
+            except EOFError:
+                # Sem entrada disponível (ex.: executado num ambiente sem
+                # stdin interativo, como a IDE web) — devolve string vazia
+                # em vez de travar o processo.
+                return ''
+
+        raise FuncaoNaoEncontrada(f'Função não encontrada: {nome_func}')
 
     def _avaliar_expressao(self, expr: str) -> Any:
         """Avalia uma expressão aritmética ou de concatenação com verificação de tipos"""
@@ -584,8 +772,11 @@ class CookieScriptVM:
         # Se não encontrou operação, tentar parse normal
         return self._parse_valor(expr)
 
+    _RE_ELSE_IF = re.compile(r'^\}?\s*else\s+if\s+(.+?)\s*\{$')
+    _RE_ELSE = re.compile(r'^\}?\s*else\s*\{$')
+
     def _processar_if(self, linhas: List[str], posicao_inicial: int) -> Dict[str, Any]:
-        """Processa estrutura if/else"""
+        """Processa estrutura if / else if / else (cadeia encadeada)"""
         linha_if = linhas[posicao_inicial].strip()
 
         # Extrair condição: if CONDICAO {
@@ -593,33 +784,38 @@ class CookieScriptVM:
         if not condicao_match:
             raise ValueError(f"Sintaxe if inválida: {linha_if}")
 
-        condicao_str = condicao_match.group(1).strip()
-
-        # Avaliar condição
-        condicao_resultado = self._avaliar_condicao(condicao_str)
-
-        # Encontrar bloco if
-        bloco_if, posicao_final_if = self._extrair_bloco(linhas, posicao_inicial)
-
-        # Verificar se há else
-        proxima_linha = linhas[posicao_final_if].strip() if posicao_final_if < len(linhas) else ""
-        has_else = proxima_linha.startswith('} else {') or proxima_linha.startswith('else {')
-
+        condicao_atual = condicao_match.group(1).strip()
+        pos_abertura = posicao_inicial
         resultado = None
-        nova_posicao = posicao_final_if
+        ja_executou = False
 
-        if condicao_resultado:
-            # Executar bloco if
-            resultado = self._executar_bloco(bloco_if)
-            if has_else:
-                # Se há else, pular o bloco else também
-                bloco_else, posicao_final_else = self._extrair_bloco(linhas, posicao_final_if)
-                nova_posicao = posicao_final_else
-        elif has_else:
-            # Executar bloco else
-            bloco_else, posicao_final_else = self._extrair_bloco(linhas, posicao_final_if)
-            resultado = self._executar_bloco(bloco_else)
-            nova_posicao = posicao_final_else
+        while True:
+            bloco, pos_fecha = self._extrair_bloco(linhas, pos_abertura)
+
+            # Só avalia a condição se nenhum ramo anterior da cadeia já rodou
+            if not ja_executou and self._avaliar_condicao(condicao_atual):
+                resultado = self._executar_bloco(bloco)
+                ja_executou = True
+
+            proxima_linha = linhas[pos_fecha].strip() if pos_fecha < len(linhas) else ""
+            elif_match = self._RE_ELSE_IF.match(proxima_linha)
+
+            if elif_match:
+                # Continua a cadeia: "} else if CONDICAO {" vira o próximo "if"
+                condicao_atual = elif_match.group(1).strip()
+                pos_abertura = pos_fecha
+                continue
+
+            if self._RE_ELSE.match(proxima_linha):
+                bloco_else, pos_fecha_else = self._extrair_bloco(linhas, pos_fecha)
+                if not ja_executou:
+                    resultado = self._executar_bloco(bloco_else)
+                    ja_executou = True
+                nova_posicao = pos_fecha_else + 1
+            else:
+                nova_posicao = pos_fecha + 1
+
+            break
 
         return {'resultado': resultado, 'nova_posicao': nova_posicao}
 
@@ -649,7 +845,7 @@ class CookieScriptVM:
             self.vars[var_name] = item
             resultado = self._executar_bloco(bloco)
 
-        return {'resultado': resultado, 'nova_posicao': posicao_final}
+        return {'resultado': resultado, 'nova_posicao': posicao_final + 1}
 
     def _processar_while(self, linhas: List[str], posicao_inicial: int) -> Dict[str, Any]:
         """Processa loop while"""
@@ -681,16 +877,18 @@ class CookieScriptVM:
         if iteracao >= max_iteracoes:
             raise ValueError("Loop while excedeu limite de iterações (10000)")
 
-        return {'resultado': resultado, 'nova_posicao': posicao_final}
+        return {'resultado': resultado, 'nova_posicao': posicao_final + 1}
 
     def _processar_try_catch(self, linhas: List[str], posicao_inicial: int) -> Dict[str, Any]:
         """Processa estrutura try/catch"""
-        # Extrair bloco try e verificar catch
-        bloco_try, posicao_apos_try, has_catch, posicao_catch = self._extrair_bloco_try_catch(linhas, posicao_inicial)
+        # Extrair bloco try (mesma lógica usada para if/else, já que "} catch {"
+        # fecha o try e abre o catch, assim como "} else {" faz com o if)
+        bloco_try, posicao_fim_try = self._extrair_bloco(linhas, posicao_inicial)
+
+        proxima_linha = linhas[posicao_fim_try].strip() if posicao_fim_try < len(linhas) else ""
+        has_catch = proxima_linha.startswith('} catch {') or proxima_linha == '} catch {'
 
         resultado = None
-        nova_posicao = posicao_apos_try
-
         erro_ocorrido = None
         try:
             # Executar bloco try
@@ -698,16 +896,19 @@ class CookieScriptVM:
         except Exception as e:
             erro_ocorrido = str(e)
 
-        if erro_ocorrido and has_catch:
-            # Definir variável de erro
-            self.vars['error_message'] = erro_ocorrido
-            # Executar bloco catch
-            bloco_catch, posicao_apos_catch = self._extrair_bloco(linhas, posicao_catch)
-            resultado = self._executar_bloco(bloco_catch)
-            nova_posicao = posicao_apos_catch
-        elif erro_ocorrido:
-            # Re-raise se não há catch
-            raise ValueError(erro_ocorrido)
+        if has_catch:
+            # Sempre é preciso extrair o bloco catch para saber onde ele
+            # termina, mesmo que não vá ser executado (sem erro).
+            bloco_catch, posicao_fim_catch = self._extrair_bloco(linhas, posicao_fim_try)
+            nova_posicao = posicao_fim_catch + 1
+            if erro_ocorrido:
+                self.vars['error_message'] = erro_ocorrido
+                resultado = self._executar_bloco(bloco_catch)
+        else:
+            nova_posicao = posicao_fim_try + 1
+            if erro_ocorrido:
+                # Re-raise se não há catch
+                raise ValueError(erro_ocorrido)
 
         return {'resultado': resultado, 'nova_posicao': nova_posicao}
 
@@ -736,12 +937,12 @@ class CookieScriptVM:
             'posicao': posicao_inicial
         }
 
-        return {'nova_posicao': posicao_final}
+        return {'nova_posicao': posicao_final + 1}
 
     def _chamar_funcao(self, nome_func: str, args: List[Any]) -> Any:
         """Chama uma função definida pelo usuário"""
         if nome_func not in self.functions:
-            raise ValueError(f'Função não encontrada: {nome_func}')
+            raise FuncaoNaoEncontrada(f'Função não encontrada: {nome_func}')
 
         func_def = self.functions[nome_func]
 
@@ -808,8 +1009,14 @@ class CookieScriptVM:
                 # Executar como comando
                 try:
                     return self._executar_comando(val_str)
+                except FuncaoNaoEncontrada:
+                    # Isso não é ambiguidade de parsing: o usuário chamou uma
+                    # função/comando que não existe. Deve estourar, não virar
+                    # silenciosamente a string literal "nome_func(...)".
+                    raise
                 except Exception:
-                    # Se falhar, tentar parse normal
+                    # Outros erros (ex.: tipos incompatíveis numa tentativa
+                    # especulativa) ainda caem de volta para o parse normal.
                     pass
             # Caso contrário, parse normalmente
             val = self._parse_valor(val_str)
@@ -873,44 +1080,11 @@ class CookieScriptVM:
         if nivel_chaves > 0:
             raise ValueError("Bloco não fechado com }")
 
-        return bloco, posicao + 1
-
-    def _extrair_bloco_try_catch(self, linhas: List[str], posicao_inicial: int) -> tuple:
-        """Extrai bloco try e verifica se há catch"""
-        bloco_try = []
-        posicao = posicao_inicial + 1  # Pular 'try {'
-        nivel_chaves = 1
-        has_catch = False
-        posicao_catch = -1
-
-        while posicao < len(linhas) and nivel_chaves > 0:
-            linha_raw = linhas[posicao]
-            linha = linha_raw.strip()
-
-            if nivel_chaves == 1 and (linha.startswith('} catch {') or linha == '} catch {'):
-                # Encontrou catch
-                has_catch = True
-                posicao_catch = posicao
-                nivel_chaves -= 1  # Simular fechamento do try
-                break
-
-            for char in linha_raw:
-                if char == '{':
-                    nivel_chaves += 1
-                elif char == '}':
-                    nivel_chaves -= 1
-                    if nivel_chaves == 0:
-                        break
-
-            if nivel_chaves > 0:
-                bloco_try.append(linha_raw)
-
-            posicao += 1
-
-        if nivel_chaves > 0 and not has_catch:
-            raise ValueError("Bloco try não fechado")
-
-        return bloco_try, posicao + 1, has_catch, posicao_catch
+        # posicao aponta para a linha que contém a chave de fechamento deste
+        # bloco (que pode ser só "}" ou algo como "} else {" / "} catch {").
+        # É responsabilidade de quem chama decidir se deve inspecionar essa
+        # linha (para detectar else/catch) ou avançar uma posição além dela.
+        return bloco, posicao
 
     def _executar_bloco(self, bloco: List[str]) -> Any:
         """Executa um bloco de código"""
@@ -944,6 +1118,13 @@ class CookieScriptVM:
                 i = resultado_for.get('nova_posicao', i + 1)
                 continue
 
+            # Controle de fluxo aninhado: while
+            elif linha.startswith('while '):
+                resultado_while = self._processar_while(bloco, i)
+                resultado = resultado_while.get('resultado')
+                i = resultado_while.get('nova_posicao', i + 1)
+                continue
+
             # Controle de fluxo aninhado: try/catch
             elif linha.startswith('try {'):
                 resultado_try = self._processar_try_catch(bloco, i)
@@ -951,21 +1132,10 @@ class CookieScriptVM:
                 i = resultado_try.get('nova_posicao', i + 1)
                 continue
 
-            # Comando normal
-            primeiro_paren = linha.find('(')
-            primeiro_eq = linha.find('=')
-            has_assignment = primeiro_eq != -1 and (primeiro_paren == -1 or primeiro_eq < primeiro_paren)
-
-            if has_assignment:
-                var_name, comando = [p.strip() for p in linha.split('=', 1)]
-                resultado = self._executar_comando(comando)
-                self.vars[var_name] = resultado
-                if self.modo == 'debug':
-                    print(f'[VAR] {var_name} = {resultado}')
-            else:
-                resultado = self._executar_comando(linha)
-
-            i += 1
+            # Comando/atribuição normal (pode se estender por várias linhas)
+            linha_logica, prox_i = self._linha_logica(bloco, i)
+            resultado = self._executar_linha_comando(linha_logica)
+            i = prox_i
 
         return resultado
 
@@ -1000,12 +1170,16 @@ class CookieScriptVM:
                 elif dentro_string == char:
                     dentro_string = False
                 continue
-            if char in '[{' and not dentro_string:
+            if char in '([{' and not dentro_string:
                 profundidade += 1
-            elif char in ']}' and not dentro_string:
+            elif char in ')]}' and not dentro_string:
                 profundidade -= 1
             elif char == '=' and not dentro_string and profundidade == 0:
-                return parte[:i], parte[i + 1:]
+                # Não confundir com ==, !=, >=, <=
+                anterior = parte[i - 1] if i > 0 else ''
+                proximo = parte[i + 1] if i + 1 < len(parte) else ''
+                if anterior not in ('=', '!', '>', '<') and proximo != '=':
+                    return parte[:i], parte[i + 1:]
         return None, None
 
     def _split_args(self, args_str: str) -> List[str]:
@@ -1030,9 +1204,9 @@ class CookieScriptVM:
                 elif dentro_string == char:
                     dentro_string = False
                 continue
-            if char in '[{' and not dentro_string:
+            if char in '([{' and not dentro_string:
                 profundidade += 1
-            elif char in ']}' and not dentro_string:
+            elif char in ')]}' and not dentro_string:
                 profundidade -= 1
             if char == ',' and profundidade == 0 and not dentro_string:
                 partes.append(atual.strip())
@@ -1110,8 +1284,9 @@ class CookieScriptVM:
         if valor in self.vars:
             return self.vars[valor]
 
-        # Avaliar expressões simples que contenham operadores
-        if any(op in valor for op in [' + ', ' - ', ' * ', ' / ', ' % ']):
+        # Avaliar expressões simples que contenham operadores de nível
+        # superior (não dentro de parênteses de uma chamada de função)
+        if self._tem_operador_aritmetico_top_level(valor):
             try:
                 return self._avaliar_expressao(valor)
             except Exception:
@@ -1121,6 +1296,10 @@ class CookieScriptVM:
         if '(' in valor and ')' in valor:
             try:
                 return self._executar_comando(valor)
+            except FuncaoNaoEncontrada:
+                # Mesmo raciocínio: função/comando inexistente é um erro real
+                # do script do usuário, não deve virar a string crua.
+                raise
             except Exception:
                 # Se falhar, continuar com parsing normal
                 pass

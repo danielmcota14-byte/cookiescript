@@ -10,7 +10,10 @@ primary_region = "gru"
   DISABLE_LOCAL_AI = "false"
   DEEPSEEK_USE_CPU = "1"
   DEEPSEEK_LAZY_LOAD = "1"
-  GROQ_API_KEY = "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"
+  # GROQ_API_KEY removida deste arquivo por segurança — a chave anterior aqui
+  # estava exposta publicamente e deve ser considerada comprometida/revogada.
+  # Configure a sua via `fly secrets set GROQ_API_KEY=...` (não versione a
+  # chave em fly.toml).
 
 [http_service]
   internal_port = 8080
