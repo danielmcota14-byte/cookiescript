@@ -456,6 +456,14 @@
 // ============================================
 // API Calls para o backend Python (cookie_ide_app.py)
 // ============================================
+function errText(e) {
+    if (e == null) return 'Erro desconhecido.';
+    if (typeof e === 'string') return e;
+    if (e.message && typeof e.message === 'string') return e.message;
+    if (e.error) return errText(e.error);
+    try { return JSON.stringify(e); } catch (_) { return String(e); }
+}
+
 async function apiCall(endpoint, data) {
     try {
         const response = await fetch(endpoint, {
@@ -473,12 +481,12 @@ async function apiCall(endpoint, data) {
             }
         }
         if (!response.ok) {
-            throw new Error(result.error || `HTTP ${response.status}`);
+            throw new Error(result.error ? errText(result.error) : `HTTP ${response.status}`);
         }
         return result;
     } catch (error) {
         console.error('API Error:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: errText(error) };
     }
 }
 

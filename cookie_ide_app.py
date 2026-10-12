@@ -37,6 +37,11 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 class CookieIDEHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # Evita o navegador reutilizar versões antigas das páginas
+        self.send_header('Cache-Control', 'no-store, max-age=0')
+        super().end_headers()
+
     def log_message(self, format, *args):
         print(f"[LOG] {format % args}")
 
@@ -114,6 +119,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         return candidato
 
     def send_json(self, data, status=200):
+        # Garante que 'error' seja sempre texto (nunca objeto) para o front-end
+        if isinstance(data, dict) and data.get('error') is not None and not isinstance(data['error'], str):
+            e = data['error']
+            if isinstance(e, dict):
+                e = e.get('message') or e.get('error') or json.dumps(e, ensure_ascii=False)
+            data = dict(data, error=str(e))
         response = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -509,6 +520,7 @@ def main():
     httpd = ThreadingHTTPServer(('0.0.0.0', PORT), CookieIDEHandler)
     print(f'\n{"="*50}')
     print(f'  CookieScript IDE — http://localhost:{PORT}/')
+    print(f'  Pasta em uso: {BASE_DIR}')
     print(f'{"="*50}\n')
     if not os.environ.get('PORT'):
         try:

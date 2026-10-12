@@ -133,7 +133,7 @@ class ClaudeCodeAI:
             return {'success': r.returncode == 0, 'texto': saida, 'error': None if r.returncode == 0 else erro_stderr}
 
         if payload.get('is_error'):
-            return {'success': False, 'texto': '', 'error': payload.get('result') or erro_stderr or 'Erro desconhecido do Claude Code.'}
+            return {'success': False, 'texto': '', 'error': str(payload.get('result') or erro_stderr or 'Erro desconhecido do Claude Code.')}
 
         texto = (payload.get('result') or '').strip()
         return {'success': True, 'texto': texto, 'error': None, 'raw': payload}

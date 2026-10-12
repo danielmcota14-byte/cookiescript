@@ -318,6 +318,14 @@
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
+  function errText(e) {
+    if (e == null) return 'Erro desconhecido.';
+    if (typeof e === 'string') return e;
+    if (e.message && typeof e.message === 'string') return e.message;
+    if (e.error) return errText(e.error);
+    try { return JSON.stringify(e); } catch (_) { return String(e); }
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
@@ -384,7 +392,7 @@
     }
 
     if (!resp.ok) {
-      throw new Error(data.error || `Erro HTTP ${resp.status}`);
+      throw new Error(data.error ? errText(data.error) : `Erro HTTP ${resp.status}`);
     }
     return data;
   }
@@ -401,7 +409,7 @@
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
       return data.candidates[0].content.parts[0].text;
     }
-    if (data.error) throw new Error(`Gemini: ${data.error.message}`);
+    if (data.error) throw new Error(`Gemini: ${errText(data.error)}`);
     throw new Error('Resposta inválida do Gemini.');
   }
 
@@ -414,7 +422,7 @@
     if (data.choices && data.choices[0]?.message?.content) {
       return data.choices[0].message.content;
     }
-    if (data.error) throw new Error(`Groq: ${data.error.message}`);
+    if (data.error) throw new Error(`Groq: ${errText(data.error)}`);
     throw new Error('Resposta inesperada da Groq.');
   }
 
@@ -424,7 +432,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pergunta: prompt })
     });
-    if (data.error) throw new Error(data.error);
+    if (data.error) throw new Error(errText(data.error));
     if (data.resposta) return data.resposta;
     throw new Error('Resposta vazia da Cookie AI.');
   }
@@ -435,7 +443,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pergunta: prompt, provider: 'claude_code' })
     });
-    if (data.error) throw new Error(data.error);
+    if (data.error) throw new Error(errText(data.error));
     if (data.resposta) return data.resposta;
     throw new Error('Resposta vazia do Claude Code.');
   }
@@ -446,7 +454,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pergunta: prompt, groq_model: groqModel })
     });
-    if (data.error) throw new Error(data.error);
+    if (data.error) throw new Error(errText(data.error));
     if (data.resposta) return data.resposta;
     throw new Error('Resposta vazia da IA potencializada.');
   }
@@ -559,7 +567,7 @@
       }
       setResponse(result, false, result);
     } catch (err) {
-      let msg = err.message || 'Erro desconhecido.';
+      let msg = errText(err);
       setResponse(`Erro: ${msg}`, true);
     } finally {
       setLoading(false);

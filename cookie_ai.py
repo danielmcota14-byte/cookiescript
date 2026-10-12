@@ -150,11 +150,13 @@ class CookieAIGenerator:
 
     def _fallback_resposta(self, pergunta: str) -> str:
         p = pergunta.lower()
+        if 'calculadora' in p:
+            return 'Cookie AI aqui! 🍪\nUma calculadora simples em Python:\n\n```python\n' + self._CALC_PY + '\n```'
         if 'capital' in p and ('brasil' in p or 'brazil' in p):
             return 'Olá! Sou a Cookie AI 🍪\nA capital do Brasil é Brasília.'
         if 'capital' in p and 'frança' in p:
             return 'Olá! Sou a Cookie AI 🍪\nA capital da França é Paris.'
-        if any(x in p for x in ('olá', 'ola', 'oi', 'hey', 'hello', 'tudo bem', 'tudo bom')):
+        if any(w in p.replace(',', ' ').replace('!', ' ').replace('?', ' ').split() for w in ('olá', 'ola', 'oi', 'hey', 'hello')) or 'tudo bem' in p or 'tudo bom' in p:
             return 'Olá! Sou a Cookie AI 🍪, assistente oficial do CookieScript IDE. Como posso ajudar você hoje?'
         if 'quem' in p and ('você' in p or 'voce' in p):
             return 'Sou a Cookie AI 🍪, a inteligência artificial integrada ao CookieScript IDE! Fui criada para ajudar você a programar em CookieScript e outras linguagens.'
@@ -196,8 +198,13 @@ class CookieAIGenerator:
     def _gerar_alvo_geral(self, prompt: str) -> str:
         return f'// CookieScript para: {prompt}\nfilesystem.escrever_arquivo(caminho="pedido.txt", conteudo="{prompt}", modo="w")'
 
+    _CALC_PY = "def calcular(a, op, b):\n    if op == '+': return a + b\n    if op == '-': return a - b\n    if op == '*': return a * b\n    if op == '/':\n        if b == 0:\n            raise ZeroDivisionError('Divisão por zero')\n        return a / b\n    raise ValueError('Operador inválido')\n\nwhile True:\n    try:\n        a = float(input('Primeiro número (ou Ctrl+C para sair): '))\n        op = input('Operador (+ - * /): ').strip()\n        b = float(input('Segundo número: '))\n        print('Resultado:', calcular(a, op, b))\n    except (ValueError, ZeroDivisionError) as e:\n        print('Erro:', e)\n    except KeyboardInterrupt:\n        break"
+    _CALC_JS = "function calcular(a, op, b) {\n  switch (op) {\n    case '+': return a + b;\n    case '-': return a - b;\n    case '*': return a * b;\n    case '/':\n      if (b === 0) throw new Error('Divisão por zero');\n      return a / b;\n    default: throw new Error('Operador inválido');\n  }\n}\nconsole.log(calcular(8, '+', 2));\nconsole.log(calcular(8, '/', 2));"
+
     def _gerar_python(self, prompt: str) -> str:
         p = prompt.lower()
+        if 'calculadora' in p:
+            return self._CALC_PY
         if 'arquivo' in p or 'ler' in p:
             return "with open('entrada.txt', 'r', encoding='utf-8') as f:\n    conteudo = f.read()\nprint(conteudo)"
         if 'http' in p or 'request' in p:
@@ -210,6 +217,8 @@ class CookieAIGenerator:
 
     def _gerar_javascript(self, prompt: str) -> str:
         p = prompt.lower()
+        if 'calculadora' in p:
+            return self._CALC_JS
         if 'arquivo' in p:
             return "const fs = require('fs');\nconst c = fs.readFileSync('entrada.txt', 'utf-8');\nconsole.log(c);"
         if 'http' in p or 'request' in p:
