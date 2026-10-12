@@ -6,7 +6,6 @@
     <title>CookieScript IDE - Editor Profissional de IA</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js"></script>
-    <script src="cookiescript.js"></script>
     <style>
         :root {
             --primary: #111;
@@ -1265,20 +1264,33 @@ async function executeCode() {
     setButtonLoading(btnRun, true, 'Executar');
     addOutput(`Executando codigo (${language})...`);
     try {
-        let clientResult;
-        try {
-            clientResult = await executeClientSide(language, code);
-            addOutput(`Execucao concluida (client-side):\n${clientResult}`);
-            setButtonLoading(btnRun, false);
-            return;
-        } catch (clientError) {
-            addOutput(`Client-side falhou: ${clientError.message}. Tentando backend...`);
+        // CookieScript e Python rodam no backend (interpretador real).
+        // O "client-side" de CookieScript era apenas um simulador, entao nao e usado.
+        const backendFirst = (language === 'cookiescript' || language === 'python');
+        if (!backendFirst) {
+            try {
+                const clientResult = await executeClientSide(language, code);
+                addOutput(`Execucao concluida (client-side):\n${clientResult}`);
+                setButtonLoading(btnRun, false);
+                return;
+            } catch (clientError) {
+                addOutput(`Client-side falhou: ${clientError.message}. Tentando backend...`);
+            }
         }
         const result = await apiCall('/api/execute', { code, language });
-        setButtonLoading(btnRun, false);
         if (result.success) {
+            setButtonLoading(btnRun, false);
             addOutput(`Execucao concluida (backend):\n${result.output || '(sem saida)'}`);
+        } else if (language === 'python') {
+            try {
+                const clientResult = await executeClientSide(language, code);
+                addOutput(`Execucao concluida (navegador):\n${clientResult}`);
+            } catch (clientError) {
+                addOutput(`Erro na execucao: ${result.error}`);
+            }
+            setButtonLoading(btnRun, false);
         } else {
+            setButtonLoading(btnRun, false);
             addOutput(`Erro na execucao: ${result.error}`);
         }
     } catch (error) {
