@@ -780,7 +780,7 @@ async function executeClientSide(language, code) {
 }
 
 // Simple JavaScript simulator for common CookieScript operations
-async function simulateCookieScript(code) {
+async function executeCookieScript(code) {
     // This is a basic implementation that handles common web-relevant operations
     // It's not a full CookieScript interpreter but provides demo functionality
     
@@ -915,7 +915,7 @@ async function simulateCookieScript(code) {
                 
                 // Simple parameter parsing
                 const params = {};
-                const paramMatches = paramsStr.matchAll/(\w+)\s*=\s*([^,]+)/g;
+                const paramMatches = paramsStr.matchAll(/(\w+)\s*=\s*([^,]+)/g);
                 for (const match of paramMatches) {
                     let value = match[2].trim();
                     // Remove quotes if present
@@ -969,7 +969,7 @@ async function simulateCookieScript(code) {
                 
                 // Simple parameter parsing for string operations
                 let text = '';
-                const textMatch = paramsStr.match/texto\s*=\s*["']([^"']*)["']/;
+                const textMatch = paramsStr.match(/texto\s*=\s*["']([^"']*)["']/);
                 if (textMatch) text = textMatch[1];
                 
                 text = resolveVars(text);
@@ -1006,7 +1006,7 @@ async function simulateCookieScript(code) {
                 const paramsStr = jsonMatch[3];
                 
                 let jsonText = '';
-                const jsonMatch2 = paramsStr.match/texto_json\s*=\s*["']([^"']*)["']/;
+                const jsonMatch2 = paramsStr.match(/texto_json\s*=\s*["']([^"']*)["']/);
                 if (jsonMatch2) jsonText = jsonMatch2[1];
                 
                 jsonText = resolveVars(jsonText);
@@ -1042,13 +1042,7 @@ async function simulateCookieScript(code) {
         throw new Error(`Simulação do CookieScript falhou: ${simError.message}`);
     }
 }
-            default:
-                throw new Error(`Language ${language} not supported client-side`);
-        }
-    } catch (clientError) {
-        // If client-side execution fails, throw to trigger fallback
-        throw new Error(`Client-side execution failed: ${clientError.message}`);
-    }
+
 // ============================================
 // Operacoes com arquivos (API real)
 // ============================================
