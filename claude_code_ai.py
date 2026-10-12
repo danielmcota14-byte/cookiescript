@@ -62,15 +62,21 @@ class ClaudeCodeAI:
         if os.getenv('DISABLE_CLAUDE_CODE', '').lower() in ('1', 'true', 'yes'):
             return False
         if self._disponivel_cache is None:
-            self._disponivel_cache = shutil.which(self.BIN) is not None
+            self._disponivel_cache = self._caminho_bin() is not None
         return self._disponivel_cache
+
+    def _caminho_bin(self) -> Optional[str]:
+        """Caminho completo do CLI. No Windows o npm instala `claude.cmd`; o subprocess
+        precisa do caminho resolvido (com extensão), não só do nome `claude`."""
+        return shutil.which(self.BIN)
 
     def versao(self) -> Optional[str]:
         if not self.disponivel():
             return None
         try:
             r = subprocess.run(
-                [self.BIN, '--version'], capture_output=True, text=True, timeout=10
+                [self._caminho_bin() or self.BIN, '--version'], capture_output=True,
+                text=True, encoding='utf-8', errors='replace', timeout=10
             )
             return (r.stdout or r.stderr or '').strip() or None
         except Exception:
@@ -78,14 +84,15 @@ class ClaudeCodeAI:
 
     # ── chamada principal ────────────────────────────────────────────────────
 
-    def _montar_comando(self, prompt: str) -> list:
-        cmd = [self.BIN, '--print', '--output-format', 'json']
+    def _montar_comando(self, prompt: Optional[str] = None) -> list:
+        cmd = [self._caminho_bin() or self.BIN, '--print', '--output-format', 'json']
         if self.BARE:
             cmd.append('--bare')
         if self.MODEL:
             cmd.extend(['--model', self.MODEL])
         cmd.extend(self.EXTRA_ARGS)
-        cmd.append(prompt)
+        if prompt is not None:
+            cmd.append(prompt)
         return cmd
 
     def _executar(self, prompt: str) -> dict:
@@ -100,14 +107,20 @@ class ClaudeCodeAI:
                     "e autentique com: claude"
                 ),
             }
-        try:
-            r = subprocess.run(
-                self._montar_comando(prompt),
-                cwd=self.WORKDIR,
-                capture_output=True,
-                text=True,
-                timeout=self.TIMEOUT,
+        def rodar(comando, entrada=None):
+            return subprocess.run(
+                comando, cwd=self.WORKDIR, capture_output=True, text=True,
+                encoding='utf-8', errors='replace',   # evita erro de codificação no Windows (cp1252)
+                input=entrada, timeout=self.TIMEOUT,
             )
+
+        try:
+            # O prompt vai pela entrada padrão: no Windows, passar texto longo/com aspas, & ou
+            # quebras de linha como argumento do claude.cmd quebra ou corta a pergunta.
+            r = rodar(self._montar_comando(), prompt)
+            if not (r.stdout or '').strip() and r.returncode != 0:
+                # Versão do CLI que não aceita prompt pela entrada: tenta como argumento.
+                r = rodar(self._montar_comando(prompt))
         except subprocess.TimeoutExpired:
             return {'success': False, 'texto': '', 'error': f'Tempo limite de {self.TIMEOUT}s excedido ao chamar o Claude Code.'}
         except FileNotFoundError:

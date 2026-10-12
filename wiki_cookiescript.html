@@ -20,6 +20,14 @@
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
+        .callout {
+            background: #fff8e1;
+            border-left: 4px solid #f5a623;
+            padding: 12px 16px;
+            margin: 16px 0;
+            border-radius: 4px;
+        }
+        .callout.github { background: #eef4ff; border-left-color: #2f6feb; }
         h1, h2, h3 {
             color: #333;
         }
@@ -84,6 +92,7 @@
             <ul>
                 <li><a href="#introducao">Introdução</a></li>
                 <li><a href="#instalacao">Instalação</a></li>
+                <li><a href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">GitHub ↗</a></li>
                 <li><a href="#uso">Como Usar</a></li>
                 <li><a href="#ide">CookieScript IDE</a></li>
                 <li><a href="#linguagem">Linguagem</a></li>
@@ -105,7 +114,15 @@
 
         <section id="instalacao">
             <h2>Instalação</h2>
-            <h3>Download</h3>
+            <div class="callout github">
+                <strong>🐙 Código-fonte no GitHub:</strong>
+                <a href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">https://github.com/danielmcota14-byte/cookiescript</a>
+            </div>
+
+            <h3>Clonar pelo GitHub</h3>
+            <div class="code">git clone https://github.com/danielmcota14-byte/cookiescript.git</div>
+
+            <h3>Ou baixar o ZIP</h3>
             <p>Baixe o projeto completo em ZIP através deste link:</p>
             <p><a href="https://drive.google.com/drive/folders/14sNNVccjmPLFrFIM3cJZNejRYOaHhBzW?usp=sharing" target="_blank">📁 Download CookieScript (Google Drive)</a></p>
             <p>Na página do Google Drive, clique em "Baixar tudo" para obter o arquivo ZIP completo.</p>
@@ -127,6 +144,15 @@
                     <div class="code">npm install</div>
                 </li>
             </ol>
+
+            <div class="callout">
+                <strong>🤖 Quer testar a IA do Claude?</strong><br>
+                A IA do Claude (provedor <em>Claude Code Local</em>) só funciona com o projeto instalado no seu computador.
+                Basta instalar o projeto (passos acima) e rodar <code>instalar_claude_code.bat</code> (Windows) ou
+                <code>instalar_claude_code.sh</code> (Linux/Mac), que instalam o CLI do Claude Code. Depois rode <code>claude</code>
+                uma vez para entrar na sua conta, inicie a IDE com <code>python cookie_ide_app.py</code> e use a aba
+                <strong>AI Assistant</strong> com o provedor <em>Claude Code Local</em>.
+            </div>
 
             <h3>Configuração Local</h3>
             <p>Se você já tem o projeto baixado localmente:</p>
@@ -171,11 +197,16 @@ node cookiescript.js
                 <li>Abrir e salvar arquivos CookieScript</li>
                 <li>Explorar arquivos do projeto na lista integrada</li>
                 <li>Executar scripts usando o interpretador `CookieScriptVM`</li>
-                <li>Gerar código usando Gemini AI ou templates locais</li>
+                <li>Gerar código com IA (Claude Code Local, Groq, Gemini, DeepSeek/Ollama locais) ou templates simples</li>
                 <li>Instalar dependências Python e Node.js</li>
                 <li>Verificar o status Cokie local e fazer comints</li>
                 <li>Visualizar fluxo de código em um canvas</li>
             </ul>
+            <div class="callout">
+                <strong>🤖 Testar a IA do Claude:</strong> instale o projeto no seu computador
+                (<a href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">GitHub</a>) e use o provedor <em>Claude Code Local</em>
+                na aba <strong>AI Assistant</strong>. Detalhes na seção <a href="#instalacao">Instalação</a>.
+            </div>
         </section>
 
         <section id="linguagem">

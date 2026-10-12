@@ -173,6 +173,10 @@
     .spinner-mini { width: 24px; height: 24px; border: 2px solid var(--gray-300); border-top: 2px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .error-block { background: #fef2f2; border-left: 4px solid var(--danger); padding: 1rem; color: #991b1b; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 0.9rem; }
+    .github-link { font-size: 0.75rem; background: #111; color: #fff; padding: 0.25rem 0.875rem; border-radius: 9999px; font-weight: 500; text-decoration: none; }
+    .github-link:hover { background: var(--accent); }
+    .claude-install { background: #eef4ff; border-left: 4px solid #2f6feb; padding: 1rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; font-size: 0.85rem; line-height: 1.55; color: var(--gray-700); }
+    .claude-install code { background: rgba(0,0,0,0.06); padding: 0.1rem 0.35rem; border-radius: 4px; }
     .footer-note { font-size: 0.75rem; text-align: center; color: var(--gray-500); border-top: 1px solid var(--gray-200); padding-top: 1.75rem; margin-top: 1rem; }
     .ai-flow-info { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); color: white; padding: 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; font-size: 0.85rem; display: none; }
     .ai-flow-info.active { display: block; }
@@ -203,11 +207,21 @@
         <span class="badge-mini">Gemini</span>
         <span class="badge-mini">Groq</span>
         <span class="badge-mini">IA Local</span>
+        <a class="github-link" href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">🐙 GitHub</a>
       </div>
     </div>
   </div>
 
   <div class="section-card">
+    <div class="claude-install">
+      <strong>🤖 Quer testar a IA do Claude?</strong><br>
+      Basta instalar o projeto no seu computador: <code>git clone https://github.com/danielmcota14-byte/cookiescript.git</code>
+      (<a href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">repositório no GitHub</a>). Depois rode
+      <code>instalar_claude_code.bat</code> (Windows) ou <code>instalar_claude_code.sh</code> (Linux/Mac), execute <code>claude</code>
+      uma vez para entrar na sua conta e inicie com <code>python cookie_ide_app.py</code>. Escolha o provedor
+      <strong>Claude Code Local</strong> abaixo. Ele usa o CLI do seu computador, então não funciona em versões hospedadas na internet.
+    </div>
+
     <div class="ai-flow-info" id="aiFlowInfo">
       <strong>Fluxo de IAs Potencializadas:</strong>
       <div class="ai-flow-steps">
@@ -285,7 +299,8 @@
   <div class="footer-note">
     <strong>Claude Code Local</strong> usa o CLI <code>claude</code> já instalado/autenticado no seu computador (sem chave de API extra).<br>
     <strong>DeepSeek Local</strong> usa torch + transformers direto no servidor (sem internet, sem API).<br>
-    <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita (opcional).
+    <strong>Gemini</strong> e <strong>Groq</strong> requerem chave API gratuita (opcional).<br>
+    Código-fonte: <a href="https://github.com/danielmcota14-byte/cookiescript" target="_blank" rel="noopener">github.com/danielmcota14-byte/cookiescript</a>
   </div>
 </div>
 
@@ -306,7 +321,9 @@
   const getKeyLink        = document.getElementById('getKeyLink');
   const aiFlowInfo        = document.getElementById('aiFlowInfo');
 
-  const GEMINI_ENDPOINT        = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  const GEMINI_BASE            = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  // Modelos atuais do Gemini (a série 2.5 e o antigo gemini-pro foram/serão desativados)
+  const GEMINI_MODELS          = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite'];
   const GROQ_ENDPOINT          = 'https://api.groq.com/openai/v1/chat/completions';
   const DEFAULT_GROQ_KEY = '';
   const LOCAL_ASK_ENDPOINT     = '/api/ask';
@@ -398,17 +415,28 @@
   // ── provedores ─────────────────────────────────────────────────────────────
 
   async function callGemini(apiKey, prompt) {
-    const url = `${GEMINI_ENDPOINT}?key=${apiKey}`;
-    const data = await safeJsonFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7,maxOutputTokens:1024} })
-    });
-    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-      return data.candidates[0].content.parts[0].text;
+    let ultimoErro = 'Resposta inválida do Gemini.';
+    for (const modelo of GEMINI_MODELS) {
+      let data;
+      try {
+        const resp = await fetch(`${GEMINI_BASE}${modelo}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7,maxOutputTokens:4096} })
+        });
+        data = await resp.json();
+      } catch (e) {
+        throw new Error('Não foi possível falar com o Gemini. Verifique sua internet.');
+      }
+      const partes = data.candidates && data.candidates[0]?.content?.parts;
+      const texto = partes && partes.map(p => p.text || '').join('');
+      if (texto) return texto;
+      ultimoErro = errText(data.error) || ultimoErro;
+      const baixo = String(ultimoErro).toLowerCase();
+      const indisponivel = ['not found', 'no longer available', 'is not supported', 'deprecated'].some(t => baixo.includes(t));
+      if (!indisponivel) break;   // chave inválida, limite etc.: trocar de modelo não ajuda
     }
-    if (data.error) throw new Error(`Gemini: ${errText(data.error)}`);
-    throw new Error('Resposta inválida do Gemini.');
+    throw new Error(`Gemini: ${ultimoErro}`);
   }
 
   const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
