@@ -332,6 +332,34 @@
             opacity: 0.7;
             pointer-events: none;
         }
+    
+        /* ===== Responsivo: navbar global (todas as páginas) ===== */
+        @media (max-width: 640px) {
+            .global-nav { position: static; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
+            .global-nav a { white-space: nowrap; flex: 0 0 auto; padding: 8px 14px; }
+        }
+        img, video, canvas, svg { max-width: 100%; }
+        pre, table { max-width: 100%; overflow-x: auto; }
+
+        /* ===== Responsivo: IDE (celular/tablet) ===== */
+        @media (max-width: 900px) {
+            html, body { height: auto; min-height: 100dvh; }
+            body { overflow-y: auto; overflow-x: hidden; }
+            .top-bar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+            .toolbar { flex-wrap: wrap; width: 100%; }
+            .toolbar button, .toolbar select { flex: 1 1 auto; min-height: 40px; }
+            .main-container { flex-direction: column; height: auto; }
+            .editor-area { order: 1; min-height: 70dvh; }
+            .sidebar { order: 2; width: 100%; border-right: 0; border-top: 1px solid #333; overflow: visible; }
+            .right-panel { order: 3; width: 100%; border-left: 0; border-top: 1px solid #333; }
+            .tabs { overflow-x: auto; flex-wrap: nowrap; }
+            .tab { flex: 0 0 auto; }
+            .editor-wrapper { padding: 10px; }
+            .path-bar { flex-wrap: wrap; }
+            #codeEditor { min-height: 50dvh; }
+            .panel-header { flex-wrap: wrap; }
+            input, select, textarea { font-size: 16px !important; } /* evita zoom automático no iOS */
+        }
     </style>
 </head>
 <body>

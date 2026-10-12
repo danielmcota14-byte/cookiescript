@@ -135,6 +135,43 @@
         .toast.show { display: block; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @media (max-width: 768px) { .profile-container { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } .nav-left { gap: 20px; } }
+    
+        /* ===== Responsivo: navbar global (todas as páginas) ===== */
+        @media (max-width: 640px) {
+            .global-nav { position: static; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
+            .global-nav a { white-space: nowrap; flex: 0 0 auto; padding: 8px 14px; }
+        }
+        img, video, canvas, svg { max-width: 100%; }
+        pre, table { max-width: 100%; overflow-x: auto; }
+
+        /* ===== Responsivo: CookieScript (celular/tablet) ===== */
+        @media (max-width: 768px) {
+            .navbar { padding: 0 12px; top: 0; }
+            .nav-container { height: auto; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+            .nav-left { width: 100%; flex-wrap: wrap; gap: 12px; }
+            .nav-links { overflow-x: auto; max-width: 100%; }
+            .nav-links a { white-space: nowrap; padding: 8px 12px; }
+            .nav-right { width: 100%; gap: 12px; }
+            .search-container { flex: 1; }
+            .search-container input { width: 100%; }
+            main { padding: 20px 12px; }
+            .hero { padding: 32px 20px; border-radius: 16px; margin-bottom: 24px; }
+            .hero h1 { font-size: 28px; }
+            .hero p { font-size: 16px; }
+            .section-header { flex-wrap: wrap; gap: 12px; }
+            .repos-grid { grid-template-columns: 1fr; }
+            .profile-card, .stats-card { padding: 20px; }
+            .stat-value { font-size: 28px; }
+            .login-container { padding: 28px 20px; max-height: 92dvh; overflow-y: auto; }
+            .modal-content, .modal-large { width: 94%; max-width: 94%; max-height: 94dvh; }
+            .modal-header, .modal-body { padding: 16px; }
+            .modal-footer { padding: 14px 16px; flex-wrap: wrap; }
+            .modal-footer button { flex: 1 1 auto; }
+            .monaco-container { height: 55dvh; }
+            .toast { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+            .form-group input, .form-group textarea, .form-group select,
+            .file-name-input, .search-container input { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
@@ -371,258 +408,331 @@ onerror="this.src='https://via.placeholder.com/80x80?text=CS'">
     <div id="toast" class="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
-    <script>
-        let currentUser = null;
-        let repos = [];
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import {
+            getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+            signInWithEmailAndPassword, signOut, updateProfile
+        } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+        import {
+            getFirestore, collection, doc, getDoc, setDoc, updateDoc, getDocs,
+            query, where, orderBy, limit
+        } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+        // A apiKey do Firebase Web não é segredo: quem protege os dados são as regras (firestore.rules).
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7teSvQ2Xmymr7zNhqi1KvY_fyXEtr0hE",
+            authDomain: "cookiescript-bf257.firebaseapp.com",
+            databaseURL: "https://cookiescript-bf257-default-rtdb.firebaseio.com",
+            projectId: "cookiescript-bf257",
+            storageBucket: "cookiescript-bf257.firebasestorage.app",
+            messagingSenderId: "652455430126",
+            appId: "1:652455430126:web:7956298f2cf00bbfb1b0ff",
+            measurementId: "G-62PD9BBQFF"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;      // { uid, name, email, bio }
+        let repos = [];              // projetos do usuário logado
+        let exploreList = [];        // projetos públicos
         let editor = null;
-        let currentRepo = null;
+        let currentRepo = null;      // projeto aberto no editor (com .id, .files, .readOnly)
         let currentFile = null;
-        let users = JSON.parse(localStorage.getItem('users') || '[]');
+        let registering = false;
+
+        const $ = (id) => document.getElementById(id);
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
         function showToast(msg) {
-            const toast = document.getElementById('toast');
+            const toast = $('toast');
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        function showLoginPopup() {
-            document.getElementById('loginPopup').classList.add('active');
-            document.getElementById('appPage').classList.remove('active');
+        function friendlyError(err) {
+            console.error(err);
+            const map = {
+                'auth/invalid-credential': 'Email ou senha inválidos',
+                'auth/invalid-email': 'Email inválido',
+                'auth/email-already-in-use': 'Email já cadastrado',
+                'auth/weak-password': 'Senha fraca (mínimo 6 caracteres)',
+                'auth/too-many-requests': 'Muitas tentativas. Tente de novo em instantes',
+                'auth/network-request-failed': 'Sem conexão com a internet',
+                'auth/operation-not-allowed': 'Login por email/senha não está ativado no Firebase',
+                'permission-denied': 'Sem permissão para essa ação',
+                'failed-precondition': 'Falta criar um índice no Firestore (veja o console do navegador)',
+                'unavailable': 'Firestore indisponível no momento'
+            };
+            return map[err.code] || 'Erro: ' + (err.message || err);
         }
 
+        // ---------- telas ----------
+        function showLoginPopup() {
+            $('loginPopup').classList.add('active');
+            $('appPage').classList.remove('active');
+        }
         function showApp() {
-            document.getElementById('loginPopup').classList.remove('active');
-            document.getElementById('appPage').classList.add('active');
+            $('loginPopup').classList.remove('active');
+            $('appPage').classList.add('active');
             updateUI();
             loadUserData();
         }
-
         function updateUI() {
-            if (currentUser) {
-                const initial = currentUser.name.charAt(0).toUpperCase();
-                document.getElementById('avatarBtn').textContent = initial;
-                document.getElementById('profileAvatar').textContent = initial;
-                document.getElementById('profileName').textContent = currentUser.name;
-                document.getElementById('profileEmail').textContent = currentUser.email;
-                document.getElementById('profileBio').textContent = currentUser.bio || 'Desenvolvedor criativo';
-            }
+            if (!currentUser) return;
+            const initial = currentUser.name.charAt(0).toUpperCase() || 'U';
+            $('avatarBtn').textContent = initial;
+            $('profileAvatar').textContent = initial;
+            $('profileName').textContent = currentUser.name;
+            $('profileEmail').textContent = currentUser.email;
+            $('profileBio').textContent = currentUser.bio || 'Desenvolvedor criativo';
         }
 
-        function loadUserData() {
-            repos = JSON.parse(localStorage.getItem(`repos_${currentUser.email}`) || '[]');
-            renderUserRepos();
-            renderExploreRepos();
-            let totalFiles = 0;
-            repos.forEach(repo => {
-                const files = JSON.parse(localStorage.getItem(`files_${currentUser.email}_${repo.name}`) || '[]');
-                totalFiles += files.length;
-            });
-            document.getElementById('statRepos').textContent = repos.length;
-            document.getElementById('statFiles').textContent = totalFiles;
+        // ---------- autenticação ----------
+        async function enterApp(user) {
+            let profile = {};
+            try {
+                const snap = await getDoc(doc(db, 'users', user.uid));
+                if (snap.exists()) profile = snap.data();
+            } catch (e) { console.error(e); }
+            currentUser = {
+                uid: user.uid,
+                email: user.email,
+                name: profile.name || user.displayName || (user.email || 'usuario').split('@')[0],
+                bio: profile.bio || 'Desenvolvedor criativo'
+            };
+            showApp();
         }
 
-        function renderUserRepos() {
-            const container = document.getElementById('userRepos');
-            if (!repos.length) {
-                container.innerHTML = '<div class="loading">Nenhum repositorio ainda. Crie o seu primeiro!</div>';
-                return;
+        onAuthStateChanged(auth, (user) => {
+            if (registering) return; // o cadastro chama enterApp sozinho
+            if (user) enterApp(user);
+            else { currentUser = null; repos = []; showLoginPopup(); }
+        });
+
+        $('loginBtn').addEventListener('click', async () => {
+            try {
+                await signInWithEmailAndPassword(auth, $('loginEmail').value.trim(), $('loginPassword').value);
+                showToast('Bem-vindo de volta!');
+            } catch (e) { showToast(friendlyError(e)); }
+        });
+
+        $('registerBtn').addEventListener('click', async () => {
+            const name = $('registerName').value.trim().slice(0, 60);
+            const email = $('registerEmail').value.trim();
+            const pwd = $('registerPassword').value;
+            if (!name) { showToast('Informe seu nome'); return; }
+            registering = true;
+            try {
+                const cred = await createUserWithEmailAndPassword(auth, email, pwd);
+                await updateProfile(cred.user, { displayName: name });
+                await setDoc(doc(db, 'users', cred.user.uid), { name, bio: 'Desenvolvedor criativo' });
+                registering = false;
+                await enterApp(cred.user);
+                showToast('Conta criada!');
+            } catch (e) {
+                registering = false;
+                showToast(friendlyError(e));
             }
-            container.innerHTML = repos.map(repo => `
-                <div class="repo-card" onclick="openRepoEditor('${repo.name}')">
-                    <h3>${repo.name}</h3>
-                    <p>${repo.description || 'Sem descricao'}</p>
+        });
+
+        $('logoutBtn').addEventListener('click', async () => {
+            await signOut(auth);
+            showToast('Até logo!');
+        });
+
+        $('showRegister').addEventListener('click', (e) => {
+            e.preventDefault();
+            $('loginForm').classList.remove('active');
+            $('registerForm').classList.add('active');
+        });
+        $('showLogin').addEventListener('click', (e) => {
+            e.preventDefault();
+            $('registerForm').classList.remove('active');
+            $('loginForm').classList.add('active');
+        });
+
+        // ---------- repositórios ----------
+        const fileCount = (r) => Object.keys(r.files || {}).length;
+
+        function repoCard(repo, src, withOwner) {
+            return `
+                <div class="repo-card" data-id="${esc(repo.id)}" data-src="${src}">
+                    <h3>${withOwner ? esc(repo.owner || 'anônimo') + '/' : ''}${esc(repo.name)}</h3>
+                    <p>${esc(repo.description) || 'Sem descricao'}</p>
                     <div class="repo-meta">
-                        <span>${repo.visibility === 'public' ? 'Publico' : 'Privado'}</span>
-                        <span>${JSON.parse(localStorage.getItem(`files_${currentUser.email}_${repo.name}`) || '[]').length} arquivos</span>
+                        ${withOwner ? '' : `<span>${repo.visibility === 'public' ? 'Publico' : 'Privado'}</span>`}
+                        <span>${fileCount(repo)} arquivos</span>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
         }
 
-        function renderExploreRepos() {
-            const allRepos = [];
-            const allUsers = JSON.parse(localStorage.getItem('users') || '[]');
-            allUsers.forEach(user => {
-                const userRepos = JSON.parse(localStorage.getItem(`repos_${user.email}`) || '[]');
-                userRepos.forEach(repo => {
-                    if (repo.visibility === 'public') {
-                        allRepos.push({...repo, owner: user.name, ownerEmail: user.email});
-                    }
-                });
-            });
-            const container = document.getElementById('exploreRepos');
-            if (!allRepos.length) {
-                container.innerHTML = '<div class="loading">Nenhum repositorio publico encontrado</div>';
-                return;
+        function renderUserRepos(list = repos) {
+            const c = $('userRepos');
+            if (!repos.length) { c.innerHTML = '<div class="loading">Nenhum repositorio ainda. Crie o seu primeiro!</div>'; return; }
+            if (!list.length) { c.innerHTML = '<div class="loading">Nenhum repositorio encontrado</div>'; return; }
+            c.innerHTML = list.map(r => repoCard(r, 'mine', false)).join('');
+        }
+
+        async function loadUserData() {
+            if (!currentUser) return;
+            $('userRepos').innerHTML = '<div class="loading">Carregando...</div>';
+            try {
+                const q = query(collection(db, 'projects'), where('ownerUid', '==', currentUser.uid), orderBy('updatedAt', 'desc'));
+                const snap = await getDocs(q);
+                repos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderUserRepos();
+                $('statRepos').textContent = repos.length;
+                $('statFiles').textContent = repos.reduce((n, r) => n + fileCount(r), 0);
+            } catch (e) {
+                $('userRepos').innerHTML = '<div class="loading">Não foi possível carregar.</div>';
+                showToast(friendlyError(e));
             }
-            container.innerHTML = allRepos.map(repo => `
-                <div class="repo-card" onclick="viewPublicRepo('${repo.ownerEmail}', '${repo.name}')">
-                    <h3>${repo.owner}/${repo.name}</h3>
-                    <p>${repo.description || 'Sem descricao'}</p>
-                    <div class="repo-meta">
-                        <span>${JSON.parse(localStorage.getItem(`files_${repo.ownerEmail}_${repo.name}`) || '[]').length} arquivos</span>
-                    </div>
-                </div>
-            `).join('');
         }
 
-        window.openRepoEditor = function(repoName) {
-            currentRepo = repos.find(r => r.name === repoName);
-            if (!currentRepo) return;
-            currentRepo.ownerEmail = currentUser.email;
+        async function renderExploreRepos() {
+            const c = $('exploreRepos');
+            c.innerHTML = '<div class="loading">Carregando...</div>';
+            try {
+                const q = query(collection(db, 'projects'), where('visibility', '==', 'public'), orderBy('updatedAt', 'desc'), limit(60));
+                const snap = await getDocs(q);
+                exploreList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                c.innerHTML = exploreList.length
+                    ? exploreList.map(r => repoCard(r, 'explore', true)).join('')
+                    : '<div class="loading">Nenhum repositorio publico encontrado</div>';
+            } catch (e) {
+                c.innerHTML = '<div class="loading">Não foi possível carregar.</div>';
+                showToast(friendlyError(e));
+            }
+        }
+
+        function openRepo(repo, readOnly) {
+            currentRepo = repo;
+            currentRepo.readOnly = readOnly;
             loadRepoFiles();
-            document.getElementById('editorModal').classList.add('active');
-            document.getElementById('editorTitle').textContent = `Editando: ${repoName}`;
-            document.getElementById('saveFileBtn').style.display = 'block';
+            $('editorModal').classList.add('active');
+            $('editorTitle').textContent = readOnly
+                ? `Visualizando: ${repo.owner || 'anônimo'}/${repo.name}`
+                : `Editando: ${repo.name}`;
+            $('saveFileBtn').style.display = readOnly ? 'none' : 'block';
             if (editor) {
-                editor.setValue('// Clique em um arquivo para comecar a editar');
-                editor.updateOptions({ readOnly: false });
+                editor.updateOptions({ readOnly });
+                editor.setValue(readOnly
+                    ? '// Modo somente leitura - voce nao pode editar este repositorio'
+                    : '// Clique em um arquivo para comecar a editar');
             }
-        };
+        }
 
-        window.viewPublicRepo = function(ownerEmail, repoName) {
-            const ownerRepos = JSON.parse(localStorage.getItem(`repos_${ownerEmail}`) || '[]');
-            const repo = ownerRepos.find(r => r.name === repoName);
-            if (repo) {
-                currentRepo = repo;
-                currentRepo.ownerEmail = ownerEmail;
-                loadRepoFiles();
-                document.getElementById('editorModal').classList.add('active');
-                document.getElementById('editorTitle').textContent = `Visualizando: ${ownerEmail.split('@')[0]}/${repoName}`;
-                document.getElementById('saveFileBtn').style.display = 'none';
-                if (editor) {
-                    editor.updateOptions({ readOnly: true });
-                    editor.setValue('// Modo somente leitura - voce nao pode editar este repositorio');
-                }
-            }
-        };
+        $('userRepos').addEventListener('click', (e) => {
+            const card = e.target.closest('.repo-card');
+            if (!card) return;
+            const repo = repos.find(r => r.id === card.dataset.id);
+            if (repo) openRepo(repo, false);
+        });
+        $('exploreRepos').addEventListener('click', (e) => {
+            const card = e.target.closest('.repo-card');
+            if (!card) return;
+            const repo = exploreList.find(r => r.id === card.dataset.id);
+            if (!repo) return;
+            openRepo(repo, !currentUser || repo.ownerUid !== currentUser.uid);
+        });
 
         function loadRepoFiles() {
-            const owner = currentRepo.ownerEmail;
-            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
-            const fileListDiv = document.getElementById('fileList');
-            if (!files.length) {
-                fileListDiv.innerHTML = '<div style="color: #777;">Nenhum arquivo ainda. Adicione seu primeiro codigo!</div>';
-            } else {
-                fileListDiv.innerHTML = files.map(file => `
-                    <div class="file-tag" onclick="loadFileContent('${file.name}')">${file.name}</div>
-                `).join('');
-            }
+            const names = Object.keys(currentRepo.files || {});
+            $('fileList').innerHTML = names.length
+                ? names.map(n => `<div class="file-tag" data-name="${esc(n)}">${esc(n)}</div>`).join('')
+                : '<div style="color: #777;">Nenhum arquivo ainda. Adicione seu primeiro codigo!</div>';
             currentFile = null;
-            document.getElementById('fileName').value = '';
+            $('fileName').value = '';
         }
 
-        window.loadFileContent = function(fileName) {
-            const owner = currentRepo.ownerEmail;
-            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
-            const file = files.find(f => f.name === fileName);
-            if (file && editor) {
-                editor.setValue(file.content);
-                document.getElementById('fileName').value = fileName;
-                currentFile = fileName;
-                document.querySelectorAll('.file-tag').forEach(tag => {
-                    tag.classList.remove('active');
-                    if (tag.textContent.includes(fileName)) tag.classList.add('active');
-                });
-                showToast(`Arquivo "${fileName}" carregado. Agora voce pode editar!`);
-            }
-        };
-
-        // Login/Register events
-        document.getElementById('loginBtn').addEventListener('click', () => {
-            const email = document.getElementById('loginEmail').value;
-            const pwd = document.getElementById('loginPassword').value;
-            const user = users.find(u => u.email === email && u.password === pwd);
-            if (user) {
-                currentUser = user;
-                localStorage.setItem('currentUser', JSON.stringify(user));
-                showApp();
-                showToast('Bem-vindo de volta!');
-            } else {
-                showToast('Email ou senha invalidos');
-            }
-        });
-        document.getElementById('registerBtn').addEventListener('click', () => {
-            const name = document.getElementById('registerName').value;
-            const email = document.getElementById('registerEmail').value;
-            const pwd = document.getElementById('registerPassword').value;
-            if (users.find(u => u.email === email)) {
-                showToast('Email ja cadastrado');
-                return;
-            }
-            users.push({ name, email, password: pwd, bio: 'Desenvolvedor criativo' });
-            localStorage.setItem('users', JSON.stringify(users));
-            showToast('Conta criada! Faca login.');
-            document.getElementById('showLogin').click();
-        });
-        document.getElementById('showRegister').addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('loginForm').classList.remove('active');
-            document.getElementById('registerForm').classList.add('active');
-        });
-        document.getElementById('showLogin').addEventListener('click', (e) => {
-            e.preventDefault();
-            document.getElementById('registerForm').classList.remove('active');
-            document.getElementById('loginForm').classList.add('active');
-        });
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            currentUser = null;
-            localStorage.removeItem('currentUser');
-            showLoginPopup();
-            showToast('Ate logo!');
+        $('fileList').addEventListener('click', (e) => {
+            const tag = e.target.closest('.file-tag');
+            if (!tag || !currentRepo) return;
+            const name = tag.dataset.name;
+            const content = (currentRepo.files || {})[name];
+            if (content === undefined || !editor) return;
+            editor.setValue(content);
+            $('fileName').value = name;
+            currentFile = name;
+            document.querySelectorAll('.file-tag').forEach(t => t.classList.toggle('active', t === tag));
+            showToast(currentRepo.readOnly ? `Arquivo "${name}" carregado.` : `Arquivo "${name}" carregado. Agora voce pode editar!`);
         });
 
-        document.getElementById('createRepoBtn').addEventListener('click', () => {
-            document.getElementById('repoModal').classList.add('active');
-        });
-        document.getElementById('confirmRepoBtn').addEventListener('click', () => {
-            const name = document.getElementById('repoName').value.trim();
+        async function persistFiles(newFiles) {
+            await updateDoc(doc(db, 'projects', currentRepo.id), { files: newFiles, updatedAt: Date.now() });
+            currentRepo.files = newFiles;
+        }
+
+        const validFileName = (n) => n.length > 0 && n.length <= 100 && !n.includes('/');
+
+        $('createRepoBtn').addEventListener('click', () => $('repoModal').classList.add('active'));
+
+        $('confirmRepoBtn').addEventListener('click', async () => {
+            const name = $('repoName').value.trim();
+            const description = $('repoDesc').value.trim();
             if (!name) { showToast('Nome obrigatorio'); return; }
-            const newRepo = { name, description: document.getElementById('repoDesc').value, visibility: document.getElementById('repoVisibility').value, createdAt: new Date() };
-            repos.push(newRepo);
-            localStorage.setItem(`repos_${currentUser.email}`, JSON.stringify(repos));
-            renderUserRepos();
-            document.getElementById('repoModal').classList.remove('active');
-            document.getElementById('repoName').value = '';
-            document.getElementById('repoDesc').value = '';
-            showToast('Repositorio criado!');
+            if (name.length > 100) { showToast('Nome muito longo (máx. 100)'); return; }
+            if (description.length > 500) { showToast('Descrição muito longa (máx. 500)'); return; }
+            try {
+                const ref = doc(collection(db, 'projects'));
+                const now = Date.now();
+                const data = {
+                    id: ref.id, name, description,
+                    owner: currentUser.name.slice(0, 60),
+                    ownerUid: currentUser.uid,
+                    visibility: $('repoVisibility').value === 'public' ? 'public' : 'private',
+                    language: 'javascript',
+                    createdAt: now, updatedAt: now,
+                    files: {}
+                };
+                await setDoc(ref, data);
+                repos.unshift(data);
+                renderUserRepos();
+                $('statRepos').textContent = repos.length;
+                $('repoModal').classList.remove('active');
+                $('repoName').value = '';
+                $('repoDesc').value = '';
+                showToast('Repositorio criado!');
+            } catch (e) { showToast(friendlyError(e)); }
         });
 
-        document.getElementById('addFileBtn').addEventListener('click', () => {
-            const fileName = document.getElementById('newFileName').value.trim();
+        $('addFileBtn').addEventListener('click', async () => {
+            if (!currentRepo || currentRepo.readOnly) return;
+            const fileName = $('newFileName').value.trim();
             if (!fileName) { showToast('Digite um nome para o arquivo'); return; }
-            const owner = currentRepo.ownerEmail;
-            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
-            if (files.find(f => f.name === fileName)) { showToast('Arquivo ja existe'); return; }
-            files.push({ name: fileName, content: '// Seu codigo aqui\nconsole.log("Hello, CookieScript!");' });
-            localStorage.setItem(`files_${owner}_${currentRepo.name}`, JSON.stringify(files));
-            loadRepoFiles();
-            document.getElementById('newFileName').value = '';
-            showToast(`Arquivo "${fileName}" criado!`);
+            if (!validFileName(fileName)) { showToast('Nome de arquivo inválido (sem "/", máx. 100)'); return; }
+            const files = currentRepo.files || {};
+            if (fileName in files) { showToast('Arquivo ja existe'); return; }
+            try {
+                await persistFiles({ ...files, [fileName]: '// Seu codigo aqui\nconsole.log("Hello, CookieScript!");' });
+                loadRepoFiles();
+                $('newFileName').value = '';
+                showToast(`Arquivo "${fileName}" criado!`);
+            } catch (e) { showToast(friendlyError(e)); }
         });
 
-        document.getElementById('saveFileBtn').addEventListener('click', () => {
-            const fileName = document.getElementById('fileName').value.trim();
-            const finalName = fileName || currentFile;
+        $('saveFileBtn').addEventListener('click', async () => {
+            if (!currentRepo || currentRepo.readOnly) return;
+            const finalName = $('fileName').value.trim() || currentFile;
             if (!finalName) { showToast('Nenhum arquivo selecionado para salvar'); return; }
-            const content = editor.getValue();
-            const owner = currentRepo.ownerEmail;
-            const files = JSON.parse(localStorage.getItem(`files_${owner}_${currentRepo.name}`) || '[]');
-            const index = files.findIndex(f => f.name === finalName);
-            if (index !== -1) files[index].content = content;
-            else files.push({ name: finalName, content });
-            localStorage.setItem(`files_${owner}_${currentRepo.name}`, JSON.stringify(files));
-            loadRepoFiles();
-            showToast(`"${finalName}" salvo com sucesso!`);
+            if (!validFileName(finalName)) { showToast('Nome de arquivo inválido (sem "/", máx. 100)'); return; }
+            try {
+                await persistFiles({ ...(currentRepo.files || {}), [finalName]: editor.getValue() });
+                loadRepoFiles();
+                showToast(`"${finalName}" salvo com sucesso!`);
+            } catch (e) { showToast(friendlyError(e)); }
         });
 
+        // ---------- navegação / UI ----------
         document.querySelectorAll('[data-page]').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const page = link.dataset.page;
                 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                document.getElementById(`${page}Page`).classList.add('active');
+                $(`${page}Page`).classList.add('active');
                 document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
                 link.classList.add('active');
                 if (page === 'explore') renderExploreRepos();
@@ -630,57 +740,54 @@ onerror="this.src='https://via.placeholder.com/80x80?text=CS'">
             });
         });
 
-        document.getElementById('avatarBtn').addEventListener('click', () => {
-            document.getElementById('dropdownMenu').classList.toggle('active');
-        });
+        $('avatarBtn').addEventListener('click', () => $('dropdownMenu').classList.toggle('active'));
         document.addEventListener('click', (e) => {
-            if (!document.getElementById('userMenu').contains(e.target)) {
-                document.getElementById('dropdownMenu').classList.remove('active');
-            }
+            if (!$('userMenu').contains(e.target)) $('dropdownMenu').classList.remove('active');
         });
 
         document.querySelectorAll('.close-modal, #cancelRepoBtn, .close-editor, #cancelEditorBtn, .close-profile, #cancelProfileBtn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.getElementById('repoModal').classList.remove('active');
-                document.getElementById('editorModal').classList.remove('active');
-                document.getElementById('profileModal').classList.remove('active');
+                $('repoModal').classList.remove('active');
+                $('editorModal').classList.remove('active');
+                $('profileModal').classList.remove('active');
                 if (editor) editor.updateOptions({ readOnly: false });
             });
         });
 
-        document.getElementById('editProfileBtn').addEventListener('click', () => {
-            document.getElementById('editName').value = currentUser.name;
-            document.getElementById('editBio').value = currentUser.bio || '';
-            document.getElementById('profileModal').classList.add('active');
+        $('editProfileBtn').addEventListener('click', () => {
+            $('editName').value = currentUser.name;
+            $('editBio').value = currentUser.bio || '';
+            $('profileModal').classList.add('active');
         });
-        document.getElementById('saveProfileBtn').addEventListener('click', () => {
-            currentUser.name = document.getElementById('editName').value;
-            currentUser.bio = document.getElementById('editBio').value;
-            const idx = users.findIndex(u => u.email === currentUser.email);
-            if (idx !== -1) users[idx] = currentUser;
-            localStorage.setItem('users', JSON.stringify(users));
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            updateUI();
-            document.getElementById('profileModal').classList.remove('active');
-            showToast('Perfil atualizado');
+        $('saveProfileBtn').addEventListener('click', async () => {
+            const name = $('editName').value.trim().slice(0, 60);
+            const bio = $('editBio').value.trim().slice(0, 300);
+            if (!name) { showToast('Informe seu nome'); return; }
+            try {
+                await setDoc(doc(db, 'users', currentUser.uid), { name, bio });
+                await updateProfile(auth.currentUser, { displayName: name });
+                currentUser.name = name;
+                currentUser.bio = bio;
+                updateUI();
+                $('profileModal').classList.remove('active');
+                showToast('Perfil atualizado');
+            } catch (e) { showToast(friendlyError(e)); }
         });
 
-        document.getElementById('refreshReposBtn').addEventListener('click', () => {
-            loadUserData();
+        $('refreshReposBtn').addEventListener('click', async () => {
+            await loadUserData();
             showToast('Atualizado');
         });
 
-        document.getElementById('searchInput').addEventListener('input', (e) => {
+        $('searchInput').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
-            const filtered = repos.filter(r => r.name.toLowerCase().includes(term));
-            const container = document.getElementById('userRepos');
-            if (!filtered.length) { container.innerHTML = '<div class="loading">Nenhum repositorio encontrado</div>'; return; }
-            container.innerHTML = filtered.map(repo => `<div class="repo-card" onclick="openRepoEditor('${repo.name}')"><h3>${repo.name}</h3><p>${repo.description || ''}</p><div class="repo-meta"><span>${repo.visibility}</span></div></div>`).join('');
+            renderUserRepos(repos.filter(r => r.name.toLowerCase().includes(term)));
         });
 
+        // ---------- Monaco ----------
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
-        require(['vs/editor/editor.main'], function() {
-            editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create($('monacoEditor'), {
                 value: '// Seu codigo comeca aqui\nconsole.log("Hello, CookieScript!");',
                 language: 'javascript',
                 theme: 'vs-light',
@@ -691,10 +798,6 @@ onerror="this.src='https://via.placeholder.com/80x80?text=CS'">
                 wordWrap: 'on'
             });
         });
-
-        const saved = localStorage.getItem('currentUser');
-        if (saved) { currentUser = JSON.parse(saved); showApp(); }
-        else { showLoginPopup(); }
     </script>
 </body>
 </html>

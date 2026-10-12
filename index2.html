@@ -157,6 +157,14 @@
             }
             .container { padding: 1.5rem; }
         }
+    
+        /* ===== Responsivo: navbar global (todas as páginas) ===== */
+        @media (max-width: 640px) {
+            .global-nav { position: static; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
+            .global-nav a { white-space: nowrap; flex: 0 0 auto; padding: 8px 14px; }
+        }
+        img, video, canvas, svg { max-width: 100%; }
+        pre, table { max-width: 100%; overflow-x: auto; }
     </style>
 </head>
 <body>

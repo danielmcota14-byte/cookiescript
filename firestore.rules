@@ -1,0 +1,91 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return signedIn() && data.ownerUid == request.auth.uid;
+    }
+
+    function projectData(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data;
+    }
+
+    function validProject(d) {
+      return d.keys().hasAll(['name', 'ownerUid', 'visibility', 'language', 'createdAt', 'updatedAt', 'files'])
+        && d.keys().hasOnly(['id', 'name', 'description', 'owner', 'ownerUid',
+                             'visibility', 'language', 'createdAt', 'updatedAt', 'files'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && (!('description' in d) || (d.description is string && d.description.size() <= 500))
+        && (!('owner' in d) || (d.owner is string && d.owner.size() <= 60))
+        && d.visibility in ['private', 'public']
+        && d.language is string && d.language.size() <= 30
+        && d.createdAt is number
+        && d.updatedAt is number
+        && d.files is map;
+    }
+
+    function validVersion(d) {
+      return d.keys().hasAll(['message', 'code', 'language', 'authorUid', 'timestamp'])
+        && d.keys().hasOnly(['message', 'code', 'language', 'author', 'authorUid', 'timestamp'])
+        && d.message is string && d.message.size() <= 200
+        && d.code is string && d.code.size() <= 500000
+        && d.language is string && d.language.size() <= 30
+        && d.authorUid == request.auth.uid
+        && d.timestamp is number;
+    }
+
+    // ---------- projetos ----------
+    match /projects/{projectId} {
+
+      // Qualquer pessoa lê projetos públicos; o dono lê os próprios.
+      // Para listar, a query precisa filtrar por visibility == 'public' OU ownerUid == uid.
+      allow get, list: if resource.data.visibility == 'public' || isOwner(resource.data);
+
+      allow create: if signedIn()
+        && validProject(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid;
+
+      // Só o dono edita; não pode trocar de dono nem alterar a data de criação.
+      allow update: if isOwner(resource.data)
+        && validProject(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isOwner(resource.data);
+
+      // Histórico de versões: imutável (só criar e ler).
+      match /versions/{versionId} {
+        allow read: if projectData(projectId).visibility == 'public'
+                    || isOwner(projectData(projectId));
+
+        allow create: if isOwner(projectData(projectId))
+                      && validVersion(request.resource.data);
+
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- perfis ----------
+    // Cada usuário lê e grava só o próprio perfil.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'bio'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+        && request.resource.data.bio is string && request.resource.data.bio.size() <= 300;
+      allow delete: if false;
+    }
+
+    // Tudo que não foi liberado acima fica bloqueado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
