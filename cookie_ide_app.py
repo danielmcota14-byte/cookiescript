@@ -8,6 +8,25 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
+
+def _carregar_dotenv():
+    """Carrega o arquivo .env (se existir) sem sobrescrever variáveis já definidas.
+    Roda ANTES de importar cookie_ai/claude_code_ai, que leem o ambiente ao importar."""
+    arq = Path(__file__).resolve().parent / '.env'
+    if not arq.is_file():
+        return
+    for linha in arq.read_text(encoding='utf-8').splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith('#') or '=' not in linha:
+            continue
+        k, v = linha.split('=', 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and v != '' and k not in os.environ:
+            os.environ[k] = v
+
+
+_carregar_dotenv()
+
 try:
     from cookiescript_vm import CookieScriptVM
 except ImportError:
@@ -232,7 +251,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             if m.startswith('openai/gpt-oss'):
                 corpo['reasoning_effort'] = 'low'   # evita gastar tokens só "pensando"
             req = urllib.request.Request(url, data=json.dumps(corpo).encode(), method='POST',
-                                         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'})
+                                         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
+                                                  'User-Agent': 'CookieScriptIDE/1.0 (+python)',
+                                                  'Authorization': f'Bearer {key.strip()}'})
             try:
                 with urllib.request.urlopen(req, timeout=60) as resp:
                     texto = json.loads(resp.read())['choices'][0]['message'].get('content') or ''
@@ -240,10 +261,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                         raise RuntimeError(f'O modelo {m} devolveu resposta vazia.')
                     return texto, m
             except urllib.error.HTTPError as e:
+                corpo_erro = ''
                 try:
-                    msg = json.loads(e.read().decode()).get('error', {}).get('message') or f'HTTP {e.code}'
+                    corpo_erro = e.read().decode('utf-8', 'replace')
+                    msg = json.loads(corpo_erro).get('error', {}).get('message') or f'HTTP {e.code}'
                 except Exception:
-                    msg = f'HTTP {e.code}'
+                    msg = f'HTTP {e.code}' + (f' — {corpo_erro[:200]}' if corpo_erro else '')
                 ultimo = msg
                 baixo = msg.lower()
                 if e.code in (400, 404) and any(t in baixo for t in ('decommission', 'does not exist', 'not found', 'no longer supported', 'access to it')):
