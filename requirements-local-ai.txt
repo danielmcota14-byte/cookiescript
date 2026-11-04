@@ -1,0 +1,4 @@
+# Opcional: só para rodar o modelo local na sua máquina (ENABLE_LOCAL_AI=1)
+torch
+transformers
+accelerate

@@ -1,5 +1,13 @@
 import os
 import re
+
+
+def _local_ai_enabled() -> bool:
+    """Modelo local (torch/transformers) só carrega se ENABLE_LOCAL_AI=1 e DISABLE_LOCAL_AI não estiver ativo.
+    Em cloud (Render etc.) fica desligado por padrão para não estourar a memória."""
+    if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+        return False
+    return os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes')
 from typing import Optional
 
 TRANSFORMERS_AVAILABLE = False
@@ -88,14 +96,14 @@ class CookieAIGenerator:
     # ── modelo ────────────────────────────────────────────────────────────────
 
     def _is_model_available(self) -> bool:
-        if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+        if not _local_ai_enabled():
             return False
         return TRANSFORMERS_AVAILABLE and self._model_loaded and self._deepseek_model is not None
 
     def _load_deepseek_model(self):
         if self._model_loaded:
             return
-        if os.getenv('DISABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+        if not _local_ai_enabled():
             return
         if not _try_import_transformers():
             print('[AI] torch/transformers não instalados.')

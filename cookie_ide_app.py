@@ -93,7 +93,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if handler:
             try:
                 handler(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
             except Exception as e:
+                import traceback; traceback.print_exc()
                 self.send_json({'success': False, 'error': str(e)})
         else:
             self.send_json({'error': 'Rota não encontrada'}, 404)
@@ -126,12 +129,16 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 e = e.get('message') or e.get('error') or json.dumps(e, ensure_ascii=False)
             data = dict(data, error=str(e))
         response = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Content-Length', str(len(response)))
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(response)
+        try:
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(response)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(response)
+        except (BrokenPipeError, ConnectionResetError):
+            # O cliente/proxy fechou a conexão antes da resposta — nada a fazer.
+            print('[HTTP] cliente desconectou antes da resposta')
 
     # ── endpoints ─────────────────────────────────────────────────────────────
 
@@ -499,8 +506,22 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[ClaudeCode] {e}')
 
-        # 2. DeepSeek local (se disponível e não em cloud)
-        if CookieAIGenerator:
+        # 2. Groq (nuvem) — chave enviada pela página ou GROQ_API_KEY do servidor
+        groq_key = data.get('groq_api_key') or os.environ.get('GROQ_API_KEY', '')
+        erro_groq = None
+        if groq_key:
+            try:
+                texto, usado = self._groq_chat(
+                    'Você é a Cookie AI integrada ao CookieScript IDE. Responda em português de forma clara.',
+                    pergunta, groq_key, data.get('groq_model'), temperature=0.7)
+                self.send_json({'success': True, 'resposta': texto, 'model': f'Groq/{usado}'})
+                return
+            except Exception as e:
+                erro_groq = str(e)
+                print(f'[Groq] {e}')
+
+        # 3. DeepSeek local (só se ENABLE_LOCAL_AI=1 — desligado por padrão em cloud)
+        if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
             try:
                 gen = CookieAIGenerator()
                 gen._load_deepseek_model()
@@ -511,7 +532,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[DeepSeek] {e}')
 
-        # 3. Ollama local
+        # 4. Ollama local
         if self._ollama_running():
             try:
                 resposta = self._ollama_request(pergunta)
@@ -520,7 +541,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Ollama] {e}')
 
-        # 4. Fallback de templates
+        # 5. Fallback de templates
         if CookieAIGenerator:
             try:
                 resposta = CookieAIGenerator()._fallback_resposta(pergunta)
@@ -529,7 +550,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Fallback] {e}')
 
-        self.send_json({'success': False, 'error': 'Nenhum backend de IA disponível. Configure o Claude Code, Ollama ou uma API Key de Groq/Gemini.'})
+        msg = 'Nenhum backend de IA disponível. Configure GROQ_API_KEY no servidor, ou use Claude Code/Ollama localmente.'
+        if erro_groq:
+            msg = f'Groq falhou: {erro_groq}'
+        self.send_json({'success': False, 'error': msg})
 
     def api_ask_enhanced(self, data):
         import urllib.request, urllib.error
@@ -543,7 +567,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
         # Resposta base local
         resposta_local = None
-        if CookieAIGenerator:
+        if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
             try:
                 gen = CookieAIGenerator()
                 gen._load_deepseek_model()
