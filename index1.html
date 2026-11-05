@@ -719,14 +719,14 @@
       });
       extra += '\n\n🤝 Pipeline: ' + parts.join(' · ') + ' → final: ' + (data.model || '');
     }
-    const files = Array.isArray(data.files) ? data.files : [];
+    const outFiles = Array.isArray(data.files) ? data.files : [];
     let main = data.resposta || data.raw || data.text || '';
     if (!main) {
       main = '(Resposta vazia do servidor. Modelo: ' + (data.model || '?') + '. Verifique GROQ_API_KEY e OMNIROUTE no Render.)';
     }
     return {
       text: main + extra,
-      files: files,
+      files: outFiles,
       saved: data.saved_files || [],
       model: data.model || ''
     };
