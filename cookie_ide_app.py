@@ -285,7 +285,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         """Chama a Groq. Se o modelo pedido foi aposentado/não existe, tenta os modelos atuais.
         Retorna (texto, modelo_usado). Levanta RuntimeError com a mensagem real da Groq."""
         import urllib.request, urllib.error
-        url = os.environ.get('GROQ_URL', 'https://api.groq.com/openai/v1/chat/completions')
+        _gu = (os.environ.get('GROQ_URL') or 'https://api.groq.com/openai/v1').strip().rstrip('/')
+        if _gu.lower().endswith('/chat/completions'):
+            _gu = _gu[: -len('/chat/completions')].rstrip('/')
+        url = _gu + '/chat/completions'
         candidatos = []
         for m in [model] + self.GROQ_MODELOS:
             if m and m not in candidatos:

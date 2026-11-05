@@ -24,11 +24,24 @@ def _env(name: str, default: str = "") -> str:
     return (os.environ.get(name) or default).strip()
 
 
-OMNIROUTE_URL = _env("OMNIROUTE_URL", "http://54.227.158.25:20128/v1").rstrip("/")
+def _base_url(url: str) -> str:
+    """Normaliza base OpenAI-compatible: remove barra final e sufixo /chat/completions se vier no env."""
+    u = (url or "").strip().rstrip("/")
+    # Evita .../chat/completions/chat/completions quando GROQ_URL já veio com o path completo
+    for suffix in ("/chat/completions", "/v1/chat/completions"):
+        if u.lower().endswith(suffix):
+            u = u[: -len(suffix)].rstrip("/")
+            break
+    # se removeu /v1/chat/completions e ficou sem /v1, não — o endswith /v1/chat/completions
+    # já deixa a base correta (ex: https://api.groq.com/openai)
+    return u
+
+
+OMNIROUTE_URL = _base_url(_env("OMNIROUTE_URL", "http://54.227.158.25:20128/v1"))
 OMNIROUTE_KEY = _env("OMNIROUTE_API_KEY") or _env("OMNIROUTE_KEY")
-GROK_URL = _env("GROK_URL", "https://api.x.ai/v1").rstrip("/")
+GROK_URL = _base_url(_env("GROK_URL", "https://api.x.ai/v1"))
 GROK_KEY = _env("GROK_API_KEY") or _env("XAI_API_KEY")
-GROQ_URL = _env("GROQ_URL", "https://api.groq.com/openai/v1").rstrip("/")
+GROQ_URL = _base_url(_env("GROQ_URL", "https://api.groq.com/openai/v1"))
 GROQ_KEY = _env("GROQ_API_KEY")
 
 # Modelos padrão (podem ser sobrescritos por env ou pelo request)
