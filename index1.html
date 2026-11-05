@@ -243,7 +243,8 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
-          <option value="auto" selected>⚡ Auto (OmniRoute → Grok → Groq)</option>
+          <option value="auto" selected>⚡ Conselho de IAs (OmniRoute + Groq → Grok organiza)</option>
+          <option value="council">🧠 Conselho forçado (várias IAs + Grok central)</option>
           <option value="omniroute">OmniRoute (env no Render)</option>
           <option value="grok">Grok / xAI</option>
           <option value="groq">Groq Cloud</option>
@@ -669,6 +670,13 @@
     }
     if (data.analyzed && data.analyzed.length) {
       extra += '\n\n🔎 Analisados: ' + data.analyzed.map(a => a.name + ' (' + a.kind + ')').join(', ');
+    }
+    if (data.council && data.council.length) {
+      const parts = data.council.map(c => {
+        if (c.ok) return c.label + ' ✓ (' + c.chars + ' chars)';
+        return (c.provider || '?') + ' ✗ ' + (c.error || '');
+      });
+      extra += '\n\n🤝 Conselho: ' + parts.join(' · ') + ' → síntese: ' + (data.model || 'Grok');
     }
     return (data.resposta || '') + extra;
   }

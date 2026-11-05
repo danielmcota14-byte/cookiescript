@@ -278,3 +278,179 @@ def extract_file_blocks(text: str) -> List[Dict[str, str]]:
 def strip_file_blocks(text: str) -> str:
     """Remove os blocos de arquivo do texto visível (opcional)."""
     return FILE_BLOCK_RE.sub("", text or "").strip()
+
+
+# ── Conselho de IAs: várias respondem, Grok organiza e potencializa ───────────
+
+GROK_SYNTH_SYSTEM = """Você é o Grok, coordenador central do Conselho Cookie AI.
+Várias IAs especializadas já responderam à mesma pergunta do usuário.
+Sua missão é:
+
+1. Ler TODAS as respostas das outras IAs.
+2. Identificar o que cada uma acertou, errou ou omitiu.
+3. Combinar os melhores trechos, corrigir erros e preencher lacunas.
+4. Produzir UMA resposta final, clara, completa e em português brasileiro.
+5. Se houver código ou arquivos, unifique no melhor formato possível e use:
+   <<<FILE path="caminho/arquivo.ext">>>
+   conteúdo
+   <<<END_FILE>>>
+6. NUNCA gere imagens. NUNCA diga que é um "resumo de várias IAs" de forma meta demais —
+   entregue a resposta final como se fosse a resposta definitiva da Cookie AI.
+7. Se as outras IAs divergirem, escolha a solução mais correta e explique brevemente o motivo só se for importante.
+8. Use a memória de longo prazo quando estiver no contexto.
+
+Resposta final: só o conteúdo útil para o usuário (sem prefácio do tipo "Como coordenador...").
+"""
+
+
+def _single_provider(
+    provider: str,
+    messages: List[Dict[str, Any]],
+    *,
+    temperature: float = 0.6,
+    max_tokens: int = 4096,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Tuple[Optional[str], str, Optional[str]]:
+    """
+    Chama um provedor isolado.
+    Retorna (texto|None, label, erro|None).
+    """
+    try:
+        text, label = chat_completion(
+            messages,
+            provider=provider,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+        )
+        return text, label, None
+    except Exception as e:
+        return None, provider, str(e)
+
+
+def council_chat(
+    messages: List[Dict[str, Any]],
+    *,
+    temperature: float = 0.6,
+    max_tokens: int = 8192,
+    api_key: Optional[str] = None,
+    include_providers: Optional[List[str]] = None,
+    skip_grok_as_member: bool = True,
+) -> Tuple[str, str, List[Dict[str, Any]]]:
+    """
+    Conselho de IAs:
+      1) OmniRoute, Groq (e opcionalmente Grok) geram respostas em paralelo lógico
+      2) Grok (central) recebe todas e produz a resposta potencializada
+
+    Retorna (texto_final, label, membros: [{provider, model/label, text, error}]).
+    """
+    members_cfg = include_providers or ["omniroute", "groq"]
+    # Grok como membro só se pedido; por padrão ele só sintetiza
+    if not skip_grok_as_member and "grok" not in members_cfg:
+        members_cfg = list(members_cfg) + ["grok"]
+
+    # Mensagens para os membros: mesma pergunta, sem o system de síntese
+    member_messages = list(messages)
+
+    results: List[Dict[str, Any]] = []
+    for p in members_cfg:
+        text, label, err = _single_provider(
+            p,
+            member_messages,
+            temperature=temperature,
+            max_tokens=min(max_tokens, 4096),
+            api_key=api_key,
+        )
+        results.append({
+            "provider": p,
+            "label": label,
+            "text": text,
+            "error": err,
+        })
+
+    # Monta bloco com as respostas das outras IAs
+    blocks = []
+    for i, r in enumerate(results, 1):
+        if r["text"]:
+            blocks.append(f"--- Resposta da IA #{i} ({r['label']}) ---\n{r['text'].strip()}\n")
+        else:
+            blocks.append(f"--- IA #{i} ({r['provider']}) indisponível: {r['error'] or 'sem resposta'} ---\n")
+
+    if not any(r["text"] for r in results):
+        # Ninguém respondeu — tenta Grok sozinho como fallback total
+        try:
+            text, label = chat_completion(
+                messages,
+                provider="grok",
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=api_key,
+            )
+            return text, f"Grok-solo/{label}", results
+        except Exception as e:
+            raise AIClientError(
+                "Nenhuma IA do conselho respondeu e Grok também falhou: " + str(e)
+            )
+
+    # Extrai a pergunta original do usuário (última message user)
+    user_q = ""
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            c = m.get("content")
+            if isinstance(c, str):
+                user_q = c
+            elif isinstance(c, list):
+                user_q = " ".join(
+                    (p.get("text") or "") for p in c if isinstance(p, dict) and p.get("type") == "text"
+                )
+            break
+
+    synth_user = (
+        f"Pergunta original do usuário:\n{user_q}\n\n"
+        f"Respostas das outras IAs do conselho (use o melhor de cada uma):\n\n"
+        + "\n".join(blocks)
+        + "\n\nProduza a resposta final potencializada."
+    )
+
+    # System do sintetizador = Grok coordenador (+ memória já estava no system original se houver)
+    # Mantém SYSTEM_BASE regras (arquivos, sem imagem) + papel de coordenador
+    synth_system = SYSTEM_BASE + "\n\n" + GROK_SYNTH_SYSTEM
+
+    # Preserva memória se estava no system original
+    orig_system = ""
+    if messages and messages[0].get("role") == "system":
+        orig_system = messages[0].get("content") or ""
+        if "MEMÓRIA DE LONGO PRAZO" in orig_system:
+            # reaproveita o bloco de memória
+            idx = orig_system.find("=== MEMÓRIA")
+            if idx >= 0:
+                synth_system += "\n\n" + orig_system[idx:]
+
+    synth_messages: List[Dict[str, Any]] = [
+        {"role": "system", "content": synth_system},
+        {"role": "user", "content": synth_user},
+    ]
+
+    try:
+        final_text, grok_label = chat_completion(
+            synth_messages,
+            provider="grok",
+            temperature=min(temperature, 0.5),
+            max_tokens=max_tokens,
+            api_key=api_key,
+        )
+        return final_text, f"Conselho→{grok_label}", results
+    except Exception as e:
+        # Se Grok falhar na síntese, escolhe a melhor resposta disponível
+        candidates = [r for r in results if r["text"]]
+        if not candidates:
+            raise AIClientError(f"Síntese Grok falhou e não há fallback: {e}") from e
+        # Prefere a mais longa (heurística simples de completude)
+        best = max(candidates, key=lambda r: len(r["text"] or ""))
+        note = (
+            f"\n\n_[Nota: síntese Grok indisponível ({e}); "
+            f"exibindo resposta de {best['label']}.]_"
+        )
+        return (best["text"] or "") + note, f"Fallback/{best['label']}", results

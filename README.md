@@ -164,3 +164,15 @@ Ordem no modo **Auto**: OmniRoute → Grok → Groq.
    - `GROQ_API_KEY=sua_chave` (opcional)
 2. Build: Dockerfile (já inclui `requests` e pastas `data/` / `uploads/`).
 3. Disco persistente (recomendado): monte um volume em `/app/data` para a memória sobreviver a deploys.
+
+
+## Conselho de IAs (modo padrão Auto)
+
+No modo **Auto / Conselho**, várias IAs respondem à mesma pergunta e o **Grok** atua como coordenador central:
+
+1. **OmniRoute** e **Groq** geram respostas independentes (membros do conselho).
+2. **Grok** recebe todas as respostas, compara, corrige e funde numa resposta final potencializada.
+3. A resposta final mantém as regras: sem imagens, com blocos `<<<FILE>>>` quando criar arquivos, e memória de longo prazo.
+
+Providers isolados (`omniroute`, `grok`, `groq`) continuam disponíveis se quiser uma IA só.
+Envie `"council": true` no body de `/api/chat` para forçar o conselho mesmo com provider isolado.

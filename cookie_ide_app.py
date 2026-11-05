@@ -45,6 +45,7 @@ except ImportError:
 try:
     from ai_client import (
         chat_completion,
+        council_chat,
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
@@ -53,6 +54,7 @@ try:
     )
 except ImportError:
     chat_completion = None
+    council_chat = None
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
@@ -672,15 +674,30 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             ),
         )
 
+        council_members = []
+        use_council = provider in ('auto', 'council', 'ensemble', 'conselho', '') or data.get('council')
+        # provider isolado (omniroute/grok/groq) NÃO usa conselho, a menos que council=true
+        if provider in ('omniroute', 'grok', 'groq') and not data.get('council'):
+            use_council = False
+
         try:
-            texto, usado = chat_completion(
-                messages,
-                provider=provider if provider in ('omniroute', 'grok', 'groq', 'auto') else 'auto',
-                model=model,
-                temperature=float(data.get('temperature', 0.7)),
-                max_tokens=int(data.get('max_tokens', 8192)),
-                api_key=api_key,
-            )
+            if use_council and council_chat is not None:
+                texto, usado, council_members = council_chat(
+                    messages,
+                    temperature=float(data.get('temperature', 0.6)),
+                    max_tokens=int(data.get('max_tokens', 8192)),
+                    api_key=api_key,
+                    include_providers=data.get('council_members') or ['omniroute', 'groq'],
+                )
+            else:
+                texto, usado = chat_completion(
+                    messages,
+                    provider=provider if provider in ('omniroute', 'grok', 'groq', 'auto') else 'auto',
+                    model=model,
+                    temperature=float(data.get('temperature', 0.7)),
+                    max_tokens=int(data.get('max_tokens', 8192)),
+                    api_key=api_key,
+                )
         except AIClientError as e:
             # fallbacks legados
             if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
@@ -724,6 +741,17 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             memory_store.append_message(session_id, 'user', message or '[arquivos]')
             memory_store.append_message(session_id, 'assistant', visible[:20000])
 
+        # Resumo do conselho (sem textos enormes no JSON — só labels + erros)
+        council_summary = []
+        for m in (council_members or []):
+            council_summary.append({
+                'provider': m.get('provider'),
+                'label': m.get('label'),
+                'ok': bool(m.get('text')),
+                'error': m.get('error'),
+                'chars': len(m.get('text') or ''),
+            })
+
         self.send_json({
             'success': True,
             'resposta': visible or texto,
@@ -733,6 +761,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'files': files_out,
             'saved_files': saved,
             'analyzed': [{'name': p.get('name'), 'kind': p.get('kind'), 'size': p.get('size')} for p in prepared],
+            'council': council_summary,
+            'mode': 'council' if council_summary else 'single',
         })
 
     def api_upload_analyze(self, data):
