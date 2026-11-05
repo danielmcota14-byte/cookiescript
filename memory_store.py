@@ -392,20 +392,27 @@ EXPLICIT_HINTS = (
     "lembre que", "lembre-se", "lembra que", "guarde isso", "guarde que",
     "memorize", "memoriza", "aprenda que", "não esqueça", "nao esqueca",
     "anote que", "salva na memória", "salva na memoria", "grave isso", "grave que",
+    "anota que", "fica sabendo", "importante:", "para futuro",
 )
 
 FACT_PATTERNS = [
-    (re.compile(r"(?:meu nome (?:é|e)|me chamo|eu sou o|eu sou a)\s+([A-Za-zÀ-ÿ]{2,40})", re.I), "name", 0.95),
-    (re.compile(r"(?:eu (?:prefiro|gosto de|uso)|prefiro|gosto de)\s+(.{4,80})", re.I), "preference", 0.85),
-    (re.compile(r"(?:não gosto|nao gosto|odeio)\s+(?:de\s+)?(.{4,60})", re.I), "preference", 0.8),
-    (re.compile(r"(?:eu trabalho(?:o)? (?:com|em)|minha (?:empresa|área|area) (?:é|e))\s+(.{4,80})", re.I), "work", 0.85),
-    (re.compile(r"(?:minha linguagem|linguagem (?:favorita|preferida)|sempre (?:uso|escrevo) em)\s+(.{2,40})", re.I), "preference", 0.9),
-    (re.compile(r"(?:meu (?:email|e-mail|github|usuário|usuario) (?:é|e))\s+(\S+)", re.I), "identity", 0.9),
-    (re.compile(r"(?:eu moro (?:em|no|na)|sou de)\s+(.{3,60})", re.I), "location", 0.75),
+    (re.compile(r"(?:meu nome (?:é|e)|me chamo|eu sou o|eu sou a)\s+([A-Za-zÀ-ÿ0-9 ._-]{2,40})", re.I), "name", 0.95),
+    (re.compile(r"(?:pode me chamar de|me chama de)\s+([A-Za-zÀ-ÿ0-9 ._-]{2,40})", re.I), "name", 0.9),
+    (re.compile(r"(?:eu (?:prefiro|gosto de|uso|adoro)|prefiro|gosto de|adoro)\s+(.{4,100})", re.I), "preference", 0.85),
+    (re.compile(r"(?:não gosto|nao gosto|odeio|detesto)\s+(?:de\s+)?(.{4,80})", re.I), "preference", 0.8),
+    (re.compile(r"(?:eu trabalho(?:o)? (?:com|em|como)|minha (?:empresa|área|area|profissão|profissao) (?:é|e))\s+(.{4,100})", re.I), "work", 0.85),
+    (re.compile(r"(?:minha linguagem|linguagem (?:favorita|preferida)|sempre (?:uso|escrevo) em|stack(?: é| e)?)\s+(.{2,60})", re.I), "preference", 0.9),
+    (re.compile(r"(?:meu (?:email|e-mail|github|usuário|usuario|user) (?:é|e))\s+(\S+)", re.I), "identity", 0.9),
+    (re.compile(r"(?:eu moro (?:em|no|na)|sou de|vivo em)\s+(.{3,60})", re.I), "location", 0.75),
+    (re.compile(r"(?:meu projeto|estou (?:fazendo|criando|desenvolvendo)|trabalhando (?:em|no|na))\s+(.{4,100})", re.I), "project", 0.8),
+    (re.compile(r"(?:eu tenho|tenho)\s+(\d{1,3})\s+anos", re.I), "identity", 0.7),
+    (re.compile(r"(?:responde em|fale em|use o idioma)\s+(.{3,40})", re.I), "preference", 0.85),
+    (re.compile(r"(?:sempre|nunca)\s+(.{6,80})", re.I), "rule", 0.7),
 ]
 
 
 def maybe_learn_from_user(text: str, scope: str = "global") -> Optional[str]:
+    """Aprende com pedidos explícitos, padrões e frases relevantes sobre o usuário."""
     raw = (text or "").strip()
     if not raw or len(raw) < 4:
         return None
@@ -417,7 +424,7 @@ def maybe_learn_from_user(text: str, scope: str = "global") -> Optional[str]:
             idx = low.find(h)
             rest = raw[idx + len(h) :].strip(" :,-")
             content = rest if len(rest) >= 4 else raw
-            mid = add_memory(content[:500], scope=scope, kind="preference", importance=0.9)
+            mid = add_memory(content[:600], scope=scope, kind="preference", importance=0.9)
             if mid:
                 learned_ids.append(mid)
             break
@@ -427,14 +434,25 @@ def maybe_learn_from_user(text: str, scope: str = "global") -> Optional[str]:
         if m:
             snippet = m.group(0).strip()
             if len(snippet) >= 6:
-                mid = add_memory(snippet[:400], scope=scope, kind=kind, importance=imp)
+                mid = add_memory(snippet[:500], scope=scope, kind=kind, importance=imp)
                 if mid:
                     learned_ids.append(mid)
+
+    if re.search(r"\beu sou\b", low) and len(raw) < 200:
+        mid = add_memory(raw[:400], scope=scope, kind="identity", importance=0.75)
+        if mid:
+            learned_ids.append(mid)
+
+    if any(w in low for w in ("resposta curta", "seja breve", "detalhado", "objetivo", "sem enrolação", "sem enrolacao")):
+        mid = add_memory(raw[:400], scope=scope, kind="style", importance=0.8)
+        if mid:
+            learned_ids.append(mid)
 
     return learned_ids[0] if learned_ids else None
 
 
 def learn_from_exchange(user_text: str, assistant_text: str, scope: str = "global") -> List[str]:
+
     ids = []
     mid = maybe_learn_from_user(user_text, scope=scope)
     if mid:

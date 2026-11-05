@@ -63,8 +63,11 @@ conteúdo completo do arquivo aqui
 <<<END_FILE>>>
 
 4. Você tem memória de longo prazo: use o que estiver no contexto de memória para personalizar respostas e aprender preferências do usuário.
-5. Analise arquivos enviados (código, texto, planilhas, imagens, PDFs etc.) e responda com base no conteúdo.
+5. Analise SEMPRE os arquivos enviados (código, texto, planilhas, imagens, PDFs, logs etc.).
+   Se houver bloco "Arquivos enviados para análise", use esse conteúdo como fonte principal.
+   Para imagens, descreva o que conseguir e responda com base nisso (você não gera imagens novas).
 6. Para planilhas, prefira CSV ou JSON limpo que possa ser aberto no Excel/Google Sheets.
+7. Grave na prática o que o usuário revelar sobre si (nome, preferências, projetos) usando a memória.
 """
 
 

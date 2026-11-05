@@ -285,7 +285,7 @@
 
     <div class="form-group">
       <label for="promptInput">Pergunta / Prompt</label>
-      <textarea id="promptInput" placeholder="Ex: Crie um script Python que leia CSV. || Analise este arquivo. || Lembre que eu prefiro Python e respostas curtas."></textarea>
+      <textarea id="promptInput" placeholder="Escreva e pressione Enter para enviar (Shift+Enter = nova linha). Anexe arquivos acima para analisar."></textarea>
     </div>
 
     <div class="form-group" style="margin-top:0.75rem;">
@@ -302,7 +302,7 @@
     </div>
 
     <div style="display: flex; justify-content: flex-end; gap:0.5rem; margin-top:0.75rem;">
-      <button id="sendBtn">→ Perguntar à IA</button>
+      <button id="sendBtn">→ Perguntar à IA (Enter)</button>
     </div>
     <div id="sessionInfo" style="font-size:0.75rem; color:var(--gray-500); margin-top:0.5rem;"></div>
 
@@ -435,7 +435,7 @@
     if (sendBtn) {
       sendBtn.disabled = isLoading;
       sendBtn.style.opacity = isLoading ? '0.6' : '1';
-      sendBtn.innerText = isLoading ? 'Enviando...' : '→ Perguntar à IA';
+      sendBtn.innerText = isLoading ? 'Enviando...' : '→ Perguntar à IA (Enter)';
     }
     if (on && responseContainer) {
       responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Pipeline em andamento (30–90s)…</span></div>';
@@ -669,7 +669,8 @@
   if (copyBtn) copyBtn.addEventListener('click', copyResponse);
   if (promptTextarea) {
     promptTextarea.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      // Enter envia; Shift+Enter quebra linha
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }

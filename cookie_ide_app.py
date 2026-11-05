@@ -642,33 +642,47 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             if message:
                 memory_store.maybe_learn_from_user(message, scope=scope)
 
-        # Arquivos enviados
+        # Arquivos enviados — análise obrigatória de TODOS os tipos
         prepared = []
         file_parts = []
         file_text_ctx = ''
-        if files_in and prepare_for_ai:
+        if files_in:
             import base64
-            for f in files_in[:8]:  # max 8 arquivos por mensagem
-                name = f.get('name') or 'arquivo'
-                b64 = f.get('content_base64') or f.get('base64') or ''
-                if not b64:
-                    continue
-                try:
-                    raw = base64.b64decode(b64)
-                except Exception:
-                    continue
-                try:
-                    info = prepare_for_ai(name, raw)
-                    prepared.append(info)
-                except Exception as e:
-                    prepared.append({'name': name, 'kind': 'error', 'text': str(e), 'size': 0})
-            if prepared and build_file_context:
-                file_text_ctx, image_parts = build_file_context(prepared)
-                file_parts = image_parts or []
+            print(f'[chat] arquivos recebidos: {len(files_in)}')
+            if not prepare_for_ai:
+                file_text_ctx = '(file_analyzer indisponível no servidor)'
+            else:
+                for f in files_in[:8]:
+                    name = f.get('name') or 'arquivo'
+                    b64 = f.get('content_base64') or f.get('base64') or ''
+                    if not b64:
+                        prepared.append({'name': name, 'kind': 'error', 'text': 'conteúdo vazio', 'size': 0})
+                        continue
+                    try:
+                        raw = base64.b64decode(b64)
+                    except Exception as e:
+                        prepared.append({'name': name, 'kind': 'error', 'text': f'base64 inválido: {e}', 'size': 0})
+                        continue
+                    try:
+                        info = prepare_for_ai(name, raw)
+                        prepared.append(info)
+                    except Exception as e:
+                        prepared.append({'name': name, 'kind': 'error', 'text': str(e), 'size': 0, 'image_part': None})
+                if prepared and build_file_context:
+                    file_text_ctx, image_parts = build_file_context(prepared)
+                    file_parts = image_parts or []
+                elif prepared:
+                    file_text_ctx = '\n'.join(
+                        f"=== {x.get('name')} ({x.get('kind')}) ===\n{x.get('text') or ''}" for x in prepared
+                    )
 
-        user_content = message
+        user_content = message or ''
         if file_text_ctx:
-            user_content = (message + '\n\n' if message else '') + 'Arquivos enviados para análise:\n' + file_text_ctx
+            user_content = (
+                (user_content + '\n\n' if user_content else '')
+                + 'O usuário enviou arquivo(s). ANALISE o conteúdo abaixo com atenção e responda com base neles:\n'
+                + file_text_ctx
+            )
 
         # Mensagens
         messages = build_messages(
@@ -692,15 +706,15 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             if use_pipeline and pipeline_chat is not None:
                 # 1) DeepSeek Local gera a resposta primária
                 deepseek_text = None
+                deepseek_input = user_content or message
                 if CookieAIGenerator:
                     try:
                         gen = CookieAIGenerator()
                         if os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
                             gen._load_deepseek_model()
-                        # tenta mesmo sem ENABLE (fallback templates se modelo não carregar)
-                        deepseek_text = gen.responder(message) if hasattr(gen, 'responder') else None
+                        deepseek_text = gen.responder(deepseek_input) if hasattr(gen, 'responder') else None
                         if not deepseek_text and hasattr(gen, '_fallback_resposta'):
-                            deepseek_text = gen._fallback_resposta(message)
+                            deepseek_text = gen._fallback_resposta(deepseek_input)
                     except Exception as e:
                         print(f'[Pipeline/DeepSeek] {e}')
                         deepseek_text = None

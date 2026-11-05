@@ -71,9 +71,22 @@ def extract_text_from_bytes(filename: str, data: bytes) -> Tuple[str, str]:
 
     # Imagens → só metadados + base64 preparado depois
     if ext in IMAGE_EXTS or (mime and mime.startswith("image/")):
+        extra = ""
+        try:
+            # dimensões PNG
+            if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+                w = int.from_bytes(data[16:20], "big")
+                h = int.from_bytes(data[20:24], "big")
+                extra = f", {w}x{h}px"
+            # JPEG SOF
+            elif data[:2] == b"\xff\xd8":
+                extra = " (JPEG)"
+        except Exception:
+            pass
         return (
-            f"[Imagem: {filename}, {len(data)} bytes, mime={mime}. "
-            "O conteúdo visual será enviado ao modelo de visão se disponível.]",
+            f"[IMAGEM anexada: {filename}, {len(data)} bytes, mime={mime}{extra}. "
+            "Descreva e analise visualmente se o modelo de visão estiver disponível; "
+            "caso contrário explique limitações e peça detalhes do que o usuário quer saber.]",
             "image",
         )
 
