@@ -8,6 +8,25 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse
 
+
+def _carregar_dotenv():
+    """Carrega o arquivo .env (se existir) sem sobrescrever variáveis já definidas.
+    Roda ANTES de importar cookie_ai/claude_code_ai, que leem o ambiente ao importar."""
+    arq = Path(__file__).resolve().parent / '.env'
+    if not arq.is_file():
+        return
+    for linha in arq.read_text(encoding='utf-8').splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith('#') or '=' not in linha:
+            continue
+        k, v = linha.split('=', 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and v != '' and k not in os.environ:
+            os.environ[k] = v
+
+
+_carregar_dotenv()
+
 try:
     from cookiescript_vm import CookieScriptVM
 except ImportError:
@@ -22,6 +41,36 @@ try:
     from claude_code_ai import ClaudeCodeAI
 except ImportError:
     ClaudeCodeAI = None
+
+try:
+    from ai_client import (
+        chat_completion,
+        build_messages,
+        extract_file_blocks,
+        strip_file_blocks,
+        SYSTEM_BASE,
+        AIClientError,
+    )
+except ImportError:
+    chat_completion = None
+    build_messages = None
+    extract_file_blocks = None
+    strip_file_blocks = None
+    SYSTEM_BASE = ""
+    AIClientError = RuntimeError
+
+try:
+    import memory_store
+except ImportError:
+    memory_store = None
+
+try:
+    from file_analyzer import prepare_for_ai, build_file_context, save_upload, MAX_FILE_BYTES
+except ImportError:
+    prepare_for_ai = None
+    build_file_context = None
+    save_upload = None
+    MAX_FILE_BYTES = 15 * 1024 * 1024
 
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.environ.get('PORT', 8080))
@@ -87,6 +136,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/claude_code_status': self.api_claude_code_status,
             '/api/ask':            self.api_ask,
             '/api/ask_enhanced':   self.api_ask_enhanced,
+            # Novos endpoints Cookie AI 2.0
+            '/api/chat':           self.api_chat,
+            '/api/upload_analyze': self.api_upload_analyze,
+            '/api/memory/list':    self.api_memory_list,
+            '/api/memory/add':     self.api_memory_add,
+            '/api/memory/delete':  self.api_memory_delete,
+            '/api/memory/clear':   self.api_memory_clear,
+            '/api/memory/block':   self.api_memory_block,
+            '/api/sessions':       self.api_sessions,
+            '/api/session/clear':  self.api_session_clear,
+            '/api/save_ai_files':  self.api_save_ai_files,
+            '/api/providers':      self.api_providers,
         }
 
         handler = routes.get(path)
@@ -232,7 +293,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             if m.startswith('openai/gpt-oss'):
                 corpo['reasoning_effort'] = 'low'   # evita gastar tokens só "pensando"
             req = urllib.request.Request(url, data=json.dumps(corpo).encode(), method='POST',
-                                         headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'})
+                                         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
+                                                  'User-Agent': 'CookieScriptIDE/1.0 (+python)',
+                                                  'Authorization': f'Bearer {key.strip()}'})
             try:
                 with urllib.request.urlopen(req, timeout=60) as resp:
                     texto = json.loads(resp.read())['choices'][0]['message'].get('content') or ''
@@ -240,10 +303,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                         raise RuntimeError(f'O modelo {m} devolveu resposta vazia.')
                     return texto, m
             except urllib.error.HTTPError as e:
+                corpo_erro = ''
                 try:
-                    msg = json.loads(e.read().decode()).get('error', {}).get('message') or f'HTTP {e.code}'
+                    corpo_erro = e.read().decode('utf-8', 'replace')
+                    msg = json.loads(corpo_erro).get('error', {}).get('message') or f'HTTP {e.code}'
                 except Exception:
-                    msg = f'HTTP {e.code}'
+                    msg = f'HTTP {e.code}' + (f' — {corpo_erro[:200]}' if corpo_erro else '')
                 ultimo = msg
                 baixo = msg.lower()
                 if e.code in (400, 404) and any(t in baixo for t in ('decommission', 'does not exist', 'not found', 'no longer supported', 'access to it')):
@@ -466,137 +531,322 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             return json.loads(resp.read()).get('response', '').strip()
 
     def api_ask(self, data):
-        pergunta = data.get('pergunta', '').strip()
-        provider = (data.get('provider') or '').strip().lower()
-        if not pergunta:
-            self.send_json({'error': 'Pergunta vazia'}); return
+        """Compatibilidade: redireciona para o chat unificado."""
+        data = dict(data or {})
+        if 'message' not in data and 'pergunta' in data:
+            data['message'] = data.get('pergunta')
+        return self.api_chat(data)
 
-        # Provider explícito: o front-end pediu Claude Code Local especificamente.
+    def api_ask_enhanced(self, data):
+        data = dict(data or {})
+        data['provider'] = data.get('provider') or 'auto'
+        if 'message' not in data and 'pergunta' in data:
+            data['message'] = data.get('pergunta')
+        return self.api_chat(data)
+
+    # ── Cookie AI 2.0: chat unificado + memória + arquivos ────────────────────
+
+    def api_providers(self, data):
+        """Status dos provedores configurados no servidor (env)."""
+        import ai_client as ac
+        self.send_json({
+            'success': True,
+            'providers': {
+                'omniroute': {
+                    'url': ac.OMNIROUTE_URL,
+                    'configured': bool(ac.OMNIROUTE_KEY) or True,
+                    'model': ac.DEFAULT_OMNIROUTE_MODEL,
+                },
+                'grok': {
+                    'url': ac.GROK_URL,
+                    'configured': bool(ac.GROK_KEY),
+                    'model': ac.DEFAULT_GROK_MODEL,
+                },
+                'groq': {
+                    'url': ac.GROQ_URL,
+                    'configured': bool(ac.GROQ_KEY),
+                    'model': ac.DEFAULT_GROQ_MODEL,
+                },
+            },
+            'memory': memory_store is not None,
+            'max_upload_mb': MAX_FILE_BYTES // (1024 * 1024),
+            'no_image_generation': True,
+        })
+
+    def api_chat(self, data):
+        """
+        Endpoint principal de chat.
+        Body JSON:
+          message / pergunta: texto
+          provider: auto | omniroute | grok | groq | claude_code | ollama
+          model: opcional
+          session_id: opcional (memória de conversa)
+          api_key: opcional (sobrescreve env para o provider)
+          files: lista de {name, content_base64}  (análise de qualquer tipo)
+          save_files: bool — se true, grava automaticamente blocos <<<FILE>>> no disco
+        """
+        if chat_completion is None:
+            self.send_json({'success': False, 'error': 'Módulo ai_client.py não encontrado.'})
+            return
+
+        message = (data.get('message') or data.get('pergunta') or '').strip()
+        provider = (data.get('provider') or 'auto').strip().lower()
+        model = data.get('model') or data.get('groq_model')
+        session_id = data.get('session_id') or data.get('session') or None
+        api_key = data.get('api_key') or data.get('groq_api_key') or data.get('omniroute_api_key') or data.get('grok_api_key')
+        files_in = data.get('files') or []
+        save_files = bool(data.get('save_files', True))
+        scope = data.get('memory_scope') or 'global'
+
+        if not message and not files_in:
+            self.send_json({'success': False, 'error': 'Mensagem vazia.'})
+            return
+
+        # Claude Code / Ollama / local como atalhos legados
         if provider == 'claude_code':
             if not ClaudeCodeAI:
-                self.send_json({'success': False, 'error': 'Módulo claude_code_ai.py não encontrado.'})
+                self.send_json({'success': False, 'error': 'Claude Code não disponível.'})
                 return
             cc = ClaudeCodeAI()
             if not cc.disponivel():
-                self.send_json({
-                    'success': False,
-                    'error': (
-                        'Claude Code CLI não encontrado nesta máquina. Instale com: '
-                        'npm install -g @anthropic-ai/claude-code, depois rode "claude" '
-                        'uma vez para autenticar.'
-                    ),
-                })
+                self.send_json({'success': False, 'error': 'Claude Code CLI não encontrado nesta máquina.'})
                 return
-            r = cc.responder(pergunta)
+            r = cc.responder(message)
             if r.get('success'):
-                self.send_json({'success': True, 'resposta': r['texto'], 'model': 'claude-code'})
+                self.send_json({'success': True, 'resposta': r['texto'], 'model': 'claude-code', 'files': []})
             else:
-                self.send_json({'success': False, 'error': r.get('error') or 'Erro ao consultar o Claude Code.'})
+                self.send_json({'success': False, 'error': r.get('error') or 'Erro Claude Code'})
             return
 
-        # 1. Claude Code local (prioridade quando disponível e nenhum provider foi forçado)
-        if ClaudeCodeAI and os.getenv('DISABLE_CLAUDE_CODE', '').lower() not in ('1', 'true', 'yes'):
-            try:
-                cc = ClaudeCodeAI()
-                if cc.disponivel():
-                    r = cc.responder(pergunta)
-                    if r.get('success') and r.get('texto'):
-                        self.send_json({'success': True, 'resposta': r['texto'], 'model': 'claude-code'})
-                        return
-            except Exception as e:
-                print(f'[ClaudeCode] {e}')
+        # Memória
+        history = []
+        mem_block = ''
+        if memory_store:
+            if session_id:
+                session_id = memory_store.ensure_session(session_id)
+                history = memory_store.get_history(session_id, limit=30)
+            else:
+                session_id = memory_store.ensure_session()
+            mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
+            # aprendizado automático se o usuário pedir para lembrar
+            if message:
+                memory_store.maybe_learn_from_user(message, scope=scope)
 
-        # 2. Groq (nuvem) — chave enviada pela página ou GROQ_API_KEY do servidor
-        groq_key = data.get('groq_api_key') or os.environ.get('GROQ_API_KEY', '')
-        erro_groq = None
-        if groq_key:
-            try:
-                texto, usado = self._groq_chat(
-                    'Você é a Cookie AI integrada ao CookieScript IDE. Responda em português de forma clara.',
-                    pergunta, groq_key, data.get('groq_model'), temperature=0.7)
-                self.send_json({'success': True, 'resposta': texto, 'model': f'Groq/{usado}'})
-                return
-            except Exception as e:
-                erro_groq = str(e)
-                print(f'[Groq] {e}')
+        # Arquivos enviados
+        prepared = []
+        file_parts = []
+        file_text_ctx = ''
+        if files_in and prepare_for_ai:
+            import base64
+            for f in files_in[:8]:  # max 8 arquivos por mensagem
+                name = f.get('name') or 'arquivo'
+                b64 = f.get('content_base64') or f.get('base64') or ''
+                if not b64:
+                    continue
+                try:
+                    raw = base64.b64decode(b64)
+                except Exception:
+                    continue
+                try:
+                    info = prepare_for_ai(name, raw)
+                    prepared.append(info)
+                except Exception as e:
+                    prepared.append({'name': name, 'kind': 'error', 'text': str(e), 'size': 0})
+            if prepared and build_file_context:
+                file_text_ctx, image_parts = build_file_context(prepared)
+                file_parts = image_parts or []
 
-        # 3. DeepSeek local (só se ENABLE_LOCAL_AI=1 — desligado por padrão em cloud)
-        if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
-            try:
-                gen = CookieAIGenerator()
-                gen._load_deepseek_model()
-                if gen._is_model_available():
-                    resposta = gen.responder(pergunta)
-                    self.send_json({'success': True, 'resposta': resposta, 'model': gen.DEEPSEEK_MODEL.split('/')[-1]})
+        user_content = message
+        if file_text_ctx:
+            user_content = (message + '\n\n' if message else '') + 'Arquivos enviados para análise:\n' + file_text_ctx
+
+        # Mensagens
+        messages = build_messages(
+            user_content,
+            memory_block=mem_block,
+            history=history,
+            file_parts=file_parts if file_parts else None,
+            system_extra=(
+                'Você NÃO gera imagens. Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
+                'Quando criar arquivos use o formato <<<FILE path="...>>> ... <<<END_FILE>>>.'
+            ),
+        )
+
+        try:
+            texto, usado = chat_completion(
+                messages,
+                provider=provider if provider in ('omniroute', 'grok', 'groq', 'auto') else 'auto',
+                model=model,
+                temperature=float(data.get('temperature', 0.7)),
+                max_tokens=int(data.get('max_tokens', 8192)),
+                api_key=api_key,
+            )
+        except AIClientError as e:
+            # fallbacks legados
+            if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+                try:
+                    gen = CookieAIGenerator()
+                    texto = gen.responder(message)
+                    usado = 'DeepSeek Local'
+                except Exception:
+                    self.send_json({'success': False, 'error': str(e)})
                     return
-            except Exception as e:
-                print(f'[DeepSeek] {e}')
-
-        # 4. Ollama local
-        if self._ollama_running():
-            try:
-                resposta = self._ollama_request(pergunta)
-                self.send_json({'success': True, 'resposta': resposta, 'model': 'ollama'})
+            elif self._ollama_running():
+                try:
+                    texto = self._ollama_request(message)
+                    usado = 'ollama'
+                except Exception:
+                    self.send_json({'success': False, 'error': str(e)})
+                    return
+            else:
+                self.send_json({'success': False, 'error': str(e)})
                 return
-            except Exception as e:
-                print(f'[Ollama] {e}')
 
-        # 5. Fallback de templates
-        if CookieAIGenerator:
-            try:
-                resposta = CookieAIGenerator()._fallback_resposta(pergunta)
-                self.send_json({'success': True, 'resposta': resposta, 'model': 'fallback'})
-                return
-            except Exception as e:
-                print(f'[Fallback] {e}')
+        # Extrai arquivos gerados pela IA
+        files_out = extract_file_blocks(texto) if extract_file_blocks else []
+        visible = strip_file_blocks(texto) if strip_file_blocks else texto
 
-        msg = 'Nenhum backend de IA disponível. Configure GROQ_API_KEY no servidor, ou use Claude Code/Ollama localmente.'
-        if erro_groq:
-            msg = f'Groq falhou: {erro_groq}'
-        self.send_json({'success': False, 'error': msg})
+        saved = []
+        if save_files and files_out:
+            for item in files_out:
+                path = self._resolver_caminho_seguro(item['path'])
+                if not path:
+                    continue
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(item['content'], encoding='utf-8')
+                    saved.append(str(path.relative_to(BASE_DIR)))
+                except Exception as e:
+                    print(f'[save_ai_file] {e}')
 
-    def api_ask_enhanced(self, data):
-        import urllib.request, urllib.error
-        pergunta = data.get('pergunta', '').strip()
-        groq_model = data.get('groq_model') or self.GROQ_MODELOS[0]
-        erro_groq = None
-        groq_key = data.get('groq_api_key', '') or os.environ.get('GROQ_API_KEY', '')
+        # Persiste histórico
+        if memory_store and session_id:
+            memory_store.append_message(session_id, 'user', message or '[arquivos]')
+            memory_store.append_message(session_id, 'assistant', visible[:20000])
 
-        if not pergunta:
-            self.send_json({'error': 'Pergunta vazia'}); return
+        self.send_json({
+            'success': True,
+            'resposta': visible or texto,
+            'raw': texto,
+            'model': usado,
+            'session_id': session_id,
+            'files': files_out,
+            'saved_files': saved,
+            'analyzed': [{'name': p.get('name'), 'kind': p.get('kind'), 'size': p.get('size')} for p in prepared],
+        })
 
-        # Resposta base local
-        resposta_local = None
-        if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
-            try:
-                gen = CookieAIGenerator()
-                gen._load_deepseek_model()
-                resposta_local = gen.responder(pergunta)
-            except Exception as e:
-                print(f'[Enhanced/local] {e}')
-
-        # Groq refina
-        if groq_key:
-            try:
-                if resposta_local:
-                    system = 'Você é a Cookie AI Potencializada. Uma IA local já gerou uma resposta. Corrija erros, expanda e melhore. Responda em português.'
-                    user = f'Pergunta: {pergunta}\n\nResposta local:\n{resposta_local}\n\nMelhore esta resposta.'
-                else:
-                    system = 'Você é a Cookie AI integrada ao CookieScript IDE. Responda em português de forma clara.'
-                    user = pergunta
-
-                texto, usado = self._groq_chat(system, user, groq_key, groq_model, temperature=0.7)
-                self.send_json({'success': True, 'resposta': texto, 'model': f'Groq/{usado}'})
-                return
-            except Exception as e:
-                erro_groq = str(e)
-                print(f'[Groq] {e}')
-
-        if resposta_local:
-            self.send_json({'success': True, 'resposta': resposta_local, 'model': 'DeepSeek Local'})
+    def api_upload_analyze(self, data):
+        """Analisa um ou mais arquivos sem chat completo (só extrai + opcionalmente pergunta curta)."""
+        if not prepare_for_ai:
+            self.send_json({'success': False, 'error': 'file_analyzer não disponível'})
             return
+        import base64
+        files_in = data.get('files') or []
+        question = (data.get('question') or data.get('pergunta') or 'Resuma e analise estes arquivos.').strip()
+        prepared = []
+        for f in files_in[:8]:
+            name = f.get('name') or 'arquivo'
+            b64 = f.get('content_base64') or f.get('base64') or ''
+            if not b64:
+                continue
+            try:
+                raw = base64.b64decode(b64)
+                prepared.append(prepare_for_ai(name, raw))
+            except Exception as e:
+                prepared.append({'name': name, 'kind': 'error', 'text': str(e), 'size': 0})
+        if not prepared:
+            self.send_json({'success': False, 'error': 'Nenhum arquivo válido'})
+            return
+        # reutiliza chat
+        data2 = {
+            'message': question,
+            'files': files_in,
+            'provider': data.get('provider') or 'auto',
+            'model': data.get('model'),
+            'session_id': data.get('session_id'),
+            'api_key': data.get('api_key') or data.get('groq_api_key'),
+            'save_files': data.get('save_files', False),
+        }
+        return self.api_chat(data2)
 
-        self.send_json({'success': False, 'error': ('Groq: ' + erro_groq) if erro_groq else 'Configure GROQ_API_KEY ou instale torch+transformers para usar a IA Potencializada.'})
+    def api_memory_list(self, data):
+        if not memory_store:
+            self.send_json({'success': False, 'error': 'Memória não disponível'})
+            return
+        scope = data.get('scope') or 'global'
+        items = memory_store.list_memories(scope=scope, kind=data.get('kind'), limit=int(data.get('limit', 50)), search=data.get('search'))
+        self.send_json({'success': True, 'memories': items})
+
+    def api_memory_add(self, data):
+        if not memory_store:
+            self.send_json({'success': False, 'error': 'Memória não disponível'})
+            return
+        content = (data.get('content') or '').strip()
+        if not content:
+            self.send_json({'success': False, 'error': 'content vazio'})
+            return
+        mid = memory_store.add_memory(
+            content,
+            scope=data.get('scope') or 'global',
+            kind=data.get('kind') or 'fact',
+            importance=float(data.get('importance', 0.7)),
+            metadata=data.get('metadata'),
+        )
+        self.send_json({'success': True, 'id': mid})
+
+    def api_memory_delete(self, data):
+        if not memory_store:
+            self.send_json({'success': False, 'error': 'Memória não disponível'})
+            return
+        ok = memory_store.delete_memory(data.get('id') or '')
+        self.send_json({'success': ok})
+
+    def api_memory_clear(self, data):
+        if not memory_store:
+            self.send_json({'success': False, 'error': 'Memória não disponível'})
+            return
+        n = memory_store.clear_memories(scope=data.get('scope') or 'global')
+        self.send_json({'success': True, 'deleted': n})
+
+    def api_memory_block(self, data):
+        if not memory_store:
+            self.send_json({'success': True, 'block': '(memória desligada)'})
+            return
+        block = memory_store.memory_block_for_prompt(scope=data.get('scope') or 'global', limit=int(data.get('limit', 30)))
+        self.send_json({'success': True, 'block': block})
+
+    def api_sessions(self, data):
+        if not memory_store:
+            self.send_json({'success': True, 'sessions': []})
+            return
+        self.send_json({'success': True, 'sessions': memory_store.list_sessions(limit=int(data.get('limit', 20)))})
+
+    def api_session_clear(self, data):
+        if not memory_store:
+            self.send_json({'success': False, 'error': 'Memória não disponível'})
+            return
+        sid = data.get('session_id')
+        if not sid:
+            self.send_json({'success': False, 'error': 'session_id obrigatório'})
+            return
+        memory_store.clear_session(sid)
+        self.send_json({'success': True})
+
+    def api_save_ai_files(self, data):
+        """Salva explicitamente uma lista de {path, content} gerados pela IA."""
+        files = data.get('files') or []
+        saved = []
+        for item in files:
+            path = self._resolver_caminho_seguro(item.get('path') or '')
+            if not path:
+                continue
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(item.get('content') or '', encoding='utf-8')
+                saved.append(str(path.relative_to(BASE_DIR)))
+            except Exception as e:
+                print(f'[save_ai_files] {e}')
+        self.send_json({'success': True, 'saved': saved})
 
 
 # ── inicialização ─────────────────────────────────────────────────────────────

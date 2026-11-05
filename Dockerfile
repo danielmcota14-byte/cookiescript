@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Para modelo local: pip install -r requirements-local-ai.txt e ENABLE_LOCAL_AI=1
 RUN pip install --no-cache-dir requests psutil
 
+RUN mkdir -p data uploads memory
 COPY . .
 
 EXPOSE 8080

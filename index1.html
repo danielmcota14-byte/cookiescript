@@ -243,19 +243,20 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
-          <option value="claude_code" selected>🤖 Claude Code Local (CLI)</option>
-          <option value="local">🧠 DeepSeek Local (sem API)</option>
-          <option value="gemini">Google Gemini (API gratuita)</option>
-          <option value="groq">Groq Cloud (API gratuita)</option>
-          <option value="enhanced">⚡ Cookie Potencializada (DeepSeek + Groq)</option>
+          <option value="auto" selected>⚡ Auto (OmniRoute → Grok → Groq)</option>
+          <option value="omniroute">OmniRoute (env no Render)</option>
+          <option value="grok">Grok / xAI</option>
+          <option value="groq">Groq Cloud</option>
+          <option value="claude_code">🤖 Claude Code Local (CLI)</option>
+          <option value="local">🧠 DeepSeek Local</option>
+          <option value="gemini">Google Gemini</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
-        <label for="apiKeyInput">API Key (Gemini/Groq)</label>
-        <input type="password" id="apiKeyInput" placeholder="sua chave aqui" autocomplete="off">
+        <label for="apiKeyInput">API Key (opcional se estiver no env do servidor)</label>
+        <input type="password" id="apiKeyInput" placeholder="chave do provedor ou deixe vazio" autocomplete="off">
         <div class="api-hint">
-          <span id="keyHint">necessária apenas para Gemini/Groq</span>
-          <a href="#" id="getKeyLink" target="_blank">obter chave →</a>
+          <span id="keyHint">OmniRoute / Grok / Groq usam as chaves do ambiente no Render quando vazias</span>
         </div>
       </div>
     </div>
@@ -263,35 +264,52 @@
     <div class="claude-code-wrap" id="claudeCodeStatusDiv">
       <div class="field">
         <label>Status do Claude Code CLI</label>
-        <div id="claudeCodeStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">⏳ Verificando instalação local...</div>
+        <div id="claudeCodeStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">⏳ Verificando...</div>
       </div>
     </div>
 
     <div class="groq-model-wrap" id="groqModelDiv">
       <div class="field">
-        <label for="groqModelSelect">Modelo Groq</label>
+        <label for="groqModelSelect">Modelo (opcional)</label>
         <select id="groqModelSelect">
-          <option value="openai/gpt-oss-120b">GPT-OSS 120B (recomendado)</option>
-          <option value="openai/gpt-oss-20b">GPT-OSS 20B (rápido)</option>
+          <option value="">padrão do servidor</option>
+          <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+          <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+          <option value="grok-2-latest">Grok 2</option>
+          <option value="auto">OmniRoute auto</option>
         </select>
       </div>
     </div>
 
     <div class="local-status-wrap" id="localStatusDiv">
       <div class="field">
-        <label>Status do Servidor</label>
-        <div id="localStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">⏳ Verificando conexão...</div>
+        <label>Status</label>
+        <div id="localStatusMsg" style="font-size:0.9rem; padding:0.5rem 0; color:var(--gray-600);">Memória ativa · sem geração de imagens · arquivos suportados</div>
       </div>
     </div>
 
     <div class="form-group">
       <label for="promptInput">Pergunta / Prompt</label>
-      <textarea id="promptInput" placeholder="Ex: Explique transformers em IA. || Qual a capital do Brasil? || Escreva uma função Python que calcule fatorial."></textarea>
+      <textarea id="promptInput" placeholder="Ex: Crie um script Python que leia CSV. || Analise este arquivo. || Lembre que eu prefiro Python e respostas curtas."></textarea>
     </div>
 
-    <div style="display: flex; justify-content: flex-end;">
+    <div class="form-group" style="margin-top:0.75rem;">
+      <label>Anexar arquivos para análise (código, foto, PDF, planilha, qualquer tipo)</label>
+      <input type="file" id="fileInput" multiple accept="*/*" style="display:block; margin-top:0.35rem;">
+      <div id="fileList" style="font-size:0.85rem; color:var(--gray-600); margin-top:0.4rem;"></div>
+      <p style="font-size:0.8rem; color:var(--gray-500); margin-top:0.35rem;">A IA <strong>não gera imagens</strong>. Ela analisa e cria códigos, planilhas (CSV), documentos e arquivos de texto.</p>
+    </div>
+
+    <div class="form-group" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; margin-top:0.5rem;">
+      <label style="font-size:0.85rem;"><input type="checkbox" id="saveFilesChk" checked> Salvar automaticamente arquivos que a IA criar</label>
+      <button type="button" id="memBtn" class="copy-btn" style="margin:0;">Ver memória</button>
+      <button type="button" id="clearMemBtn" class="copy-btn" style="margin:0;">Limpar sessão</button>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap:0.5rem; margin-top:0.75rem;">
       <button id="sendBtn">→ Perguntar à IA</button>
     </div>
+    <div id="sessionInfo" style="font-size:0.75rem; color:var(--gray-500); margin-top:0.5rem;"></div>
 
     <div class="response-area">
       <div class="response-header">
@@ -548,82 +566,164 @@
   function updateUIForProvider() {
     const provider = providerSelect.value;
     claudeCodeStatusDiv.classList.remove('active');
+    localStatusDiv.classList.add('active');
+    if (typeof aiFlowInfo !== 'undefined' && aiFlowInfo) aiFlowInfo.classList.remove('active');
     if (provider === 'claude_code') {
       apiKeyField.style.display = 'none';
       groqModelDiv.classList.remove('active');
-      localStatusDiv.classList.remove('active');
-      aiFlowInfo.classList.remove('active');
       claudeCodeStatusDiv.classList.add('active');
       checkClaudeCodeStatus();
     } else if (provider === 'gemini') {
       apiKeyField.style.display = 'block';
       groqModelDiv.classList.remove('active');
-      localStatusDiv.classList.remove('active');
-      aiFlowInfo.classList.remove('active');
-      getKeyLink.href = 'https://aistudio.google.com/app/apikey';
-      getKeyLink.textContent = 'obter chave Gemini →';
-      apiKeyInput.placeholder = 'ex: AIzaSy...';
+      apiKeyInput.placeholder = 'AIza... (Gemini)';
     } else if (provider === 'groq') {
       apiKeyField.style.display = 'block';
       groqModelDiv.classList.add('active');
-      localStatusDiv.classList.remove('active');
-      aiFlowInfo.classList.remove('active');
-      getKeyLink.href = 'https://console.groq.com/keys';
-      getKeyLink.textContent = 'obter chave Groq →';
-      apiKeyInput.placeholder = 'gsk_...';
-    } else if (provider === 'enhanced') {
-      apiKeyField.style.display = 'none';
-      groqModelDiv.classList.remove('active');
-      localStatusDiv.classList.add('active');
-      aiFlowInfo.classList.add('active');
-      checkServerHealth();
+      apiKeyInput.placeholder = 'gsk_... (ou vazio se GROQ_API_KEY no servidor)';
+    } else if (provider === 'grok') {
+      apiKeyField.style.display = 'block';
+      groqModelDiv.classList.add('active');
+      apiKeyInput.placeholder = 'xai-... (ou vazio se GROK_API_KEY no servidor)';
+    } else if (provider === 'omniroute' || provider === 'auto') {
+      apiKeyField.style.display = 'block';
+      groqModelDiv.classList.add('active');
+      apiKeyInput.placeholder = 'chave opcional (OMNIROUTE_API_KEY / GROK no env)';
     } else { // local
       apiKeyField.style.display = 'none';
       groqModelDiv.classList.remove('active');
-      localStatusDiv.classList.add('active');
-      aiFlowInfo.classList.remove('active');
       checkServerHealth();
     }
-    responseContainer.innerHTML = `<div style="color:var(--gray-500);">Provedor alterado. Digite sua pergunta.</div>`;
+    responseContainer.innerHTML = '<div style="color:var(--gray-500);">Provedor alterado. Digite sua pergunta ou anexe arquivos.</div>';
     delete responseContainer.dataset.rawText;
   }
 
   // ── envio ──────────────────────────────────────────────────────────────────
 
+  let sessionId = localStorage.getItem('cookie_session_id') || '';
+  const fileInput = document.getElementById('fileInput');
+  const fileListEl = document.getElementById('fileList');
+  const saveFilesChk = document.getElementById('saveFilesChk');
+  const sessionInfo = document.getElementById('sessionInfo');
+  const memBtn = document.getElementById('memBtn');
+  const clearMemBtn = document.getElementById('clearMemBtn');
+
+  function updateFileList() {
+    const files = fileInput.files;
+    if (!files || !files.length) { fileListEl.textContent = ''; return; }
+    fileListEl.textContent = Array.from(files).map(f => f.name + ' (' + Math.round(f.size/1024) + ' KB)').join(' · ');
+  }
+  if (fileInput) fileInput.addEventListener('change', updateFileList);
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const s = r.result;
+        const i = s.indexOf(',');
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function collectFiles() {
+    const out = [];
+    if (!fileInput || !fileInput.files) return out;
+    for (const f of Array.from(fileInput.files).slice(0, 8)) {
+      const b64 = await fileToBase64(f);
+      out.push({ name: f.name, content_base64: b64 });
+    }
+    return out;
+  }
+
+  async function callUnifiedChat(prompt, provider, apiKey, model) {
+    const files = await collectFiles();
+    const body = {
+      message: prompt,
+      provider: provider,
+      model: model || undefined,
+      session_id: sessionId || undefined,
+      api_key: apiKey || undefined,
+      save_files: !!(saveFilesChk && saveFilesChk.checked),
+      files: files
+    };
+    const data = await safeJsonFetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (data.error) throw new Error(errText(data.error));
+    if (data.session_id) {
+      sessionId = data.session_id;
+      localStorage.setItem('cookie_session_id', sessionId);
+      if (sessionInfo) sessionInfo.textContent = 'Sessão: ' + sessionId.slice(0, 8) + '… · modelo: ' + (data.model || '');
+    }
+    let extra = '';
+    if (data.saved_files && data.saved_files.length) {
+      extra += '\n\n📁 Arquivos salvos: ' + data.saved_files.join(', ');
+    }
+    if (data.files && data.files.length && !(data.saved_files && data.saved_files.length)) {
+      extra += '\n\n📄 Arquivos gerados (não salvos automaticamente): ' + data.files.map(f => f.path).join(', ');
+    }
+    if (data.analyzed && data.analyzed.length) {
+      extra += '\n\n🔎 Analisados: ' + data.analyzed.map(a => a.name + ' (' + a.kind + ')').join(', ');
+    }
+    return (data.resposta || '') + extra;
+  }
+
   async function handleSend() {
     if (isLoading) return;
     const provider = providerSelect.value;
     const prompt = promptTextarea.value.trim();
-    if (!prompt) { setResponse('Digite uma pergunta antes de enviar.', true); return; }
+    const hasFiles = fileInput && fileInput.files && fileInput.files.length;
+    if (!prompt && !hasFiles) { setResponse('Digite uma pergunta ou anexe arquivos.', true); return; }
 
-    let apiKey = '';
-    if (provider === 'gemini' || provider === 'groq') {
-      apiKey = apiKeyInput.value.trim() || (provider === 'groq' ? DEFAULT_GROQ_KEY : '');
-      if (!apiKey) { setResponse(`É necessária uma API Key para ${provider === 'gemini' ? 'Gemini' : 'Groq'}.`, true); return; }
+    let apiKey = apiKeyInput.value.trim();
+    if (provider === 'gemini' && !apiKey) {
+      setResponse('É necessária uma API Key para Gemini.', true); return;
     }
 
     setLoading(true);
     try {
       let result = '';
-      if (provider === 'claude_code') {
-        result = await callClaudeCodeAI(prompt);
-      } else if (provider === 'gemini') {
+      if (provider === 'gemini') {
         result = await callGemini(apiKey, prompt);
-      } else if (provider === 'groq') {
-        result = await callGroq(apiKey, groqModelSelect.value, prompt);
-      } else if (provider === 'enhanced') {
-        result = await callEnhancedAI(prompt, groqModelSelect.value);
-      } else {
+      } else if (provider === 'claude_code') {
+        result = await callClaudeCodeAI(prompt);
+      } else if (provider === 'local') {
         result = await callLocalAI(prompt);
+      } else {
+        // auto, omniroute, grok, groq → backend unificado com memória + arquivos
+        result = await callUnifiedChat(prompt, provider, apiKey, groqModelSelect.value);
       }
       setResponse(result, false, result);
+      if (fileInput) { fileInput.value = ''; updateFileList(); }
     } catch (err) {
-      let msg = errText(err);
-      setResponse(`Erro: ${msg}`, true);
+      setResponse('Erro: ' + errText(err), true);
     } finally {
       setLoading(false);
     }
   }
+
+  if (memBtn) memBtn.addEventListener('click', async () => {
+    try {
+      const data = await safeJsonFetch('/api/memory/list', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+      const items = (data.memories || []).map(m => '• [' + m.kind + '] ' + m.content).join('\n') || '(vazia)';
+      setResponse('Memória de longo prazo:\n' + items, false, items);
+    } catch (e) { setResponse('Erro memória: ' + errText(e), true); }
+  });
+  if (clearMemBtn) clearMemBtn.addEventListener('click', async () => {
+    if (!sessionId) { setResponse('Nenhuma sessão ativa.', true); return; }
+    try {
+      await safeJsonFetch('/api/session/clear', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId }) });
+      sessionId = '';
+      localStorage.removeItem('cookie_session_id');
+      if (sessionInfo) sessionInfo.textContent = '';
+      setResponse('Sessão limpa. A memória de longo prazo (fatos) permanece.', false);
+    } catch (e) { setResponse('Erro: ' + errText(e), true); }
+  });
 
   function copyResponse() {
     let raw = responseContainer.dataset.rawText;

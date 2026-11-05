@@ -125,3 +125,42 @@ repositório Git (possivelmente público), **revogue/recrie essa chave em
 https://console.groq.com/keys antes de publicar ou continuar usando o projeto**.
 A partir de agora, configure sua chave via variável de ambiente `GROQ_API_KEY`
 ou no campo de API Key da própria interface — nunca direto no código.
+
+
+## Cookie AI 2.0 — OmniRoute + Grok + Memória + Arquivos
+
+### Variáveis de ambiente (Render / Fly)
+
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `OMNIROUTE_URL` | Endpoint OmniRoute | `http://54.227.158.25:20128/v1` |
+| `OMNIROUTE_API_KEY` | Chave OmniRoute | (dashboard OmniRoute) |
+| `OMNIROUTE_MODEL` | Modelo padrão | `auto` |
+| `GROK_API_KEY` | Chave xAI / Grok | `xai-...` |
+| `GROK_URL` | Base Grok | `https://api.x.ai/v1` |
+| `GROK_MODEL` | Modelo Grok | `grok-2-latest` |
+| `GROQ_API_KEY` | Chave Groq (fallback) | `gsk_...` |
+| `COOKIE_DATA_DIR` | Pasta da memória SQLite | `data` |
+
+Ordem no modo **Auto**: OmniRoute → Grok → Groq.
+
+### Funcionalidades
+
+1. **Provedores**: OmniRoute, Grok (xAI), Groq, Claude Code local, DeepSeek local, Gemini.
+2. **Criar arquivos**: a IA responde com blocos `<<<FILE path="...">>>...</<<<END_FILE>>>`; o servidor pode gravá-los automaticamente (códigos, CSV, scripts, etc.).
+3. **Analisar arquivos**: envie fotos, PDF, planilhas, código, qualquer tipo — texto é extraído; imagens vão para modelos de visão quando suportados.
+4. **Sem geração de imagens**: system prompt proíbe criar imagens.
+5. **Memória obrigatória**:
+   - Histórico de conversa por `session_id` (SQLite).
+   - Memória de longo prazo / aprendizagem (fatos e preferências). Frases como "lembre que…", "prefiro…", "meu nome é…" são gravadas automaticamente.
+6. Endpoints novos: `/api/chat`, `/api/upload_analyze`, `/api/memory/*`, `/api/sessions`, `/api/providers`, `/api/save_ai_files`.
+
+### Deploy no Render
+
+1. Defina no Environment:
+   - `OMNIROUTE_URL=http://54.227.158.25:20128/v1`
+   - `OMNIROUTE_API_KEY=sua_chave`
+   - `GROK_API_KEY=sua_chave` (opcional)
+   - `GROQ_API_KEY=sua_chave` (opcional)
+2. Build: Dockerfile (já inclui `requests` e pastas `data/` / `uploads/`).
+3. Disco persistente (recomendado): monte um volume em `/app/data` para a memória sobreviver a deploys.
