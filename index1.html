@@ -426,7 +426,7 @@
   function setLoading(loading) {
     isLoading = loading;
     if (loading) {
-      responseContainer.innerHTML = `<div class="loading-state"><div class="spinner-mini"></div><span>Processando requisição...</span></div>`;
+      responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Enviando… o pipeline pode levar 30–90s</span></div>';
       sendBtn.disabled = true;
       sendBtn.style.opacity = '0.6';
       sendBtn.innerText = 'Enviando...';
@@ -695,7 +695,9 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (data.error) throw new Error(errText(data.error));
+    if (data.error || data.success === false) {
+      throw new Error(errText(data.error || 'Falha no servidor'));
+    }
     if (data.session_id) {
       sessionId = data.session_id;
       localStorage.setItem('cookie_session_id', sessionId);
@@ -712,14 +714,18 @@
     }
     if (data.council && data.council.length) {
       const parts = data.council.map(c => {
-        if (c.ok) return c.label + ' ✓ (' + c.chars + ' chars)';
+        if (c.ok) return (c.label || c.provider) + ' ✓';
         return (c.provider || '?') + ' ✗ ' + (c.error || '');
       });
-      extra += '\n\n🤝 Pipeline: ' + parts.join(' · ') + ' → final: ' + (data.model || 'Groq');
+      extra += '\n\n🤝 Pipeline: ' + parts.join(' · ') + ' → final: ' + (data.model || '');
     }
     const files = Array.isArray(data.files) ? data.files : [];
+    let main = data.resposta || data.raw || data.text || '';
+    if (!main) {
+      main = '(Resposta vazia do servidor. Modelo: ' + (data.model || '?') + '. Verifique GROQ_API_KEY e OMNIROUTE no Render.)';
+    }
     return {
-      text: (data.resposta || '') + extra,
+      text: main + extra,
       files: files,
       saved: data.saved_files || [],
       model: data.model || ''
@@ -744,12 +750,19 @@
       let genFiles = null;
       if (provider === 'claude_code') {
         result = await callClaudeCodeAI(prompt);
-        setResponse(result, false, result, null);
+        setResponse(String(result || '(vazio)'), false, String(result || ''), null);
       } else {
-        // pipeline (opção 1): DeepSeek → OmniRoute valida → Groq central
-        const out = await callUnifiedChat(prompt, 'pipeline', apiKey, groqModelSelect ? groqModelSelect.value : '');
-        result = out.text;
-        genFiles = out.files && out.files.length ? out.files : null;
+        if (responseContainer) {
+          responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Pipeline: DeepSeek → OmniRoute → Groq… aguarde</span></div>';
+        }
+        const out = await callUnifiedChat(prompt, 'pipeline', apiKey, (groqModelSelect && groqModelSelect.value) || '');
+        if (!out || typeof out !== 'object') {
+          result = String(out || '(sem resposta)');
+          genFiles = null;
+        } else {
+          result = out.text || '(resposta vazia)';
+          genFiles = (out.files && out.files.length) ? out.files : null;
+        }
         setResponse(result, false, result, genFiles);
       }
       if (fileInput) { fileInput.value = ''; updateFileList(); }

@@ -610,6 +610,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_json({'success': False, 'error': 'Mensagem vazia.'})
             return
 
+        learned = []
+
         # Claude Code / Ollama / local como atalhos legados
         if provider == 'claude_code':
             if not ClaudeCodeAI:
