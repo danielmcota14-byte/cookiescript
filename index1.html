@@ -325,46 +325,48 @@
   </div>
 </div>
 
-<script>
-  const providerSelect    = document.getElementById('providerSelect');
-  const apiKeyField       = document.getElementById('apiKeyField');
-  const apiKeyInput       = document.getElementById('apiKeyInput');
-  const groqModelDiv      = document.getElementById('groqModelDiv');
-  const localStatusDiv    = document.getElementById('localStatusDiv');
-  const localStatusMsg    = document.getElementById('localStatusMsg');
-  const claudeCodeStatusDiv = document.getElementById('claudeCodeStatusDiv');
-  const claudeCodeStatusMsg = document.getElementById('claudeCodeStatusMsg');
-  const groqModelSelect   = document.getElementById('groqModelSelect');
-  const promptTextarea    = document.getElementById('promptInput');
-  const sendBtn           = document.getElementById('sendBtn');
-  const responseContainer = document.getElementById('responseContainer');
-  const copyBtn           = document.getElementById('copyResponseBtn');
-  const getKeyLink        = document.getElementById('getKeyLink');
-  const aiFlowInfo        = document.getElementById('aiFlowInfo');
 
-  const GEMINI_BASE            = 'https://generativelanguage.googleapis.com/v1beta/models/';
-  // Modelos atuais do Gemini (a série 2.5 e o antigo gemini-pro foram/serão desativados)
-  const GEMINI_MODELS          = ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite'];
-  const GROQ_ENDPOINT          = 'https://api.groq.com/openai/v1/chat/completions';
-  const DEFAULT_GROQ_KEY = '';
-  const LOCAL_ASK_ENDPOINT     = '/api/ask';
-  const LOCAL_ENHANCED_ENDPOINT= '/api/ask_enhanced';
+<script>
+(function () {
+  'use strict';
+
+  function $(id) { return document.getElementById(id); }
+
+  const providerSelect = $('providerSelect');
+  const apiKeyField = $('apiKeyField');
+  const apiKeyInput = $('apiKeyInput');
+  const groqModelDiv = $('groqModelDiv');
+  const groqModelSelect = $('groqModelSelect');
+  const localStatusDiv = $('localStatusDiv');
+  const claudeCodeStatusDiv = $('claudeCodeStatusDiv');
+  const claudeCodeStatusMsg = $('claudeCodeStatusMsg');
+  const promptTextarea = $('promptInput');
+  const sendBtn = $('sendBtn');
+  const responseContainer = $('responseContainer');
+  const copyBtn = $('copyResponseBtn');
+  const fileInput = $('fileInput');
+  const fileListEl = $('fileList');
+  const saveFilesChk = $('saveFilesChk');
+  const sessionInfo = $('sessionInfo');
+  const memBtn = $('memBtn');
+  const clearMemBtn = $('clearMemBtn');
 
   let isLoading = false;
+  let sessionId = localStorage.getItem('cookie_session_id') || '';
 
-  // ── helpers ────────────────────────────────────────────────────────────────
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
 
   function errText(e) {
     if (e == null) return 'Erro desconhecido.';
     if (typeof e === 'string') return e;
-    if (e.message && typeof e.message === 'string') return e.message;
-    if (e.error) return errText(e.error);
+    if (e.message) return String(e.message);
     try { return JSON.stringify(e); } catch (_) { return String(e); }
-  }
-
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   }
 
   function downloadTextFile(filename, content) {
@@ -376,292 +378,106 @@
       a.download = (filename || 'arquivo.txt').split('/').pop();
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => { try { URL.revokeObjectURL(url); a.remove(); } catch (_) {} }, 800);
+      setTimeout(function () {
+        try { URL.revokeObjectURL(url); a.remove(); } catch (_) {}
+      }, 800);
     } catch (e) {
-      console.error('download', e);
-      alert('Não foi possível baixar: ' + (e && e.message ? e.message : e));
+      alert('Falha no download: ' + errText(e));
     }
   }
 
-  function setResponse(content, isError = false, rawText = '', generatedFiles = null) {
+  function setResponse(content, isError, rawText, generatedFiles) {
+    if (!responseContainer) return;
     try {
-      if (!responseContainer) return;
       if (isError) {
-        responseContainer.innerHTML = '<div class="error-block">' + escapeHtml(String(content || '')) + '</div>';
+        responseContainer.innerHTML = '<div class="error-block">' + escapeHtml(content) + '</div>';
         return;
       }
-      let html = '<div class="response-content">' + escapeHtml(String(content || '')).replace(/\n/g, '<br>') + '</div>';
+      var html = '<div class="response-content">' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
       if (generatedFiles && generatedFiles.length) {
-        html += '<div class="ai-files-panel" style="margin-top:1rem;padding:1rem;border:1px solid var(--gray-200);border-radius:12px;background:#f8fafc;">';
+        html += '<div class="ai-files-panel" style="margin-top:1rem;padding:1rem;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">';
         html += '<div style="font-weight:600;margin-bottom:0.5rem;">Arquivos criados — clique para baixar:</div>';
-        generatedFiles.forEach((f, i) => {
-          const name = String((f && (f.path || f.name)) || ('arquivo_' + (i + 1))).replace(/[<>]/g, '');
-          html += '<button type="button" class="copy-btn ai-dl-btn" data-idx="' + i + '" style="margin:0.25rem 0.35rem 0.25rem 0;">Baixar ' + escapeHtml(name) + '</button>';
-        });
-        html += '<button type="button" class="copy-btn" id="dlAllBtn" style="margin:0.25rem 0.35rem 0 0;">Baixar todos</button>';
-        html += '</div>';
+        for (var i = 0; i < generatedFiles.length; i++) {
+          var f = generatedFiles[i];
+          var name = String((f && (f.path || f.name)) || ('arquivo_' + (i + 1))).replace(/[<>]/g, '');
+          html += '<button type="button" class="copy-btn ai-dl-btn" data-idx="' + i + '" style="margin:0.25rem;">Baixar ' + escapeHtml(name) + '</button>';
+        }
+        html += '<button type="button" class="copy-btn" id="dlAllBtn" style="margin:0.25rem;">Baixar todos</button></div>';
       }
       responseContainer.innerHTML = html;
       responseContainer.dataset.rawText = rawText || content || '';
       if (generatedFiles && generatedFiles.length) {
-        responseContainer.querySelectorAll('.ai-dl-btn').forEach(btn => {
-          btn.addEventListener('click', function () {
-            const f = generatedFiles[Number(this.dataset.idx)];
-            if (f) downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || '');
+        var btns = responseContainer.querySelectorAll('.ai-dl-btn');
+        for (var j = 0; j < btns.length; j++) {
+          btns[j].addEventListener('click', function () {
+            var idx = Number(this.getAttribute('data-idx'));
+            var file = generatedFiles[idx];
+            if (file) downloadTextFile(file.path || file.name || 'arquivo.txt', file.content || '');
           });
-        });
-        const all = document.getElementById('dlAllBtn');
+        }
+        var all = $('dlAllBtn');
         if (all) {
           all.addEventListener('click', function () {
-            generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
+            for (var k = 0; k < generatedFiles.length; k++) {
+              var gf = generatedFiles[k];
+              downloadTextFile(gf.path || gf.name || 'arquivo.txt', gf.content || '');
+            }
           });
         }
       }
     } catch (e) {
-      console.error('setResponse', e);
-      if (responseContainer) responseContainer.textContent = String(content || e);
+      responseContainer.textContent = String(content || e);
     }
   }
 
-  function setLoading(loading) {
-    isLoading = loading;
-    if (loading) {
-      responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Enviando… o pipeline pode levar 30–90s</span></div>';
-      sendBtn.disabled = true;
-      sendBtn.style.opacity = '0.6';
-      sendBtn.innerText = 'Enviando...';
-    } else {
-      sendBtn.disabled = false;
-      sendBtn.style.opacity = '1';
-      sendBtn.innerText = '→ Perguntar à IA';
+  function setLoading(on) {
+    isLoading = !!on;
+    if (sendBtn) {
+      sendBtn.disabled = isLoading;
+      sendBtn.style.opacity = isLoading ? '0.6' : '1';
+      sendBtn.innerText = isLoading ? 'Enviando...' : '→ Perguntar à IA';
+    }
+    if (on && responseContainer) {
+      responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Pipeline em andamento (30–90s)…</span></div>';
     }
   }
 
-  // ── fetch seguro: nunca deixa .json() explodir ──────────────────────────
-
-  async function safeJsonFetch(url, options) {
-    let resp;
-    const opts = Object.assign({}, options || {});
-    // timeout 180s (pipeline pode demorar)
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 180000);
+  function safeJsonFetch(url, options) {
+    var opts = options || {};
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 180000);
     opts.signal = ctrl.signal;
-    try {
-      resp = await fetch(url, opts);
-    } catch (networkErr) {
-      clearTimeout(to);
-      if (networkErr && networkErr.name === 'AbortError') {
-        throw new Error('Tempo esgotado. O pipeline demorou demais — tente de novo.');
+    return fetch(url, opts).then(function (resp) {
+      clearTimeout(timer);
+      return resp.text().then(function (text) {
+        if (!text || !String(text).trim()) {
+          throw new Error('Servidor retornou vazio (HTTP ' + resp.status + ').');
+        }
+        var t = String(text).trim();
+        if (t.charAt(0) === '<') {
+          throw new Error('Servidor indisponível (HTTP ' + resp.status + '). Tente de novo.');
+        }
+        var data;
+        try { data = JSON.parse(t); } catch (e) {
+          throw new Error('Resposta inválida do servidor.');
+        }
+        return data;
+      });
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (err && err.name === 'AbortError') {
+        throw new Error('Tempo esgotado. Tente de novo.');
       }
-      throw new Error('Sem conexão com o servidor. Verifique se o backend está rodando.');
-    }
-    clearTimeout(to);
-
-    let text;
-    try {
-      text = await resp.text();
-    } catch (e) {
-      throw new Error('Não foi possível ler a resposta do servidor.');
-    }
-
-    // Corpo vazio
-    if (!text || !text.trim()) {
-      throw new Error(`Servidor retornou resposta vazia (HTTP ${resp.status}). O backend pode estar reiniciando — tente novamente.`);
-    }
-
-    // Fly.io / proxy retornando página HTML de erro
-    if (text.trimStart().startsWith('<')) {
-      if (resp.status === 503 || resp.status === 502) {
-        throw new Error('Servidor indisponível (503). O Fly.io ainda está iniciando a máquina — aguarde alguns segundos e tente de novo.');
-      }
-      throw new Error(`Servidor retornou HTML em vez de JSON (HTTP ${resp.status}). O backend pode estar offline.`);
-    }
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      throw new Error(`Resposta inesperada do servidor: ${text.slice(0, 100)}`);
-    }
-
-    if (!resp.ok) {
-      throw new Error(data.error ? errText(data.error) : `Erro HTTP ${resp.status}`);
-    }
-    return data;
-  }
-
-  // ── provedores ─────────────────────────────────────────────────────────────
-
-  async function callGemini(apiKey, prompt) {
-    let ultimoErro = 'Resposta inválida do Gemini.';
-    for (const modelo of GEMINI_MODELS) {
-      let data;
-      try {
-        const resp = await fetch(`${GEMINI_BASE}${modelo}:generateContent`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7,maxOutputTokens:4096} })
-        });
-        data = await resp.json();
-      } catch (e) {
-        throw new Error('Não foi possível falar com o Gemini. Verifique sua internet.');
-      }
-      const partes = data.candidates && data.candidates[0]?.content?.parts;
-      const texto = partes && partes.map(p => p.text || '').join('');
-      if (texto) return texto;
-      ultimoErro = errText(data.error) || ultimoErro;
-      const baixo = String(ultimoErro).toLowerCase();
-      const indisponivel = ['not found', 'no longer available', 'is not supported', 'deprecated'].some(t => baixo.includes(t));
-      if (!indisponivel) break;   // chave inválida, limite etc.: trocar de modelo não ajuda
-    }
-    throw new Error(`Gemini: ${ultimoErro}`);
-  }
-
-  const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
-
-  async function callGroq(apiKey, modelId, prompt) {
-    // Se o modelo escolhido foi aposentado pela Groq, tenta os modelos atuais.
-    const candidatos = [modelId, ...GROQ_FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
-    let ultimoErro = 'Resposta inesperada da Groq.';
-    for (const modelo of candidatos) {
-      const corpo = { model: modelo, messages: [{role:'user',content:prompt}], temperature: 0.7, max_tokens: 4096 };
-      if (modelo.startsWith('openai/gpt-oss')) corpo.reasoning_effort = 'low';
-      let resp, data;
-      try {
-        resp = await fetch(GROQ_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify(corpo)
-        });
-        data = await resp.json();
-      } catch (e) {
-        throw new Error('Não foi possível falar com a Groq. Verifique sua internet.');
-      }
-      const texto = data.choices && data.choices[0]?.message?.content;
-      if (texto) return texto;
-      ultimoErro = errText(data.error) || ultimoErro;
-      const baixo = String(ultimoErro).toLowerCase();
-      const modeloIndisponivel = ['decommission', 'does not exist', 'not found', 'no longer supported', 'access to it'].some(t => baixo.includes(t));
-      if (!modeloIndisponivel) break;   // outro erro (chave inválida, limite...) - não adianta trocar de modelo
-    }
-    throw new Error(`Groq: ${ultimoErro}`);
-  }
-
-  async function callLocalAI(prompt) {
-    const data = await safeJsonFetch(LOCAL_ASK_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pergunta: prompt })
+      throw err;
     });
-    if (data.error) throw new Error(errText(data.error));
-    if (data.resposta) return data.resposta;
-    throw new Error('Resposta vazia da Cookie AI.');
   }
-
-  async function callClaudeCodeAI(prompt) {
-    const data = await safeJsonFetch(LOCAL_ASK_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pergunta: prompt, provider: 'claude_code' })
-    });
-    if (data.error) throw new Error(errText(data.error));
-    if (data.resposta) return data.resposta;
-    throw new Error('Resposta vazia do Claude Code.');
-  }
-
-  async function callEnhancedAI(prompt, groqModel) {
-    const data = await safeJsonFetch(LOCAL_ENHANCED_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pergunta: prompt, groq_model: groqModel })
-    });
-    if (data.error) throw new Error(errText(data.error));
-    if (data.resposta) return data.resposta;
-    throw new Error('Resposta vazia da IA potencializada.');
-  }
-
-  // ── health check ───────────────────────────────────────────────────────────
-
-  async function checkServerHealth() {
-    try {
-      const resp = await fetch('/health');
-      if (resp.ok) {
-        localStatusMsg.innerHTML = '✅ Servidor online e funcionando';
-        localStatusMsg.style.color = 'var(--success)';
-      } else {
-        throw new Error(`HTTP ${resp.status}`);
-      }
-    } catch(e) {
-      localStatusMsg.innerHTML = '❌ Servidor não responde. Verifique se cookie_ide_app.py está rodando.';
-      localStatusMsg.style.color = 'var(--danger)';
-    }
-  }
-
-  async function checkClaudeCodeStatus() {
-    try {
-      const data = await safeJsonFetch('/api/claude_code_status', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-      if (data.online) {
-        claudeCodeStatusMsg.innerHTML = `✅ Claude Code CLI detectado${data.version ? ' — ' + escapeHtml(data.version) : ''}`;
-        claudeCodeStatusMsg.style.color = 'var(--success)';
-      } else {
-        claudeCodeStatusMsg.innerHTML = `⚠️ ${escapeHtml(data.error || 'Claude Code CLI não encontrado nesta máquina.')}`;
-        claudeCodeStatusMsg.style.color = 'var(--danger)';
-      }
-    } catch (e) {
-      claudeCodeStatusMsg.innerHTML = '❌ Não foi possível verificar o Claude Code. O backend (cookie_ide_app.py) está rodando?';
-      claudeCodeStatusMsg.style.color = 'var(--danger)';
-    }
-  }
-
-  // ── UI ─────────────────────────────────────────────────────────────────────
-
-  function updateUIForProvider() {
-    try {
-      if (!providerSelect) return;
-      const provider = providerSelect.value;
-      if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.remove('active');
-      if (localStatusDiv) localStatusDiv.classList.add('active');
-      if (typeof aiFlowInfo !== 'undefined' && aiFlowInfo) aiFlowInfo.classList.remove('active');
-      if (provider === 'claude_code') {
-        if (apiKeyField) apiKeyField.style.display = 'none';
-        if (groqModelDiv) groqModelDiv.classList.remove('active');
-        if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.add('active');
-        if (typeof checkClaudeCodeStatus === 'function') checkClaudeCodeStatus();
-      } else {
-        if (apiKeyField) apiKeyField.style.display = 'block';
-        if (groqModelDiv) groqModelDiv.classList.add('active');
-        if (apiKeyInput) apiKeyInput.placeholder = 'opcional (GROQ / OMNIROUTE no env do Render)';
-      }
-      if (responseContainer) {
-        responseContainer.innerHTML = '<div style="color:var(--gray-500);">Opção alterada. Digite sua pergunta ou anexe arquivos.</div>';
-        delete responseContainer.dataset.rawText;
-      }
-    } catch (e) { console.error('updateUI', e); }
-  }
-
-  // ── envio ──────────────────────────────────────────────────────────────────
-
-  let sessionId = localStorage.getItem('cookie_session_id') || '';
-  const fileInput = document.getElementById('fileInput');
-  const fileListEl = document.getElementById('fileList');
-  const saveFilesChk = document.getElementById('saveFilesChk');
-  const sessionInfo = document.getElementById('sessionInfo');
-  const memBtn = document.getElementById('memBtn');
-  const clearMemBtn = document.getElementById('clearMemBtn');
-
-  function updateFileList() {
-    const files = fileInput.files;
-    if (!files || !files.length) { fileListEl.textContent = ''; return; }
-    fileListEl.textContent = Array.from(files).map(f => f.name + ' (' + Math.round(f.size/1024) + ' KB)').join(' · ');
-  }
-  if (fileInput) fileInput.addEventListener('change', updateFileList);
 
   function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => {
-        const s = r.result;
-        const i = s.indexOf(',');
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () {
+        var s = String(r.result || '');
+        var i = s.indexOf(',');
         resolve(i >= 0 ? s.slice(i + 1) : s);
       };
       r.onerror = reject;
@@ -669,162 +485,237 @@
     });
   }
 
-  async function collectFiles() {
-    const out = [];
-    if (!fileInput || !fileInput.files) return out;
-    for (const f of Array.from(fileInput.files).slice(0, 8)) {
-      const b64 = await fileToBase64(f);
-      out.push({ name: f.name, content_base64: b64 });
+  function collectFiles() {
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+      return Promise.resolve([]);
     }
-    return out;
+    var list = Array.prototype.slice.call(fileInput.files, 0, 8);
+    return Promise.all(list.map(function (f) {
+      return fileToBase64(f).then(function (b64) {
+        return { name: f.name, content_base64: b64 };
+      });
+    }));
   }
 
-  async function callUnifiedChat(prompt, provider, apiKey, model) {
-    const files = await collectFiles();
-    const body = {
-      message: prompt,
-      provider: provider,
-      model: model || undefined,
-      session_id: sessionId || undefined,
-      api_key: apiKey || undefined,
-      save_files: !!(saveFilesChk && saveFilesChk.checked),
-      files: files
-    };
-    const data = await safeJsonFetch('/api/chat', {
+  function updateFileList() {
+    if (!fileListEl) return;
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+      fileListEl.textContent = '';
+      return;
+    }
+    var parts = [];
+    for (var i = 0; i < fileInput.files.length; i++) {
+      var f = fileInput.files[i];
+      parts.push(f.name + ' (' + Math.round(f.size / 1024) + ' KB)');
+    }
+    fileListEl.textContent = parts.join(' · ');
+  }
+
+  function updateUIForProvider() {
+    try {
+      if (!providerSelect) return;
+      var provider = providerSelect.value;
+      if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.remove('active');
+      if (localStatusDiv) localStatusDiv.classList.add('active');
+      if (provider === 'claude_code') {
+        if (apiKeyField) apiKeyField.style.display = 'none';
+        if (groqModelDiv) groqModelDiv.classList.remove('active');
+        if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.add('active');
+        checkClaudeCodeStatus();
+      } else {
+        if (apiKeyField) apiKeyField.style.display = 'block';
+        if (groqModelDiv) groqModelDiv.classList.add('active');
+        if (apiKeyInput) apiKeyInput.placeholder = 'opcional (chaves no env do Render)';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function checkClaudeCodeStatus() {
+    if (!claudeCodeStatusMsg) return;
+    safeJsonFetch('/api/claude_code_status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (data.error || data.success === false) {
-      throw new Error(errText(data.error || 'Falha no servidor'));
-    }
-    if (data.session_id) {
-      sessionId = data.session_id;
-      localStorage.setItem('cookie_session_id', sessionId);
-      if (sessionInfo) {
-        let t = 'Sessão: ' + sessionId.slice(0, 8) + '… · ' + (data.model || '');
-        if (typeof data.memory_count === 'number') t += ' · memória: ' + data.memory_count + ' fatos';
-        if (data.memory_learned && data.memory_learned.length) t += ' · +aprendido';
-        sessionInfo.textContent = t;
-      }
-    }
-    let extra = '';
-    if (data.analyzed && data.analyzed.length) {
-      extra += '\n\n🔎 Analisados: ' + data.analyzed.map(a => a.name + ' (' + a.kind + ')').join(', ');
-    }
-    if (data.council && data.council.length) {
-      const parts = data.council.map(c => {
-        if (c.ok) return (c.label || c.provider) + ' ✓';
-        return (c.provider || '?') + ' ✗ ' + (c.error || '');
-      });
-      extra += '\n\n🤝 Pipeline: ' + parts.join(' · ') + ' → final: ' + (data.model || '');
-    }
-    const outFiles = Array.isArray(data.files) ? data.files : [];
-    let main = data.resposta || data.raw || data.text || '';
-    if (!main) {
-      main = '(Resposta vazia do servidor. Modelo: ' + (data.model || '?') + '. Verifique GROQ_API_KEY e OMNIROUTE no Render.)';
-    }
-    return {
-      text: main + extra,
-      files: outFiles,
-      saved: data.saved_files || [],
-      model: data.model || ''
-    };
-  }
-
-  async function handleSend() {
-    if (isLoading) return;
-    const provider = providerSelect.value;
-    const prompt = promptTextarea.value.trim();
-    const hasFiles = fileInput && fileInput.files && fileInput.files.length;
-    if (!prompt && !hasFiles) { setResponse('Digite uma pergunta ou anexe arquivos.', true); return; }
-
-    let apiKey = apiKeyInput.value.trim();
-    if (provider === 'gemini' && !apiKey) {
-      setResponse('É necessária uma API Key para Gemini.', true); return;
-    }
-
-    setLoading(true);
-    try {
-      let result = '';
-      let genFiles = null;
-      if (provider === 'claude_code') {
-        result = await callClaudeCodeAI(prompt);
-        setResponse(String(result || '(vazio)'), false, String(result || ''), null);
+      body: '{}'
+    }).then(function (data) {
+      if (data && data.online) {
+        claudeCodeStatusMsg.textContent = 'Claude Code disponível.';
       } else {
-        if (responseContainer) {
-          responseContainer.innerHTML = '<div class="loading-state"><div class="spinner-mini"></div><span>Pipeline: DeepSeek → OmniRoute → Groq… aguarde</span></div>';
-        }
-        const out = await callUnifiedChat(prompt, 'pipeline', apiKey, (groqModelSelect && groqModelSelect.value) || '');
-        if (!out || typeof out !== 'object') {
-          result = String(out || '(sem resposta)');
-          genFiles = null;
-        } else {
-          result = out.text || '(resposta vazia)';
-          genFiles = (out.files && out.files.length) ? out.files : null;
-        }
-        setResponse(result, false, result, genFiles);
+        claudeCodeStatusMsg.textContent = 'Claude Code só funciona no PC com CookieScript instalado.';
       }
-      if (fileInput) { fileInput.value = ''; updateFileList(); }
-    } catch (err) {
-      setResponse('Erro: ' + errText(err), true);
-    } finally {
-      setLoading(false);
-    }
+    }).catch(function () {
+      claudeCodeStatusMsg.textContent = 'Não foi possível verificar o Claude Code.';
+    });
   }
 
-  if (memBtn) memBtn.addEventListener('click', async () => {
-    try {
-      const data = await safeJsonFetch('/api/memory/list', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-      const items = (data.memories || []).map(m => '• [' + m.kind + '] ' + m.content).join('\n') || '(vazia)';
-      const tip = '\n\n---\nPara ensinar a IA diga por exemplo:\n"Lembre que meu nome é Ana"\n"Eu prefiro Python"\n"Guarde isso: uso React no frontend"';
-      setResponse('Memória de longo prazo (' + ((data.memories||[]).length) + '):\n' + items + tip, false, items);
-    } catch (e) { setResponse('Erro memória: ' + errText(e), true); }
-  });
-  if (clearMemBtn) clearMemBtn.addEventListener('click', async () => {
-    if (!sessionId) { setResponse('Nenhuma sessão ativa.', true); return; }
-    try {
-      await safeJsonFetch('/api/session/clear', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId }) });
-      sessionId = '';
-      localStorage.removeItem('cookie_session_id');
-      if (sessionInfo) sessionInfo.textContent = '';
-      setResponse('Sessão limpa. A memória de longo prazo (fatos) permanece.', false);
-    } catch (e) { setResponse('Erro: ' + errText(e), true); }
-  });
+  function callClaudeCodeAI(prompt) {
+    return safeJsonFetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pergunta: prompt, provider: 'claude_code' })
+    }).then(function (data) {
+      if (data.error) throw new Error(errText(data.error));
+      if (data.resposta) return data.resposta;
+      throw new Error('Resposta vazia do Claude Code.');
+    });
+  }
+
+  function callPipeline(prompt, apiKey, model) {
+    return collectFiles().then(function (uploaded) {
+      var body = {
+        message: prompt,
+        provider: 'pipeline',
+        model: model || undefined,
+        session_id: sessionId || undefined,
+        api_key: apiKey || undefined,
+        save_files: !!(saveFilesChk && saveFilesChk.checked),
+        files: uploaded
+      };
+      return safeJsonFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }).then(function (data) {
+      if (!data || data.success === false || data.error) {
+        throw new Error(errText((data && data.error) || 'Falha no servidor'));
+      }
+      if (data.session_id) {
+        sessionId = data.session_id;
+        localStorage.setItem('cookie_session_id', sessionId);
+        if (sessionInfo) {
+          var t = 'Sessão: ' + sessionId.slice(0, 8) + '… · ' + (data.model || '');
+          if (typeof data.memory_count === 'number') t += ' · memória: ' + data.memory_count + ' fatos';
+          sessionInfo.textContent = t;
+        }
+      }
+      var extra = '';
+      if (data.council && data.council.length) {
+        var parts = [];
+        for (var i = 0; i < data.council.length; i++) {
+          var c = data.council[i];
+          parts.push(c.ok ? ((c.label || c.provider) + ' ✓') : ((c.provider || '?') + ' ✗'));
+        }
+        extra += '\n\nPipeline: ' + parts.join(' · ') + ' → ' + (data.model || '');
+      }
+      var main = data.resposta || data.raw || '';
+      if (!main) {
+        main = '(Resposta vazia. Confira GROQ_API_KEY e OMNIROUTE_API_KEY no Render.)';
+      }
+      return {
+        text: main + extra,
+        files: Array.isArray(data.files) ? data.files : []
+      };
+    });
+  }
+
+  function handleSend() {
+    if (isLoading) return;
+    var provider = providerSelect ? providerSelect.value : 'pipeline';
+    var prompt = promptTextarea ? promptTextarea.value.trim() : '';
+    var hasFiles = fileInput && fileInput.files && fileInput.files.length;
+    if (!prompt && !hasFiles) {
+      setResponse('Digite uma pergunta ou anexe arquivos.', true);
+      return;
+    }
+    var apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+    setLoading(true);
+    var job;
+    if (provider === 'claude_code') {
+      job = callClaudeCodeAI(prompt).then(function (text) {
+        setResponse(String(text || '(vazio)'), false, String(text || ''), null);
+      });
+    } else {
+      var model = groqModelSelect ? groqModelSelect.value : '';
+      job = callPipeline(prompt, apiKey, model).then(function (out) {
+        setResponse(out.text, false, out.text, out.files && out.files.length ? out.files : null);
+      });
+    }
+    job.catch(function (err) {
+      setResponse('Erro: ' + errText(err), true);
+    }).then(function () {
+      setLoading(false);
+      if (fileInput) {
+        fileInput.value = '';
+        updateFileList();
+      }
+    });
+  }
 
   function copyResponse() {
-    let raw = responseContainer.dataset.rawText;
-    if (!raw) {
-      const el = responseContainer.querySelector('.response-content') || responseContainer.querySelector('.error-block');
+    var raw = responseContainer && responseContainer.dataset.rawText;
+    if (!raw && responseContainer) {
+      var el = responseContainer.querySelector('.response-content') || responseContainer.querySelector('.error-block');
       if (el) raw = el.innerText;
     }
     if (!raw) { alert('Nenhuma resposta para copiar.'); return; }
-    navigator.clipboard.writeText(raw).then(() => {
-      const orig = copyBtn.innerText;
-      copyBtn.innerText = 'Copiado!';
-      setTimeout(() => { copyBtn.innerText = orig; }, 1200);
-    }).catch(() => alert('Não foi possível copiar.'));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(raw).then(function () {
+        if (copyBtn) {
+          var orig = copyBtn.innerText;
+          copyBtn.innerText = 'Copiado!';
+          setTimeout(function () { copyBtn.innerText = orig; }, 1200);
+        }
+      }).catch(function () { alert('Não foi possível copiar.'); });
+    } else {
+      alert('Clipboard indisponível.');
+    }
   }
 
-  // ── eventos ────────────────────────────────────────────────────────────────
-
+  // events
   if (providerSelect) providerSelect.addEventListener('change', updateUIForProvider);
   if (sendBtn) sendBtn.addEventListener('click', handleSend);
   if (copyBtn) copyBtn.addEventListener('click', copyResponse);
-  if (promptTextarea) promptTextarea.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSend(); }
-  });
-
-  // Init
-  try { updateUIForProvider(); } catch (e) { console.error(e); }
-  setInterval(() => {
-    try {
-      if (!providerSelect) return;
-      if (providerSelect.value === 'claude_code' && typeof checkClaudeCodeStatus === 'function') {
-        checkClaudeCodeStatus();
+  if (promptTextarea) {
+    promptTextarea.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSend();
       }
-    } catch (_) {}
-  }, 30000);
+    });
+  }
+  if (fileInput) fileInput.addEventListener('change', updateFileList);
+
+  if (memBtn) {
+    memBtn.addEventListener('click', function () {
+      safeJsonFetch('/api/memory/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      }).then(function (data) {
+        var items = (data.memories || []).map(function (m) {
+          return '• [' + m.kind + '] ' + m.content;
+        }).join('\n') || '(vazia)';
+        var tip = '\n\n---\nExemplos: "Lembre que meu nome é Ana" / "Eu prefiro Python"';
+        setResponse('Memória (' + ((data.memories || []).length) + '):\n' + items + tip, false, items);
+      }).catch(function (e) {
+        setResponse('Erro memória: ' + errText(e), true);
+      });
+    });
+  }
+
+  if (clearMemBtn) {
+    clearMemBtn.addEventListener('click', function () {
+      if (!sessionId) { setResponse('Nenhuma sessão ativa.', true); return; }
+      safeJsonFetch('/api/session/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      }).then(function () {
+        sessionId = '';
+        localStorage.removeItem('cookie_session_id');
+        if (sessionInfo) sessionInfo.textContent = '';
+        setResponse('Sessão limpa. A memória de longo prazo permanece.', false);
+      }).catch(function (e) {
+        setResponse('Erro: ' + errText(e), true);
+      });
+    });
+  }
+
+  updateUIForProvider();
+})();
 </script>
+
 </body>
 </html>
