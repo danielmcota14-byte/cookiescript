@@ -292,7 +292,7 @@
       <label>Anexar arquivos para análise (código, foto, PDF, planilha, qualquer tipo)</label>
       <input type="file" id="fileInput" multiple accept="*/*" style="display:block; margin-top:0.35rem;">
       <div id="fileList" style="font-size:0.85rem; color:var(--gray-600); margin-top:0.4rem;"></div>
-      <p style="font-size:0.8rem; color:var(--gray-500); margin-top:0.35rem;">A IA <strong>não gera imagens</strong>. Ela analisa e cria códigos, planilhas (CSV), documentos e arquivos de texto.</p>
+      <p style="font-size:0.8rem; color:var(--gray-500); margin-top:0.35rem;">A IA <strong>não gera imagens</strong>. Quando criar arquivos, eles baixam automaticamente no seu PC (e você pode baixar de novo pelos botões).</p>
     </div>
 
     <div class="form-group" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; margin-top:0.5rem;">
@@ -367,13 +367,51 @@
     return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   }
 
-  function setResponse(content, isError = false, rawText = '') {
+  function downloadTextFile(filename, content) {
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.split('/').pop() || filename || 'arquivo.txt';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+  }
+
+  function setResponse(content, isError = false, rawText = '', generatedFiles = null) {
     if (isError) {
       responseContainer.innerHTML = `<div class="error-block">${escapeHtml(content)}</div>`;
       return;
     }
-    responseContainer.innerHTML = `<div class="response-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
+    let html = `<div class="response-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
+    if (generatedFiles && generatedFiles.length) {
+      html += `<div class="ai-files-panel" style="margin-top:1rem;padding:1rem;border:1px solid var(--gray-200);border-radius:12px;background:#f8fafc;">
+        <div style="font-weight:600;margin-bottom:0.5rem;">📁 Arquivos criados pela IA — clique para baixar:</div>`;
+      generatedFiles.forEach((f, i) => {
+        const name = (f.path || f.name || ('arquivo_' + (i+1))).replace(/</g,'');
+        html += `<button type="button" class="copy-btn ai-dl-btn" data-idx="${i}" style="margin:0.25rem 0.35rem 0.25rem 0;display:inline-flex;align-items:center;gap:0.35rem;">
+          ⬇️ ${escapeHtml(name)}</button>`;
+      });
+      html += `<button type="button" class="copy-btn" id="dlAllBtn" style="margin:0.25rem 0.35rem 0 0;">⬇️ Baixar todos</button>`;
+      html += `</div>`;
+    }
+    responseContainer.innerHTML = html;
     responseContainer.dataset.rawText = rawText || content;
+    // bind downloads
+    if (generatedFiles && generatedFiles.length) {
+      responseContainer.querySelectorAll('.ai-dl-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const f = generatedFiles[Number(btn.dataset.idx)];
+          if (f) downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || '');
+        });
+      });
+      const all = document.getElementById('dlAllBtn');
+      if (all) all.addEventListener('click', () => {
+        generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
+      });
+      // auto-download each file once so o usuário "instala" no PC
+      generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
+    }
   }
 
   function setLoading(loading) {
@@ -639,15 +677,14 @@
     if (data.session_id) {
       sessionId = data.session_id;
       localStorage.setItem('cookie_session_id', sessionId);
-      if (sessionInfo) sessionInfo.textContent = 'Sessão: ' + sessionId.slice(0, 8) + '… · modelo: ' + (data.model || '');
+      if (sessionInfo) {
+        let t = 'Sessão: ' + sessionId.slice(0, 8) + '… · ' + (data.model || '');
+        if (typeof data.memory_count === 'number') t += ' · memória: ' + data.memory_count + ' fatos';
+        if (data.memory_learned && data.memory_learned.length) t += ' · +aprendido';
+        sessionInfo.textContent = t;
+      }
     }
     let extra = '';
-    if (data.saved_files && data.saved_files.length) {
-      extra += '\n\n📁 Arquivos salvos: ' + data.saved_files.join(', ');
-    }
-    if (data.files && data.files.length && !(data.saved_files && data.saved_files.length)) {
-      extra += '\n\n📄 Arquivos gerados (não salvos automaticamente): ' + data.files.map(f => f.path).join(', ');
-    }
     if (data.analyzed && data.analyzed.length) {
       extra += '\n\n🔎 Analisados: ' + data.analyzed.map(a => a.name + ' (' + a.kind + ')').join(', ');
     }
@@ -656,9 +693,15 @@
         if (c.ok) return c.label + ' ✓ (' + c.chars + ' chars)';
         return (c.provider || '?') + ' ✗ ' + (c.error || '');
       });
-      extra += '\n\n🤝 Conselho: ' + parts.join(' · ') + ' → síntese: ' + (data.model || 'Grok');
+      extra += '\n\n🤝 Pipeline: ' + parts.join(' · ') + ' → final: ' + (data.model || 'Groq');
     }
-    return (data.resposta || '') + extra;
+    const files = Array.isArray(data.files) ? data.files : [];
+    return {
+      text: (data.resposta || '') + extra,
+      files: files,
+      saved: data.saved_files || [],
+      model: data.model || ''
+    };
   }
 
   async function handleSend() {
@@ -676,13 +719,17 @@
     setLoading(true);
     try {
       let result = '';
+      let genFiles = null;
       if (provider === 'claude_code') {
         result = await callClaudeCodeAI(prompt);
+        setResponse(result, false, result, null);
       } else {
         // pipeline (opção 1): DeepSeek → OmniRoute valida → Groq central
-        result = await callUnifiedChat(prompt, 'pipeline', apiKey, groqModelSelect ? groqModelSelect.value : '');
+        const out = await callUnifiedChat(prompt, 'pipeline', apiKey, groqModelSelect ? groqModelSelect.value : '');
+        result = out.text;
+        genFiles = out.files && out.files.length ? out.files : null;
+        setResponse(result, false, result, genFiles);
       }
-      setResponse(result, false, result);
       if (fileInput) { fileInput.value = ''; updateFileList(); }
     } catch (err) {
       setResponse('Erro: ' + errText(err), true);
@@ -695,7 +742,8 @@
     try {
       const data = await safeJsonFetch('/api/memory/list', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
       const items = (data.memories || []).map(m => '• [' + m.kind + '] ' + m.content).join('\n') || '(vazia)';
-      setResponse('Memória de longo prazo:\n' + items, false, items);
+      const tip = '\n\n---\nPara ensinar a IA diga por exemplo:\n"Lembre que meu nome é Ana"\n"Eu prefiro Python"\n"Guarde isso: uso React no frontend"';
+      setResponse('Memória de longo prazo (' + ((data.memories||[]).length) + '):\n' + items + tip, false, items);
     } catch (e) { setResponse('Erro memória: ' + errText(e), true); }
   });
   if (clearMemBtn) clearMemBtn.addEventListener('click', async () => {

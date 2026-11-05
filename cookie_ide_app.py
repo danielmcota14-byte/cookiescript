@@ -152,6 +152,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/session/clear':  self.api_session_clear,
             '/api/save_ai_files':  self.api_save_ai_files,
             '/api/providers':      self.api_providers,
+            '/api/download':      self.api_download,
         }
 
         handler = routes.get(path)
@@ -675,7 +676,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             file_parts=file_parts if file_parts else None,
             system_extra=(
                 'Você NÃO gera imagens. Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
-                'Quando criar arquivos use o formato <<<FILE path="...>>> ... <<<END_FILE>>>.'
+                'Quando criar arquivos use o formato <<<FILE path="...>>> ... <<<END_FILE>>>. '
+                'OBRIGATÓRIO: use a MEMÓRIA DE LONGO PRAZO do system para personalizar a resposta '
+                '(nome, preferências, projetos). Se o usuário pedir para lembrar algo, confirme que anotou.'
             ),
         )
 
@@ -754,10 +757,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     print(f'[save_ai_file] {e}')
 
-        # Persiste histórico
+        # Persiste histórico + reforça memória de longo prazo
+        learned = []
         if memory_store and session_id:
             memory_store.append_message(session_id, 'user', message or '[arquivos]')
             memory_store.append_message(session_id, 'assistant', visible[:20000])
+            try:
+                if hasattr(memory_store, 'learn_from_exchange'):
+                    learned = memory_store.learn_from_exchange(message or '', visible or '', scope=scope)
+                else:
+                    memory_store.maybe_learn_from_user(message or '', scope=scope)
+            except Exception as e:
+                print(f'[memory/learn] {e}')
 
         # Resumo do conselho (sem textos enormes no JSON — só labels + erros)
         council_summary = []
@@ -781,6 +792,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'analyzed': [{'name': p.get('name'), 'kind': p.get('kind'), 'size': p.get('size')} for p in prepared],
             'council': council_summary,
             'mode': 'council' if council_summary else 'single',
+            'memory_learned': learned if memory_store else [],
+            'memory_count': (memory_store.memory_count(scope) if memory_store and hasattr(memory_store, 'memory_count') else 0),
+            'memory_block_preview': (mem_block[:300] if mem_block else ''),
         })
 
     def api_upload_analyze(self, data):
@@ -879,6 +893,36 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             return
         memory_store.clear_session(sid)
         self.send_json({'success': True})
+
+
+    def api_download(self, data):
+        """Baixa um arquivo gerado/salvo no servidor (path relativo a BASE_DIR)."""
+        path = (data.get('path') or '').strip()
+        safe = self._resolver_caminho_seguro(path)
+        if not safe or not safe.is_file():
+            self.send_json({'success': False, 'error': 'Arquivo não encontrado.'}, 404)
+            return
+        try:
+            content = safe.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            # binário → base64
+            import base64
+            content_b64 = base64.b64encode(safe.read_bytes()).decode('ascii')
+            self.send_json({
+                'success': True,
+                'path': path,
+                'binary': True,
+                'content_base64': content_b64,
+                'name': safe.name,
+            })
+            return
+        self.send_json({
+            'success': True,
+            'path': path,
+            'binary': False,
+            'content': content,
+            'name': safe.name,
+        })
 
     def api_save_ai_files(self, data):
         """Salva explicitamente uma lista de {path, content} gerados pela IA."""
