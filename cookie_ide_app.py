@@ -604,7 +604,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         api_key = data.get('api_key') or data.get('groq_api_key') or data.get('omniroute_api_key') or data.get('grok_api_key')
         files_in = data.get('files') or []
         save_files = bool(data.get('save_files', True))
-        scope = data.get('memory_scope') or 'global'
+        # Memória ISOLADA por usuário (como ChatGPT — cada pessoa tem a sua)
+        user_id = (data.get('user_id') or data.get('user') or '').strip()
+        if memory_store and hasattr(memory_store, 'user_scope'):
+            scope = memory_store.user_scope(user_id or data.get('memory_scope') or '')
+        else:
+            scope = data.get('memory_scope') or (f'user:{user_id}' if user_id else 'global')
 
         if not message and not files_in:
             self.send_json({'success': False, 'error': 'Mensagem vazia.'})
@@ -779,7 +784,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             memory_store.append_message(session_id, 'user', message or '[arquivos]')
             memory_store.append_message(session_id, 'assistant', visible[:20000])
             try:
-                if hasattr(memory_store, 'learn_from_exchange'):
+                if hasattr(memory_store, 'update_user_profile'):
+                    learned = memory_store.update_user_profile(message or '', visible or '', scope=scope)
+                elif hasattr(memory_store, 'learn_from_exchange'):
                     learned = memory_store.learn_from_exchange(message or '', visible or '', scope=scope)
                 else:
                     memory_store.maybe_learn_from_user(message or '', scope=scope)
@@ -847,13 +854,23 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         }
         return self.api_chat(data2)
 
+
+    def _memory_scope(self, data):
+        """Resolve escopo isolado por user_id (nunca global compartilhado entre pessoas)."""
+        user_id = (data.get('user_id') or data.get('user') or '').strip()
+        if memory_store and hasattr(memory_store, 'user_scope'):
+            return memory_store.user_scope(user_id or data.get('scope') or '')
+        if user_id:
+            return f'user:{user_id}'
+        return data.get('scope') or data.get('memory_scope') or 'global'
+
     def api_memory_list(self, data):
         if not memory_store:
             self.send_json({'success': False, 'error': 'Memória não disponível'})
             return
-        scope = data.get('scope') or 'global'
+        scope = self._memory_scope(data)
         items = memory_store.list_memories(scope=scope, kind=data.get('kind'), limit=int(data.get('limit', 50)), search=data.get('search'))
-        self.send_json({'success': True, 'memories': items})
+        self.send_json({'success': True, 'memories': items, 'scope': scope})
 
     def api_memory_add(self, data):
         if not memory_store:
@@ -865,7 +882,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             return
         mid = memory_store.add_memory(
             content,
-            scope=data.get('scope') or 'global',
+            scope=self._memory_scope(data),
             kind=data.get('kind') or 'fact',
             importance=float(data.get('importance', 0.7)),
             metadata=data.get('metadata'),
@@ -883,14 +900,14 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not memory_store:
             self.send_json({'success': False, 'error': 'Memória não disponível'})
             return
-        n = memory_store.clear_memories(scope=data.get('scope') or 'global')
+        n = memory_store.clear_memories(scope=self._memory_scope(data))
         self.send_json({'success': True, 'deleted': n})
 
     def api_memory_block(self, data):
         if not memory_store:
             self.send_json({'success': True, 'block': '(memória desligada)'})
             return
-        block = memory_store.memory_block_for_prompt(scope=data.get('scope') or 'global', limit=int(data.get('limit', 30)))
+        block = memory_store.memory_block_for_prompt(scope=self._memory_scope(data), limit=int(data.get('limit', 30)))
         self.send_json({'success': True, 'block': block})
 
     def api_sessions(self, data):

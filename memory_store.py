@@ -138,6 +138,8 @@ def add_memory(
     existing = list_memories(scope=scope, limit=100)
     low = content.lower()
     for it in existing:
+        if (it.get("kind") or "fact") != (kind or "fact"):
+            continue
         if it["content"].lower() == low:
             return it["id"]
         if low in it["content"].lower() or it["content"].lower() in low:
@@ -280,12 +282,6 @@ def clear_memories(scope: str = "global") -> int:
             return cur.rowcount
 
 
-def memory_block_for_prompt(scope: str = "global", limit: int = 40) -> str:
-    items = list_memories(scope=scope, limit=limit)
-    if not items:
-        return "(nenhuma memória de longo prazo ainda — quando o usuário disser preferências, nome ou pedir para lembrar, grave aqui)"
-    lines = [f"- [{it['kind']}] {it['content']}" for it in items]
-    return "\n".join(lines)
 
 
 def memory_count(scope: str = "global") -> int:
@@ -452,7 +448,6 @@ def maybe_learn_from_user(text: str, scope: str = "global") -> Optional[str]:
 
 
 def learn_from_exchange(user_text: str, assistant_text: str, scope: str = "global") -> List[str]:
-
     ids = []
     mid = maybe_learn_from_user(user_text, scope=scope)
     if mid:
@@ -468,3 +463,71 @@ def learn_from_exchange(user_text: str, assistant_text: str, scope: str = "globa
             if mid2:
                 ids.append(mid2)
     return ids
+
+
+def user_scope(user_id: str) -> str:
+    """Cada pessoa tem memória isolada. Nunca compartilhar entre usuários."""
+    uid = (user_id or "").strip() or "anonymous"
+    uid = "".join(ch for ch in uid if ch.isalnum() or ch in "-_")[:80]
+    return f"user:{uid or 'anonymous'}"
+
+
+def update_user_profile(user_text: str, assistant_text: str = "", scope: str = "global") -> list:
+    """
+    Memória contínua estilo ChatGPT/Claude:
+    grava notas em 1ª pessoa e mantém um perfil consolidado do usuário.
+    """
+    ids = list(learn_from_exchange(user_text or "", assistant_text or "", scope=scope) or [])
+    raw = (user_text or "").strip()
+    if not raw:
+        return ids
+
+    low = raw.lower()
+    first_person = any(
+        p in low
+        for p in (
+            "eu ", "meu ", "minha ", "meus ", "minhas ", "sou ", "estou ",
+            "trabalho", "prefiro", "gosto", "odeio", "quero que você",
+            "quero que voce", "sempre ", "nunca ", "não quero", "nao quero",
+            "lembre", "guarde", "meu projeto", "estou fazendo",
+        )
+    )
+    is_question = raw.strip().endswith("?") and len(raw) < 120
+    if first_person and not is_question and len(raw) >= 12:
+        mid = add_memory(raw[:500], scope=scope, kind="note", importance=0.65)
+        if mid:
+            ids.append(mid)
+
+    notes = list_memories(scope=scope, limit=50)
+    useful = [it for it in notes if it.get("kind") != "profile"]
+    if useful:
+        lines = [f"- {it.get('content')}" for it in useful[:30]]
+        profile = "Perfil do usuário (memória contínua):\n" + "\n".join(lines)
+        for it in notes:
+            if it.get("kind") == "profile":
+                try:
+                    delete_memory(it["id"])
+                except Exception:
+                    pass
+        mid = add_memory(profile[:3500], scope=scope, kind="profile", importance=1.0)
+        if mid:
+            ids.append(mid)
+    return ids
+
+
+def memory_block_for_prompt(scope: str = "global", limit: int = 40) -> str:
+    items = list_memories(scope=scope, limit=max(limit, 50))
+    if not items:
+        return (
+            "(nenhuma memória deste usuário ainda — "
+            "aprenda naturalmente com o que ele disser sobre si, projetos e preferências, "
+            "como o ChatGPT faz)"
+        )
+    profiles = [it for it in items if it.get("kind") == "profile"]
+    others = [it for it in items if it.get("kind") != "profile"]
+    lines = []
+    for it in profiles[:1]:
+        lines.append(it["content"])
+    for it in others[: max(1, limit - 1)]:
+        lines.append(f"- [{it['kind']}] {it['content']}")
+    return "\n".join(lines)

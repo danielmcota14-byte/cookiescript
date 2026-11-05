@@ -353,6 +353,13 @@
 
   let isLoading = false;
   let sessionId = localStorage.getItem('cookie_session_id') || '';
+  // ID estável por navegador/pessoa — memória NÃO é compartilhada entre usuários
+  let userId = localStorage.getItem('cookie_user_id') || '';
+  if (!userId) {
+    userId = 'u_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('cookie_user_id', userId);
+  }
+
 
   function escapeHtml(str) {
     return String(str == null ? '' : str)
@@ -537,7 +544,7 @@
     safeJsonFetch('/api/claude_code_status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{}'
+      body: JSON.stringify({ user_id: userId })
     }).then(function (data) {
       if (data && data.online) {
         claudeCodeStatusMsg.textContent = 'Claude Code disponível.';
@@ -568,6 +575,7 @@
         provider: 'pipeline',
         model: model || undefined,
         session_id: sessionId || undefined,
+        user_id: userId || undefined,
         api_key: apiKey || undefined,
         save_files: !!(saveFilesChk && saveFilesChk.checked),
         files: uploaded
@@ -585,7 +593,7 @@
         sessionId = data.session_id;
         localStorage.setItem('cookie_session_id', sessionId);
         if (sessionInfo) {
-          var t = 'Sessão: ' + sessionId.slice(0, 8) + '… · ' + (data.model || '');
+          var t = 'Você: ' + (userId || '').slice(0, 10) + ' · Sessão: ' + sessionId.slice(0, 8) + '… · ' + (data.model || '');
           if (typeof data.memory_count === 'number') t += ' · memória: ' + data.memory_count + ' fatos';
           sessionInfo.textContent = t;
         }
@@ -683,7 +691,7 @@
       safeJsonFetch('/api/memory/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}'
+        body: JSON.stringify({ user_id: userId })
       }).then(function (data) {
         var items = (data.memories || []).map(function (m) {
           return '• [' + m.kind + '] ' + m.content;
@@ -702,7 +710,7 @@
       safeJsonFetch('/api/session/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId })
+        body: JSON.stringify({ session_id: sessionId, user_id: userId })
       }).then(function () {
         sessionId = '';
         localStorage.removeItem('cookie_session_id');
