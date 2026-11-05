@@ -454,3 +454,162 @@ def council_chat(
             f"exibindo resposta de {best['label']}.]_"
         )
         return (best["text"] or "") + note, f"Fallback/{best['label']}", results
+
+
+# ── Pipeline unificado: DeepSeek Local → OmniRoute (valida) → Groq (central) ─
+
+PIPELINE_VALIDATE_SYSTEM = """Você é o validador OmniRoute do Conselho Cookie AI.
+Recebeu a RESPOSTA PRIMÁRIA gerada pelo DeepSeek Local para a pergunta do usuário.
+
+Sua tarefa:
+1. Verificar se a resposta é correta, completa e segura.
+2. Corrigir erros factuais, de código ou de lógica.
+3. Completar o que estiver incompleto.
+4. Manter o idioma português brasileiro.
+5. NÃO gere imagens.
+6. Se a resposta primária estiver boa, refine e estruture melhor.
+7. Se estiver ruim ou vazia, gere uma resposta correta do zero.
+8. Quando criar arquivos, use:
+<<<FILE path="caminho/arquivo.ext">>>
+conteúdo
+<<<END_FILE>>>
+
+Devolva APENAS a resposta validada/refinada (sem meta-comentários do tipo "validei que...").
+"""
+
+PIPELINE_GROQ_SYSTEM = """Você é o Groq, coordenador CENTRAL do Conselho Cookie AI.
+Você recebe a pergunta do usuário e a resposta já PROCESSADA E VALIDADA pelo OmniRoute
+(que por sua vez partiu da resposta primária do DeepSeek Local).
+
+Sua missão final:
+1. Produzir a resposta DEFINITIVA, clara, completa e em português brasileiro.
+2. Usar o melhor da resposta validada; corrija qualquer residual e eleve a qualidade.
+3. NÃO gere imagens.
+4. Quando criar arquivos, use exatamente:
+<<<FILE path="caminho/arquivo.ext">>>
+conteúdo
+<<<END_FILE>>>
+5. Entregue só o conteúdo útil — sem prefácio "como coordenador...".
+
+Esta é a resposta que o usuário vai ver.
+"""
+
+
+def pipeline_chat(
+    messages: List[Dict[str, Any]],
+    *,
+    temperature: float = 0.6,
+    max_tokens: int = 8192,
+    api_key: Optional[str] = None,
+    deepseek_text: Optional[str] = None,
+) -> Tuple[str, str, List[Dict[str, Any]]]:
+    """
+    Pipeline obrigatório:
+      1) DeepSeek Local  → resposta primária (passada em deepseek_text ou gerada aqui se possível)
+      2) OmniRoute       → processa e VALIDA a resposta primária
+      3) Groq            → IA CENTRAL: recebe o validado e entrega a resposta final
+
+    Retorna (texto_final, label, etapas).
+    """
+    steps: List[Dict[str, Any]] = []
+
+    # ── 1. Resposta primária (DeepSeek) ───────────────────────────────────────
+    primary = (deepseek_text or "").strip()
+    if primary:
+        steps.append({"provider": "deepseek_local", "label": "DeepSeek Local", "text": primary, "error": None})
+    else:
+        steps.append({
+            "provider": "deepseek_local",
+            "label": "DeepSeek Local",
+            "text": None,
+            "error": "Resposta primária não fornecida (DeepSeek local desligado ou falhou)",
+        })
+
+    # Extrai pergunta do usuário
+    user_q = ""
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            c = m.get("content")
+            if isinstance(c, str):
+                user_q = c
+            elif isinstance(c, list):
+                user_q = " ".join(
+                    (p.get("text") or "") for p in c if isinstance(p, dict) and p.get("type") == "text"
+                )
+            break
+
+    # Memória do system original
+    mem_extra = ""
+    if messages and messages[0].get("role") == "system":
+        orig = messages[0].get("content") or ""
+        if "MEMÓRIA DE LONGO PRAZO" in orig:
+            idx = orig.find("=== MEMÓRIA")
+            if idx >= 0:
+                mem_extra = "\n\n" + orig[idx:]
+
+    # ── 2. OmniRoute valida / processa ────────────────────────────────────────
+    validate_user = (
+        f"Pergunta do usuário:\n{user_q}\n\n"
+        f"Resposta primária (DeepSeek Local):\n{primary or '(vazia — gere do zero)'}\n\n"
+        "Valide, corrija e refine."
+    )
+    omni_messages = [
+        {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_VALIDATE_SYSTEM + mem_extra},
+        {"role": "user", "content": validate_user},
+    ]
+    omni_text, omni_label, omni_err = _single_provider(
+        "omniroute",
+        omni_messages,
+        temperature=temperature,
+        max_tokens=min(max_tokens, 4096),
+        api_key=api_key,
+    )
+    steps.append({
+        "provider": "omniroute",
+        "label": omni_label or "OmniRoute",
+        "text": omni_text,
+        "error": omni_err,
+    })
+
+    validated = omni_text or primary or ""
+    if not validated:
+        # OmniRoute falhou e não há primary — tenta Groq direto na pergunta
+        validated = f"(sem validação prévia)\nPergunta: {user_q}"
+
+    # ── 3. Groq CENTRAL ───────────────────────────────────────────────────────
+    groq_user = (
+        f"Pergunta original do usuário:\n{user_q}\n\n"
+        f"Resposta já processada e validada (DeepSeek → OmniRoute):\n{validated}\n\n"
+        "Produza a resposta final potencializada."
+    )
+    groq_messages = [
+        {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_GROQ_SYSTEM + mem_extra},
+        {"role": "user", "content": groq_user},
+    ]
+    final_text, groq_label, groq_err = _single_provider(
+        "groq",
+        groq_messages,
+        temperature=min(temperature, 0.5),
+        max_tokens=max_tokens,
+        api_key=api_key,
+    )
+    steps.append({
+        "provider": "groq",
+        "label": groq_label or "Groq",
+        "text": final_text,
+        "error": groq_err,
+    })
+
+    if final_text:
+        return final_text, f"Pipeline→{groq_label}", steps
+
+    # Fallbacks se Groq central falhar
+    if omni_text:
+        return omni_text + f"\n\n_[Nota: Groq central falhou ({groq_err}); usando validação OmniRoute.]_", f"Pipeline/OmniRoute-fallback", steps
+    if primary:
+        return primary + f"\n\n_[Nota: OmniRoute e Groq falharam; usando DeepSeek primário.]_", "Pipeline/DeepSeek-fallback", steps
+
+    raise AIClientError(
+        "Pipeline falhou em todas as etapas. "
+        + " | ".join(f"{s['provider']}: {s['error']}" for s in steps if s.get("error"))
+    )

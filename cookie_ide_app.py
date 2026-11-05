@@ -46,6 +46,7 @@ try:
     from ai_client import (
         chat_completion,
         council_chat,
+        pipeline_chat,
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
@@ -55,6 +56,7 @@ try:
 except ImportError:
     chat_completion = None
     council_chat = None
+    pipeline_chat = None
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
@@ -675,19 +677,32 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         )
 
         council_members = []
-        use_council = provider in ('auto', 'council', 'ensemble', 'conselho', '') or data.get('council')
-        # provider isolado (omniroute/grok/groq) NÃO usa conselho, a menos que council=true
-        if provider in ('omniroute', 'grok', 'groq') and not data.get('council'):
-            use_council = False
+        # pipeline = opção 1: DeepSeek Local → OmniRoute (valida) → Groq (central)
+        use_pipeline = provider in ('pipeline', 'auto', 'council', 'ensemble', 'conselho', '')
 
         try:
-            if use_council and council_chat is not None:
-                texto, usado, council_members = council_chat(
+            if use_pipeline and pipeline_chat is not None:
+                # 1) DeepSeek Local gera a resposta primária
+                deepseek_text = None
+                if CookieAIGenerator:
+                    try:
+                        gen = CookieAIGenerator()
+                        if os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
+                            gen._load_deepseek_model()
+                        # tenta mesmo sem ENABLE (fallback templates se modelo não carregar)
+                        deepseek_text = gen.responder(message) if hasattr(gen, 'responder') else None
+                        if not deepseek_text and hasattr(gen, '_fallback_resposta'):
+                            deepseek_text = gen._fallback_resposta(message)
+                    except Exception as e:
+                        print(f'[Pipeline/DeepSeek] {e}')
+                        deepseek_text = None
+
+                texto, usado, council_members = pipeline_chat(
                     messages,
                     temperature=float(data.get('temperature', 0.6)),
                     max_tokens=int(data.get('max_tokens', 8192)),
                     api_key=api_key,
-                    include_providers=data.get('council_members') or ['omniroute', 'groq'],
+                    deepseek_text=deepseek_text,
                 )
             else:
                 texto, usado = chat_completion(

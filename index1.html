@@ -243,14 +243,8 @@
       <div class="field">
         <label for="providerSelect">Provedor de IA</label>
         <select id="providerSelect">
-          <option value="auto" selected>⚡ Conselho de IAs (OmniRoute + Groq → Grok organiza)</option>
-          <option value="council">🧠 Conselho forçado (várias IAs + Grok central)</option>
-          <option value="omniroute">OmniRoute (env no Render)</option>
-          <option value="grok">Grok / xAI</option>
-          <option value="groq">Groq Cloud</option>
-          <option value="claude_code">🤖 Claude Code Local (CLI)</option>
-          <option value="local">🧠 DeepSeek Local</option>
-          <option value="gemini">Google Gemini</option>
+          <option value="pipeline" selected>⚡ Todas juntas (DeepSeek → OmniRoute valida → Groq central)</option>
+          <option value="claude_code">🤖 Claude Code Local (só no PC com CookieScript instalado)</option>
         </select>
       </div>
       <div class="field" id="apiKeyField">
@@ -571,31 +565,17 @@
     if (typeof aiFlowInfo !== 'undefined' && aiFlowInfo) aiFlowInfo.classList.remove('active');
     if (provider === 'claude_code') {
       apiKeyField.style.display = 'none';
-      groqModelDiv.classList.remove('active');
+      if (groqModelDiv) groqModelDiv.classList.remove('active');
       claudeCodeStatusDiv.classList.add('active');
       checkClaudeCodeStatus();
-    } else if (provider === 'gemini') {
+    } else {
+      // pipeline: DeepSeek → OmniRoute → Groq
       apiKeyField.style.display = 'block';
-      groqModelDiv.classList.remove('active');
-      apiKeyInput.placeholder = 'AIza... (Gemini)';
-    } else if (provider === 'groq') {
-      apiKeyField.style.display = 'block';
-      groqModelDiv.classList.add('active');
-      apiKeyInput.placeholder = 'gsk_... (ou vazio se GROQ_API_KEY no servidor)';
-    } else if (provider === 'grok') {
-      apiKeyField.style.display = 'block';
-      groqModelDiv.classList.add('active');
-      apiKeyInput.placeholder = 'xai-... (ou vazio se GROK_API_KEY no servidor)';
-    } else if (provider === 'omniroute' || provider === 'auto') {
-      apiKeyField.style.display = 'block';
-      groqModelDiv.classList.add('active');
-      apiKeyInput.placeholder = 'chave opcional (OMNIROUTE_API_KEY / GROK no env)';
-    } else { // local
-      apiKeyField.style.display = 'none';
-      groqModelDiv.classList.remove('active');
-      checkServerHealth();
+      if (groqModelDiv) groqModelDiv.classList.add('active');
+      apiKeyInput.placeholder = 'opcional (GROQ / OMNIROUTE no env do Render)';
+      if (typeof checkServerHealth === 'function') checkServerHealth();
     }
-    responseContainer.innerHTML = '<div style="color:var(--gray-500);">Provedor alterado. Digite sua pergunta ou anexe arquivos.</div>';
+    responseContainer.innerHTML = '<div style="color:var(--gray-500);">Opção alterada. Digite sua pergunta ou anexe arquivos.</div>';
     delete responseContainer.dataset.rawText;
   }
 
@@ -696,15 +676,11 @@
     setLoading(true);
     try {
       let result = '';
-      if (provider === 'gemini') {
-        result = await callGemini(apiKey, prompt);
-      } else if (provider === 'claude_code') {
+      if (provider === 'claude_code') {
         result = await callClaudeCodeAI(prompt);
-      } else if (provider === 'local') {
-        result = await callLocalAI(prompt);
       } else {
-        // auto, omniroute, grok, groq → backend unificado com memória + arquivos
-        result = await callUnifiedChat(prompt, provider, apiKey, groqModelSelect.value);
+        // pipeline (opção 1): DeepSeek → OmniRoute valida → Groq central
+        result = await callUnifiedChat(prompt, 'pipeline', apiKey, groqModelSelect ? groqModelSelect.value : '');
       }
       setResponse(result, false, result);
       if (fileInput) { fileInput.value = ''; updateFileList(); }
