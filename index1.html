@@ -292,7 +292,7 @@
       <label>Anexar arquivos para análise (código, foto, PDF, planilha, qualquer tipo)</label>
       <input type="file" id="fileInput" multiple accept="*/*" style="display:block; margin-top:0.35rem;">
       <div id="fileList" style="font-size:0.85rem; color:var(--gray-600); margin-top:0.4rem;"></div>
-      <p style="font-size:0.8rem; color:var(--gray-500); margin-top:0.35rem;">A IA <strong>não gera imagens</strong>. Quando criar arquivos, eles baixam automaticamente no seu PC (e você pode baixar de novo pelos botões).</p>
+      <p style="font-size:0.8rem; color:var(--gray-500); margin-top:0.35rem;">A IA <strong>não gera imagens</strong>. Quando criar arquivos, use os botões Baixar na resposta para salvar no seu PC.</p>
     </div>
 
     <div class="form-group" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; margin-top:0.5rem;">
@@ -368,49 +368,58 @@
   }
 
   function downloadTextFile(filename, content) {
-    const blob = new Blob([content], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.split('/').pop() || filename || 'arquivo.txt';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+    try {
+      const blob = new Blob([content || ''], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (filename || 'arquivo.txt').split('/').pop();
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { try { URL.revokeObjectURL(url); a.remove(); } catch (_) {} }, 800);
+    } catch (e) {
+      console.error('download', e);
+      alert('Não foi possível baixar: ' + (e && e.message ? e.message : e));
+    }
   }
 
   function setResponse(content, isError = false, rawText = '', generatedFiles = null) {
-    if (isError) {
-      responseContainer.innerHTML = `<div class="error-block">${escapeHtml(content)}</div>`;
-      return;
-    }
-    let html = `<div class="response-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
-    if (generatedFiles && generatedFiles.length) {
-      html += `<div class="ai-files-panel" style="margin-top:1rem;padding:1rem;border:1px solid var(--gray-200);border-radius:12px;background:#f8fafc;">
-        <div style="font-weight:600;margin-bottom:0.5rem;">📁 Arquivos criados pela IA — clique para baixar:</div>`;
-      generatedFiles.forEach((f, i) => {
-        const name = (f.path || f.name || ('arquivo_' + (i+1))).replace(/</g,'');
-        html += `<button type="button" class="copy-btn ai-dl-btn" data-idx="${i}" style="margin:0.25rem 0.35rem 0.25rem 0;display:inline-flex;align-items:center;gap:0.35rem;">
-          ⬇️ ${escapeHtml(name)}</button>`;
-      });
-      html += `<button type="button" class="copy-btn" id="dlAllBtn" style="margin:0.25rem 0.35rem 0 0;">⬇️ Baixar todos</button>`;
-      html += `</div>`;
-    }
-    responseContainer.innerHTML = html;
-    responseContainer.dataset.rawText = rawText || content;
-    // bind downloads
-    if (generatedFiles && generatedFiles.length) {
-      responseContainer.querySelectorAll('.ai-dl-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const f = generatedFiles[Number(btn.dataset.idx)];
-          if (f) downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || '');
+    try {
+      if (!responseContainer) return;
+      if (isError) {
+        responseContainer.innerHTML = '<div class="error-block">' + escapeHtml(String(content || '')) + '</div>';
+        return;
+      }
+      let html = '<div class="response-content">' + escapeHtml(String(content || '')).replace(/\n/g, '<br>') + '</div>';
+      if (generatedFiles && generatedFiles.length) {
+        html += '<div class="ai-files-panel" style="margin-top:1rem;padding:1rem;border:1px solid var(--gray-200);border-radius:12px;background:#f8fafc;">';
+        html += '<div style="font-weight:600;margin-bottom:0.5rem;">Arquivos criados — clique para baixar:</div>';
+        generatedFiles.forEach((f, i) => {
+          const name = String((f && (f.path || f.name)) || ('arquivo_' + (i + 1))).replace(/[<>]/g, '');
+          html += '<button type="button" class="copy-btn ai-dl-btn" data-idx="' + i + '" style="margin:0.25rem 0.35rem 0.25rem 0;">Baixar ' + escapeHtml(name) + '</button>';
         });
-      });
-      const all = document.getElementById('dlAllBtn');
-      if (all) all.addEventListener('click', () => {
-        generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
-      });
-      // auto-download each file once so o usuário "instala" no PC
-      generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
+        html += '<button type="button" class="copy-btn" id="dlAllBtn" style="margin:0.25rem 0.35rem 0 0;">Baixar todos</button>';
+        html += '</div>';
+      }
+      responseContainer.innerHTML = html;
+      responseContainer.dataset.rawText = rawText || content || '';
+      if (generatedFiles && generatedFiles.length) {
+        responseContainer.querySelectorAll('.ai-dl-btn').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const f = generatedFiles[Number(this.dataset.idx)];
+            if (f) downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || '');
+          });
+        });
+        const all = document.getElementById('dlAllBtn');
+        if (all) {
+          all.addEventListener('click', function () {
+            generatedFiles.forEach(f => downloadTextFile(f.path || f.name || 'arquivo.txt', f.content || ''));
+          });
+        }
+      }
+    } catch (e) {
+      console.error('setResponse', e);
+      if (responseContainer) responseContainer.textContent = String(content || e);
     }
   }
 
@@ -432,11 +441,21 @@
 
   async function safeJsonFetch(url, options) {
     let resp;
+    const opts = Object.assign({}, options || {});
+    // timeout 180s (pipeline pode demorar)
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 180000);
+    opts.signal = ctrl.signal;
     try {
-      resp = await fetch(url, options);
+      resp = await fetch(url, opts);
     } catch (networkErr) {
+      clearTimeout(to);
+      if (networkErr && networkErr.name === 'AbortError') {
+        throw new Error('Tempo esgotado. O pipeline demorou demais — tente de novo.');
+      }
       throw new Error('Sem conexão com o servidor. Verifique se o backend está rodando.');
     }
+    clearTimeout(to);
 
     let text;
     try {
@@ -597,24 +616,27 @@
   // ── UI ─────────────────────────────────────────────────────────────────────
 
   function updateUIForProvider() {
-    const provider = providerSelect.value;
-    claudeCodeStatusDiv.classList.remove('active');
-    localStatusDiv.classList.add('active');
-    if (typeof aiFlowInfo !== 'undefined' && aiFlowInfo) aiFlowInfo.classList.remove('active');
-    if (provider === 'claude_code') {
-      apiKeyField.style.display = 'none';
-      if (groqModelDiv) groqModelDiv.classList.remove('active');
-      claudeCodeStatusDiv.classList.add('active');
-      checkClaudeCodeStatus();
-    } else {
-      // pipeline: DeepSeek → OmniRoute → Groq
-      apiKeyField.style.display = 'block';
-      if (groqModelDiv) groqModelDiv.classList.add('active');
-      apiKeyInput.placeholder = 'opcional (GROQ / OMNIROUTE no env do Render)';
-      if (typeof checkServerHealth === 'function') checkServerHealth();
-    }
-    responseContainer.innerHTML = '<div style="color:var(--gray-500);">Opção alterada. Digite sua pergunta ou anexe arquivos.</div>';
-    delete responseContainer.dataset.rawText;
+    try {
+      if (!providerSelect) return;
+      const provider = providerSelect.value;
+      if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.remove('active');
+      if (localStatusDiv) localStatusDiv.classList.add('active');
+      if (typeof aiFlowInfo !== 'undefined' && aiFlowInfo) aiFlowInfo.classList.remove('active');
+      if (provider === 'claude_code') {
+        if (apiKeyField) apiKeyField.style.display = 'none';
+        if (groqModelDiv) groqModelDiv.classList.remove('active');
+        if (claudeCodeStatusDiv) claudeCodeStatusDiv.classList.add('active');
+        if (typeof checkClaudeCodeStatus === 'function') checkClaudeCodeStatus();
+      } else {
+        if (apiKeyField) apiKeyField.style.display = 'block';
+        if (groqModelDiv) groqModelDiv.classList.add('active');
+        if (apiKeyInput) apiKeyInput.placeholder = 'opcional (GROQ / OMNIROUTE no env do Render)';
+      }
+      if (responseContainer) {
+        responseContainer.innerHTML = '<div style="color:var(--gray-500);">Opção alterada. Digite sua pergunta ou anexe arquivos.</div>';
+        delete responseContainer.dataset.rawText;
+      }
+    } catch (e) { console.error('updateUI', e); }
   }
 
   // ── envio ──────────────────────────────────────────────────────────────────
@@ -773,22 +795,23 @@
 
   // ── eventos ────────────────────────────────────────────────────────────────
 
-  providerSelect.addEventListener('change', updateUIForProvider);
-  sendBtn.addEventListener('click', handleSend);
-  copyBtn.addEventListener('click', copyResponse);
-  promptTextarea.addEventListener('keydown', e => {
+  if (providerSelect) providerSelect.addEventListener('change', updateUIForProvider);
+  if (sendBtn) sendBtn.addEventListener('click', handleSend);
+  if (copyBtn) copyBtn.addEventListener('click', copyResponse);
+  if (promptTextarea) promptTextarea.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSend(); }
   });
 
   // Init
-  updateUIForProvider();
+  try { updateUIForProvider(); } catch (e) { console.error(e); }
   setInterval(() => {
-    if (providerSelect.value === 'local' || providerSelect.value === 'enhanced') {
-      checkServerHealth();
-    } else if (providerSelect.value === 'claude_code') {
-      checkClaudeCodeStatus();
-    }
-  }, 15000);
+    try {
+      if (!providerSelect) return;
+      if (providerSelect.value === 'claude_code' && typeof checkClaudeCodeStatus === 'function') {
+        checkClaudeCodeStatus();
+      }
+    } catch (_) {}
+  }, 30000);
 </script>
 </body>
 </html>
