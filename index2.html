@@ -4,168 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CookieScript Wiki - Documentação e Guia</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary: #111;
-            --primary-light: #333;
-            --accent: #0070f3;
-            --accent-dark: #0051a2;
-            --success: #10b981;
-            --gray-50: #fafafa;
-            --gray-100: #f5f5f5;
-            --gray-200: #eeeeee;
-            --gray-300: #e5e5e5;
-            --gray-500: #6b7280;
-            --gray-700: #374151;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-            --radius-md: 12px;
-            --radius-lg: 16px;
-        }
+:root{--rh-bg:#eef2ec;--rh-surface:#f9fbf7;--rh-surface-2:#e3eae2;--rh-surface-3:#d7e1d6;--rh-ink:#16281f;--rh-ink-2:#2a3d33;--rh-muted:#3f5348;--rh-faint:#566b5e;
+--rh-line:#cbd6cb;--rh-line-2:#a9bcae;--rh-brand:#2d6a4f;--rh-brand-soft:rgba(45,106,79,.13);--rh-accent:#9a5206;--rh-on-accent:#ffffff;--rh-accent-soft:#f3e2c4;
+--rh-solid:#16281f;--rh-ok:#1f7a4d;--rh-warn:#8a5a00;--rh-err:#b42318;--rh-info:#1d5fa8;--rh-overlay:rgba(22,40,31,.5);--rh-shadow:0 10px 30px -18px rgba(22,40,31,.45);--rh-r:10px;--rh-r-lg:14px;--rh-tap:44px;--rh-ease:cubic-bezier(.2,.8,.2,1);
+--rh-serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--rh-sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--rh-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--rh-bg:#0e1a15;--rh-surface:#15251e;--rh-surface-2:#1c3027;--rh-surface-3:#24392f;--rh-ink:#e9f1ea;--rh-ink-2:#d4e2d7;--rh-muted:#a9bbb0;--rh-faint:#8aa095;
+--rh-line:#2b4036;--rh-line-2:#3d5a4b;--rh-brand:#6fcf9f;--rh-brand-soft:rgba(111,207,159,.15);--rh-accent:#f0b24a;--rh-on-accent:#1b2f26;--rh-accent-soft:#3a2c14;
+--rh-solid:#24392f;--rh-ok:#4ade80;--rh-warn:#fbbf24;--rh-err:#f87171;--rh-info:#7cb6f0;--rh-overlay:rgba(0,0,0,.6);--rh-shadow:0 14px 34px -18px rgba(0,0,0,.8);color-scheme:dark}}
+:root,body{--primary:var(--rh-ink);--primary-light:var(--rh-ink-2);--accent:var(--rh-brand);--accent-dark:var(--rh-ink-2);--success:var(--rh-ok);--warning:var(--rh-warn);--danger:var(--rh-err);--gray-50:var(--rh-bg);--gray-100:var(--rh-surface-2);--gray-200:var(--rh-surface-3);--gray-300:var(--rh-line);--gray-400:var(--rh-faint);--gray-500:var(--rh-muted);--gray-700:var(--rh-ink-2);--gray-800:var(--rh-ink);--shadow-sm:var(--rh-shadow);--shadow-md:var(--rh-shadow);--shadow-lg:var(--rh-shadow);--radius-sm:8px;--radius-md:var(--rh-r);--radius-lg:var(--rh-r-lg)}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:var(--rh-sans);line-height:1.6;background:var(--gray-50);color:var(--primary)}.global-nav{background:var(--primary);border-bottom:1px solid var(--gray-700);padding:0.75rem 2rem;display:flex;justify-content:center;gap:0.5rem;flex-wrap:wrap;position:sticky;top:0;z-index:1100;margin-bottom:2rem;border-radius:24px}.global-nav a{text-decoration:none;font-size:0.85rem;font-weight:500;color:var(--gray-300);padding:0.5rem 1.25rem;border-radius:9999px;transition:all 0.25s}.global-nav a:hover{background:var(--gray-700);color:#ffffff}.global-nav a.active{background:var(--rh-surface);color:var(--primary)}.container{max-width:1200px;margin:0 auto;background:var(--rh-surface);padding:2.5rem;border-radius:var(--radius-lg);box-shadow:var(--shadow-md)}h1{color:var(--primary);text-align:center;margin-bottom:2rem;font-weight:600;letter-spacing:-0.02em}h2{color:var(--primary);margin:2rem 0 1rem;padding-bottom:0.5rem;border-bottom:1px solid var(--gray-200)}h3{color:var(--gray-700);margin:1.5rem 0 0.75rem}.code{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:1rem;margin:1rem 0;font-family:var(--rh-mono);overflow-x:auto;font-size:0.9rem}.sidebar{float:right;width:260px;margin-left:2rem;background:var(--gray-50);padding:1.5rem;border-radius:var(--radius-md);border:1px solid var(--gray-200)}.sidebar ul{list-style:none;padding:0}.sidebar li{margin-bottom:0.75rem}.sidebar a{text-decoration:none;color:var(--primary);font-size:0.9rem;transition:color 0.2s}.sidebar a:hover{color:var(--accent)}.clear{clear:both}table{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:0.9rem}th, td{border:1px solid var(--gray-200);padding:0.75rem;text-align:left}th{background:var(--gray-100);font-weight:600;color:var(--gray-700)}tr:hover{background:var(--gray-50)}section{margin-bottom:2.5rem}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
-            color: var(--primary);
-        }
-
-        .global-nav {
-            background: var(--primary);
-            border-bottom: 1px solid var(--gray-700);
-            padding: 0.75rem 2rem;
-            display: flex;
-            justify-content: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            position: sticky;
-            top: 0;
-            z-index: 1100;
-            margin-bottom: 2rem;
-            border-radius: 24px;
-        }
-
-        .global-nav a {
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--gray-300);
-            padding: 0.5rem 1.25rem;
-            border-radius: 9999px;
-            transition: all 0.25s;
-        }
-
-        .global-nav a:hover {
-            background: var(--gray-700);
-            color: white;
-        }
-
-        .global-nav a.active {
-            background: white;
-            color: var(--primary);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 2.5rem;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-        }
-
-        h1 {
-            color: var(--primary);
-            text-align: center;
-            margin-bottom: 2rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-        }
-
-        h2 {
-            color: var(--primary);
-            margin: 2rem 0 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        h3 { color: var(--gray-700); margin: 1.5rem 0 0.75rem; }
-
-        .code {
-            background: var(--gray-50);
-            border: 1px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            padding: 1rem;
-            margin: 1rem 0;
-            font-family: 'Fira Code', 'Courier New', monospace;
-            overflow-x: auto;
-            font-size: 0.9rem;
-        }
-
-        .sidebar {
-            float: right;
-            width: 260px;
-            margin-left: 2rem;
-            background: var(--gray-50);
-            padding: 1.5rem;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--gray-200);
-        }
-
-        .sidebar ul { list-style: none; padding: 0; }
-        .sidebar li { margin-bottom: 0.75rem; }
-        .sidebar a {
-            text-decoration: none;
-            color: var(--primary);
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-        .sidebar a:hover { color: var(--accent); }
-
-        .clear { clear: both; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-        }
-
-        th, td {
-            border: 1px solid var(--gray-200);
-            padding: 0.75rem;
-            text-align: left;
-        }
-
-        th {
-            background: var(--gray-100);
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        tr:hover { background: var(--gray-50); }
-
-        section { margin-bottom: 2.5rem; }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                float: none;
-                width: 100%;
-                margin: 1.5rem 0;
-            }
-            .container { padding: 1.5rem; }
+        @media (max-width: 768px) {.sidebar{float:none;width:100%;margin:1.5rem 0}.container{padding:1.5rem}
         }
     
-        /* ===== Responsivo: navbar global (todas as páginas) ===== */
-        @media (max-width: 640px) {
-            .global-nav { position: static; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
-            .global-nav a { white-space: nowrap; flex: 0 0 auto; padding: 8px 14px; }
-        }
-        img, video, canvas, svg { max-width: 100%; }
-        pre, table { max-width: 100%; overflow-x: auto; }
-    </style>
+        
+        @media (max-width: 640px) {.global-nav{position:static;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;gap:4px;padding:8px 12px;-webkit-overflow-scrolling:touch}.global-nav a{white-space:nowrap;flex:0 0 auto;padding:8px 14px}
+        }img, video, canvas, svg{max-width:100%}pre, table{max-width:100%;overflow-x:auto}
+    
+/* ---- pele Robin Hood ---- */
+body{font-family:var(--rh-sans);background:var(--rh-bg);color:var(--rh-ink);line-height:1.5;-webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:var(--rh-serif)}
+a{color:var(--rh-brand)}
+.global-nav a.active{background:var(--rh-accent)!important;color:var(--rh-on-accent)!important;font-weight:600}
+button,.btn,input[type=button],input[type=submit]{min-height:40px;transition:transform .12s var(--rh-ease),filter .15s,background .15s}
+button:active,.btn:active{transform:scale(.97)}
+:focus-visible{outline:3px solid var(--rh-accent);outline-offset:2px}
+::selection{background:var(--rh-brand-soft)}
+@media(pointer:coarse){button,.btn,input[type=button],input[type=submit],.global-nav a{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
 </head>
 <body>
 <div class="global-nav">

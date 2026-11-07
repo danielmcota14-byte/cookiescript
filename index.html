@@ -4,363 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CookieScript IDE - Editor Profissional de IA</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/lua.js@latest/lua.js"></script>
     <style>
-        :root {
-            --primary: #111;
-            --primary-light: #333;
-            --accent: #0070f3;
-            --accent-dark: #0051a2;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --gray-50: #fafafa;
-            --gray-100: #f5f5f5;
-            --gray-200: #eeeeee;
-            --gray-300: #e5e5e5;
-            --gray-400: #9ca3af;
-            --gray-500: #6b7280;
-            --gray-700: #374151;
-            --gray-800: #1f2937;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-            --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 24px;
-        }
+:root{--rh-bg:#eef2ec;--rh-surface:#f9fbf7;--rh-surface-2:#e3eae2;--rh-surface-3:#d7e1d6;--rh-ink:#16281f;--rh-ink-2:#2a3d33;--rh-muted:#3f5348;--rh-faint:#566b5e;
+--rh-line:#cbd6cb;--rh-line-2:#a9bcae;--rh-brand:#2d6a4f;--rh-brand-soft:rgba(45,106,79,.13);--rh-accent:#9a5206;--rh-on-accent:#ffffff;--rh-accent-soft:#f3e2c4;
+--rh-solid:#16281f;--rh-ok:#1f7a4d;--rh-warn:#8a5a00;--rh-err:#b42318;--rh-info:#1d5fa8;--rh-overlay:rgba(22,40,31,.5);--rh-shadow:0 10px 30px -18px rgba(22,40,31,.45);--rh-r:10px;--rh-r-lg:14px;--rh-tap:44px;--rh-ease:cubic-bezier(.2,.8,.2,1);
+--rh-serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--rh-sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--rh-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--rh-bg:#0e1a15;--rh-surface:#15251e;--rh-surface-2:#1c3027;--rh-surface-3:#24392f;--rh-ink:#e9f1ea;--rh-ink-2:#d4e2d7;--rh-muted:#a9bbb0;--rh-faint:#8aa095;
+--rh-line:#2b4036;--rh-line-2:#3d5a4b;--rh-brand:#6fcf9f;--rh-brand-soft:rgba(111,207,159,.15);--rh-accent:#f0b24a;--rh-on-accent:#1b2f26;--rh-accent-soft:#3a2c14;
+--rh-solid:#24392f;--rh-ok:#4ade80;--rh-warn:#fbbf24;--rh-err:#f87171;--rh-info:#7cb6f0;--rh-overlay:rgba(0,0,0,.6);--rh-shadow:0 14px 34px -18px rgba(0,0,0,.8);color-scheme:dark}}
+:root,body{--primary:var(--rh-ink);--primary-light:var(--rh-ink-2);--accent:var(--rh-brand);--accent-dark:var(--rh-ink-2);--success:var(--rh-ok);--warning:var(--rh-warn);--danger:var(--rh-err);--gray-50:var(--rh-bg);--gray-100:var(--rh-surface-2);--gray-200:var(--rh-surface-3);--gray-300:var(--rh-line);--gray-400:var(--rh-faint);--gray-500:var(--rh-muted);--gray-700:var(--rh-ink-2);--gray-800:var(--rh-ink);--shadow-sm:var(--rh-shadow);--shadow-md:var(--rh-shadow);--shadow-lg:var(--rh-shadow);--radius-sm:8px;--radius-md:var(--rh-r);--radius-lg:var(--rh-r-lg)}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:var(--rh-sans);background:var(--rh-bg);color:var(--rh-ink);height:100vh;overflow:hidden}.global-nav{background:var(--rh-bg);border-bottom:1px solid var(--rh-line);padding:0.7rem 2rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap;position:sticky;top:0;z-index:1100}.global-nav a{text-decoration:none;font-size:0.9rem;font-weight:500;color:var(--rh-ink);padding:0.3rem 0.8rem;border-radius:30px;transition:all 0.2s}.global-nav a:hover{background:var(--rh-surface-2);color:var(--rh-ink)}.global-nav a.active{background:var(--rh-line-2);color:var(--rh-faint)}.top-bar{background:var(--rh-bg);border-bottom:1px solid var(--rh-line);padding:8px 16px;display:flex;align-items:center;gap:16px}.logo{font-size:1.2em;font-weight:bold;color:var(--rh-ink)}.toolbar{display:flex;gap:8px;flex:1}.toolbar button, .toolbar select{padding:6px 12px;background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink);border-radius:var(--rh-r);cursor:pointer;font-size:0.85em}.toolbar button:hover{background:var(--rh-surface-2)}.language-select{background:var(--rh-surface);padding:6px 12px;border-radius:var(--rh-r);border:1px solid var(--rh-line-2);color:var(--rh-ink)}.main-container{display:flex;height:calc(100vh - 50px)}.sidebar{width:260px;background:var(--rh-bg);border-right:1px solid var(--rh-line);display:flex;flex-direction:column;overflow-y:auto}.sidebar-section{padding:16px;border-bottom:1px solid var(--rh-line)}.sidebar-section h3{font-size:0.85em;text-transform:uppercase;color:var(--rh-muted);margin-bottom:12px}.file-list, .project-list{max-height:200px;overflow-y:auto}.file-item, .project-item{padding:6px 8px;cursor:pointer;border-radius:var(--rh-r);font-size:0.85em;margin-bottom:2px}.file-item:hover, .project-item:hover{background:var(--rh-surface)}.editor-area{flex:1;display:flex;flex-direction:column;background:var(--rh-surface)}.tabs{display:flex;background:var(--rh-bg);border-bottom:1px solid var(--rh-line);padding-left:8px;gap:2px}.tab{padding:8px 16px;background:var(--rh-surface);border:none;color:var(--rh-ink);cursor:pointer;display:flex;align-items:center;gap:8px;border-top-left-radius:6px;border-top-right-radius:6px}.tab.active{background:var(--rh-surface);color:var(--rh-ink)}.tab:hover:not(.active){background:var(--rh-surface)}.tab-close{cursor:pointer;opacity:0.7}.editor-wrapper{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px}.path-bar{display:flex;gap:8px;align-items:center}.path-bar input{flex:1;padding:8px;background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink);border-radius:var(--rh-r);font-family:var(--rh-mono)}textarea{flex:1;background:var(--rh-surface);border:1px solid var(--rh-line);color:var(--rh-ink);font-family:var(--rh-mono);font-size:14px;padding:12px;resize:none;border-radius:var(--rh-r)}textarea:focus{outline:none;border-color:var(--rh-line-2)}.right-panel{width:320px;background:var(--rh-bg);border-left:1px solid var(--rh-line);display:flex;flex-direction:column}.panel-header{padding:12px 16px;border-bottom:1px solid var(--rh-line);display:flex;gap:8px}.panel-header button{padding:6px 12px;background:var(--rh-surface);border:none;color:var(--rh-ink);border-radius:var(--rh-r);cursor:pointer;font-size:0.85em}.panel-header button.active{background:var(--rh-line-2);color:var(--rh-faint)}.panel-content{flex:1;overflow-y:auto;padding:16px}.panel-tab{display:none}.panel-tab.active{display:block}.prompt-area{width:100%;min-height:100px;background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink);padding:8px;border-radius:var(--rh-r);font-family:var(--rh-mono);margin-bottom:12px}.search-area{display:flex;gap:8px;margin-bottom:12px}.search-area input{flex:1;padding:8px;background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink);border-radius:var(--rh-r)}.output-area{background:var(--rh-bg);color:var(--rh-muted);padding:12px;border-radius:var(--rh-r);font-family:var(--rh-mono);font-size:12px;white-space:pre-wrap;max-height:300px;overflow-y:auto}button{background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink);padding:6px 12px;border-radius:var(--rh-r);cursor:pointer}button:hover{background:var(--rh-surface-2)}input, textarea, select{background:var(--rh-surface);border:1px solid var(--rh-line-2);color:var(--rh-ink)}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:var(--rh-bg)}::-webkit-scrollbar-thumb{background:var(--rh-surface-3);border-radius:var(--rh-r)}.loading-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--rh-line-2);border-top-color:var(--rh-line-2);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:8px}
+        @keyframes spin {to{transform:rotate(360deg)}
+        }.btn-loading{opacity:0.7;pointer-events:none}
+    
+        
+        @media (max-width: 640px) {.global-nav{position:static;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;gap:4px;padding:8px 12px;-webkit-overflow-scrolling:touch}.global-nav a{white-space:nowrap;flex:0 0 auto;padding:8px 14px}
+        }img, video, canvas, svg{max-width:100%}pre, table{max-width:100%;overflow-x:auto}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
-            color: #e0e0e0;
-            height: 100vh;
-            overflow: hidden;
-        }
-        /* Global navbar unificada */
-        .global-nav {
-            background: #111;
-            border-bottom: 1px solid #333;
-            padding: 0.7rem 2rem;
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            flex-wrap: wrap;
-            position: sticky;
-            top: 0;
-            z-index: 1100;
-        }
-        .global-nav a {
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: #ddd;
-            padding: 0.3rem 0.8rem;
-            border-radius: 30px;
-            transition: all 0.2s;
-        }
-        .global-nav a:hover {
-            background: #333;
-            color: white;
-        }
-        .global-nav a.active {
-            background: white;
-            color: black;
-        }
-        /* Top Bar */
-        .top-bar {
-            background: #181818;
-            border-bottom: 1px solid #333;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        .logo {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #ccc;
-        }
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            flex: 1;
-        }
-        .toolbar button, .toolbar select {
-            padding: 6px 12px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85em;
-        }
-        .toolbar button:hover {
-            background: #3a3a3a;
-        }
-        .language-select {
-            background: #2a2a2a;
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid #444;
-            color: #e0e0e0;
-        }
-        .main-container {
-            display: flex;
-            height: calc(100vh - 50px);
-        }
-        .sidebar {
-            width: 260px;
-            background: #181818;
-            border-right: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-        .sidebar-section {
-            padding: 16px;
-            border-bottom: 1px solid #333;
-        }
-        .sidebar-section h3 {
-            font-size: 0.85em;
-            text-transform: uppercase;
-            color: #aaa;
-            margin-bottom: 12px;
-        }
-        .file-list, .project-list {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .file-item, .project-item {
-            padding: 6px 8px;
-            cursor: pointer;
-            border-radius: 4px;
-            font-size: 0.85em;
-            margin-bottom: 2px;
-        }
-        .file-item:hover, .project-item:hover {
-            background: #2a2a2a;
-        }
-        .editor-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #1e1e1e;
-        }
-        .tabs {
-            display: flex;
-            background: #181818;
-            border-bottom: 1px solid #333;
-            padding-left: 8px;
-            gap: 2px;
-        }
-        .tab {
-            padding: 8px 16px;
-            background: #1e1e1e;
-            border: none;
-            color: #e0e0e0;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-        }
-        .tab.active {
-            background: #2a2a2a;
-            color: #ccc;
-        }
-        .tab:hover:not(.active) {
-            background: #2a2a2a;
-        }
-        .tab-close {
-            cursor: pointer;
-            opacity: 0.7;
-        }
-        .editor-wrapper {
-            flex: 1;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .path-bar {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .path-bar input {
-            flex: 1;
-            padding: 8px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-            border-radius: 6px;
-            font-family: monospace;
-        }
-        textarea {
-            flex: 1;
-            background: #1e1e1e;
-            border: 1px solid #333;
-            color: #e0e0e0;
-            font-family: 'Fira Code', 'Courier New', monospace;
-            font-size: 14px;
-            padding: 12px;
-            resize: none;
-            border-radius: 8px;
-        }
-        textarea:focus {
-            outline: none;
-            border-color: #aaa;
-        }
-        .right-panel {
-            width: 320px;
-            background: #181818;
-            border-left: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-        }
-        .panel-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid #333;
-            display: flex;
-            gap: 8px;
-        }
-        .panel-header button {
-            padding: 6px 12px;
-            background: #2a2a2a;
-            border: none;
-            color: #e0e0e0;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85em;
-        }
-        .panel-header button.active {
-            background: #aaa;
-            color: #111;
-        }
-        .panel-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-        }
-        .panel-tab {
-            display: none;
-        }
-        .panel-tab.active {
-            display: block;
-        }
-        .prompt-area {
-            width: 100%;
-            min-height: 100px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-            padding: 8px;
-            border-radius: 6px;
-            font-family: monospace;
-            margin-bottom: 12px;
-        }
-        .search-area {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .search-area input {
-            flex: 1;
-            padding: 8px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-            border-radius: 6px;
-        }
-        .output-area {
-            background: #0f0f0f;
-            color: #b0b0b0;
-            padding: 12px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        button {
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #3a3a3a;
-        }
-        input, textarea, select {
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #e0e0e0;
-        }
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #181818;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #444;
-            border-radius: 4px;
-        }
-        .loading-spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #444;
-            border-top-color: #aaa;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            margin-right: 8px;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .btn-loading {
-            opacity: 0.7;
-            pointer-events: none;
+        
+        @media (max-width: 900px) {html, body{height:auto;min-height:100dvh}body{overflow-y:auto;overflow-x:hidden}.top-bar{flex-wrap:wrap;gap:8px;padding:8px 12px}.toolbar{flex-wrap:wrap;width:100%}.toolbar button, .toolbar select{flex:1 1 auto;min-height:40px}.main-container{flex-direction:column;height:auto}.editor-area{order:1;min-height:70dvh}.sidebar{order:2;width:100%;border-right:0;border-top:1px solid var(--rh-line);overflow:visible}.right-panel{order:3;width:100%;border-left:0;border-top:1px solid var(--rh-line)}.tabs{overflow-x:auto;flex-wrap:nowrap}.tab{flex:0 0 auto}.editor-wrapper{padding:10px}.path-bar{flex-wrap:wrap}#codeEditor{min-height:50dvh}.panel-header{flex-wrap:wrap}input, select, textarea{font-size:16px !important} 
         }
     
-        /* ===== Responsivo: navbar global (todas as páginas) ===== */
-        @media (max-width: 640px) {
-            .global-nav { position: static; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
-            .global-nav a { white-space: nowrap; flex: 0 0 auto; padding: 8px 14px; }
-        }
-        img, video, canvas, svg { max-width: 100%; }
-        pre, table { max-width: 100%; overflow-x: auto; }
+/* ---- pele Robin Hood ---- */
+body{font-family:var(--rh-sans);background:var(--rh-bg);color:var(--rh-ink);line-height:1.5;-webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:var(--rh-serif)}
+a{color:var(--rh-brand)}
+.global-nav a.active{background:var(--rh-accent)!important;color:var(--rh-on-accent)!important;font-weight:600}
+button,.btn,input[type=button],input[type=submit]{min-height:40px;transition:transform .12s var(--rh-ease),filter .15s,background .15s}
+button:active,.btn:active{transform:scale(.97)}
+:focus-visible{outline:3px solid var(--rh-accent);outline-offset:2px}
+::selection{background:var(--rh-brand-soft)}
+@media(pointer:coarse){button,.btn,input[type=button],input[type=submit],.global-nav a{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-        /* ===== Responsivo: IDE (celular/tablet) ===== */
-        @media (max-width: 900px) {
-            html, body { height: auto; min-height: 100dvh; }
-            body { overflow-y: auto; overflow-x: hidden; }
-            .top-bar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
-            .toolbar { flex-wrap: wrap; width: 100%; }
-            .toolbar button, .toolbar select { flex: 1 1 auto; min-height: 40px; }
-            .main-container { flex-direction: column; height: auto; }
-            .editor-area { order: 1; min-height: 70dvh; }
-            .sidebar { order: 2; width: 100%; border-right: 0; border-top: 1px solid #333; overflow: visible; }
-            .right-panel { order: 3; width: 100%; border-left: 0; border-top: 1px solid #333; }
-            .tabs { overflow-x: auto; flex-wrap: nowrap; }
-            .tab { flex: 0 0 auto; }
-            .editor-wrapper { padding: 10px; }
-            .path-bar { flex-wrap: wrap; }
-            #codeEditor { min-height: 50dvh; }
-            .panel-header { flex-wrap: wrap; }
-            input, select, textarea { font-size: 16px !important; } /* evita zoom automático no iOS */
-        }
-    </style>
+</style>
 </head>
 <body>
     <div class="global-nav">
@@ -394,23 +72,23 @@
             </div>
             <div class="sidebar-section">
                 <h3>Projetos</h3>
-                <input type="text" id="projectName" placeholder="Nome do projeto" style="width: 100%; margin-bottom: 8px; padding: 6px;">
-                <textarea id="projectDesc" placeholder="Descricao" rows="2" style="width: 100%; margin-bottom: 8px; padding: 6px;"></textarea>
-                <button id="btnCreateProject" style="width: 100%; margin-bottom: 8px;">Criar Projeto</button>
+                <input type="text" id="projectName" placeholder="Nome do projeto" style="width:100%;margin-bottom:8px;padding:6px">
+                <textarea id="projectDesc" placeholder="Descricao" rows="2" style="width:100%;margin-bottom:8px;padding:6px"></textarea>
+                <button id="btnCreateProject" style="width:100%;margin-bottom:8px">Criar Projeto</button>
                 <div id="projectList" class="project-list">Carregando...</div>
             </div>
             <div class="sidebar-section">
                 <h3>Git</h3>
-                <button id="btnGitStatus" style="width: 100%; margin-bottom: 4px;">Status</button>
-                <input type="text" id="commitMsg" placeholder="Mensagem do commit" style="width: 100%; margin-bottom: 4px; padding: 6px;">
-                <button id="btnGitCommit" style="width: 100%;">Commit</button>
+                <button id="btnGitStatus" style="width:100%;margin-bottom:4px">Status</button>
+                <input type="text" id="commitMsg" placeholder="Mensagem do commit" style="width:100%;margin-bottom:4px;padding:6px">
+                <button id="btnGitCommit" style="width:100%">Commit</button>
             </div>
         </div>
         <div class="editor-area">
             <div class="tabs" id="tabsContainer"></div>
             <div class="editor-wrapper">
                 <div class="path-bar">
-                    <span style="color: #aaa;">Arquivo</span>
+                    <span style="color:var(--rh-faint)">Arquivo</span>
                     <input type="text" id="filePath" placeholder="caminho/do/arquivo.jrt">
                 </div>
                 <textarea id="codeEditor" placeholder="Escreva seu codigo aqui..."></textarea>
@@ -424,18 +102,18 @@
             </div>
             <div class="panel-content">
                 <div id="tab-generate" class="panel-tab active">
-                    <label style="display: block; margin-bottom: 8px;">Gerar codigo com IA</label>
-                    <input type="password" id="groqKey" placeholder="Chave Groq (gratis em console.groq.com) - ativa a IA real" style="width:100%;margin-bottom:8px;padding:6px;">
+                    <label style="display:block;margin-bottom:8px">Gerar codigo com IA</label>
+                    <input type="password" id="groqKey" placeholder="Chave Groq (gratis em console.groq.com) - ativa a IA real" style="width:100%;margin-bottom:8px;padding:6px">
                     <textarea id="promptInput" class="prompt-area" placeholder="Descreva o codigo que voce quer gerar..."></textarea>
-                    <button id="btnGenerate" style="width: 100%;">Gerar Codigo</button>
+                    <button id="btnGenerate" style="width:100%">Gerar Codigo</button>
                 </div>
                 <div id="tab-search" class="panel-tab">
-                    <label style="display: block; margin-bottom: 8px;">Pesquisar exemplos</label>
+                    <label style="display:block;margin-bottom:8px">Pesquisar exemplos</label>
                     <div class="search-area">
                         <input type="text" id="searchQuery" placeholder="Ex: operacoes com arquivos">
                         <button id="btnSearch">Pesquisar</button>
                     </div>
-                    <div id="searchResults" style="font-size: 0.85em; max-height: 300px; overflow-y: auto;"></div>
+                    <div id="searchResults" style="font-size:0.85em;max-height:300px;overflow-y:auto"></div>
                 </div>
                 <div id="tab-output" class="panel-tab">
                     <div class="output-area" id="outputArea">
@@ -1087,7 +765,7 @@ async function loadFileList() {
     if (result.success && result.files) {
         fileListDiv.innerHTML = '';
         if (result.files.length === 0) {
-            fileListDiv.innerHTML = '<div style="color: #aaa;">Nenhum arquivo encontrado</div>';
+            fileListDiv.innerHTML = '<div style="color:var(--rh-faint)">Nenhum arquivo encontrado</div>';
         }
         result.files.forEach(file => {
             const div = document.createElement('div');
@@ -1097,7 +775,7 @@ async function loadFileList() {
             fileListDiv.appendChild(div);
         });
     } else {
-        fileListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+        fileListDiv.innerHTML = `<div style="color:#fca5a5">Erro: ${result.error || 'Falha ao carregar'}</div>`;
     }
 }
 
@@ -1150,7 +828,7 @@ async function loadProjects() {
         projectListDiv.innerHTML = '';
         const projects = Object.values(result.projects);
         if (projects.length === 0) {
-            projectListDiv.innerHTML = '<div style="color: #aaa;">Nenhum projeto criado</div>';
+            projectListDiv.innerHTML = '<div style="color:var(--rh-faint)">Nenhum projeto criado</div>';
         }
         projects.forEach(project => {
             const div = document.createElement('div');
@@ -1161,7 +839,7 @@ async function loadProjects() {
         });
         addOutput(`Projetos carregados: ${projects.length}`);
     } else {
-        projectListDiv.innerHTML = `<div style="color: #f66;">Erro: ${result.error || 'Falha ao carregar'}</div>`;
+        projectListDiv.innerHTML = `<div style="color:#fca5a5">Erro: ${result.error || 'Falha ao carregar'}</div>`;
     }
 }
 
@@ -1368,18 +1046,18 @@ async function searchCode() {
             addOutput(`Encontrados ${result.results.length} arquivos relacionados`);
             result.results.forEach(r => {
                 const div = document.createElement('div');
-                div.style.cssText = 'padding:8px;margin-bottom:8px;background:#2a2a2a;border-radius:4px;cursor:pointer;border-left:3px solid #aaa;';
+                div.style.cssText = 'padding:8px;margin-bottom:8px;background:var(--rh-solid);border-radius:4px;cursor:pointer;border-left:3px solid var(--rh-line-2);';
                 div.innerHTML = `<strong>${r.file}</strong><br><small>${(r.preview||'').substring(0,120)}</small>`;
                 div.onclick = () => openFile(r.file);
                 searchResultsDiv.appendChild(div);
             });
         } else {
-            searchResultsDiv.innerHTML = '<div style="color:#aaa;padding:8px;">Nenhum resultado encontrado</div>';
+            searchResultsDiv.innerHTML = '<div style="color:var(--rh-faint);padding:8px">Nenhum resultado encontrado</div>';
         }
         if (result.generated) {
             addOutput('Codigo gerado pela IA disponivel!');
             const genDiv = document.createElement('div');
-            genDiv.style.cssText = 'padding:8px;margin-top:12px;background:#2a5a2a;border-radius:4px;cursor:pointer;text-align:center;';
+            genDiv.style.cssText = 'padding:8px;margin-top:12px;background:var(--rh-ok);border-radius:4px;cursor:pointer;text-align:center;';
             genDiv.innerHTML = '<strong>✨ Codigo IA gerado - clique para usar</strong>';
             genDiv.onclick = () => {
                 document.getElementById('codeEditor').value = result.generated;
@@ -1388,7 +1066,7 @@ async function searchCode() {
             searchResultsDiv.appendChild(genDiv);
         }
     } else {
-        searchResultsDiv.innerHTML = `<div style="color:#f66;padding:8px;">Erro: ${result.error||'Falha na pesquisa'}</div>`;
+        searchResultsDiv.innerHTML = `<div style="color:#fca5a5;padding:8px">Erro: ${result.error||'Falha na pesquisa'}</div>`;
         addOutput(`Erro na pesquisa: ${result.error}`);
     }
 }

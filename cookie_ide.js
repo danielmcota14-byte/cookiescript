@@ -148,12 +148,12 @@ const newTab = () => {
 const drawCanvas = () => {
     const lines = codeArea.value.split('\n').filter(line => line.trim());
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = '#0e1a15';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#4f46e5';
+    ctx.strokeStyle = '#6fcf9f';
     ctx.lineWidth = 2;
     ctx.font = '14px Arial';
-    ctx.fillStyle = '#e5e7eb';
+    ctx.fillStyle = '#e9f1ea';
 
     ctx.fillText('Fluxo do CookieScript', 16, 28);
     ctx.beginPath();
@@ -169,11 +169,11 @@ const drawCanvas = () => {
 
     for (let i = 0; i < blockCount; i++) {
         const text = lines[i] ? lines[i].slice(0, 32) : '...';
-        ctx.fillStyle = '#1f2937';
+        ctx.fillStyle = '#1c3027';
         ctx.fillRect(18, y, canvas.width - 36, blockHeight);
-        ctx.strokeStyle = '#4338ca';
+        ctx.strokeStyle = '#f0b24a';
         ctx.strokeRect(18, y, canvas.width - 36, blockHeight);
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = '#e9f1ea';
         ctx.fillText(text, 28, y + 24);
         if (i < blockCount - 1) {
             ctx.beginPath();
