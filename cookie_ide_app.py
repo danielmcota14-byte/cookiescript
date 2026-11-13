@@ -637,11 +637,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         history = []
         mem_block = ''
         if memory_store:
-            if session_id:
-                session_id = memory_store.ensure_session(session_id)
-                history = memory_store.get_history(session_id, limit=30)
-            else:
-                session_id = memory_store.ensure_session()
+            # Sessão sempre vinculada ao dono (scope do usuário) -> histórico individual
+            session_id = memory_store.ensure_session(session_id, owner=scope)
+            history = memory_store.get_history(session_id, limit=30, owner=scope)
             mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
             # aprendizado automático se o usuário pedir para lembrar
             if message:
@@ -781,8 +779,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         # Persiste histórico + reforça memória de longo prazo
         learned = []
         if memory_store and session_id:
-            memory_store.append_message(session_id, 'user', message or '[arquivos]')
-            memory_store.append_message(session_id, 'assistant', visible[:20000])
+            memory_store.append_message(session_id, 'user', message or '[arquivos]', owner=scope)
+            memory_store.append_message(session_id, 'assistant', visible[:20000], owner=scope)
             try:
                 if hasattr(memory_store, 'update_user_profile'):
                     learned = memory_store.update_user_profile(message or '', visible or '', scope=scope)
@@ -849,6 +847,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'provider': data.get('provider') or 'auto',
             'model': data.get('model'),
             'session_id': data.get('session_id'),
+            'user_id': data.get('user_id') or data.get('user') or '',
+            'memory_scope': data.get('memory_scope') or '',
             'api_key': data.get('api_key') or data.get('groq_api_key'),
             'save_files': data.get('save_files', False),
         }
@@ -914,7 +914,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not memory_store:
             self.send_json({'success': True, 'sessions': []})
             return
-        self.send_json({'success': True, 'sessions': memory_store.list_sessions(limit=int(data.get('limit', 20)))})
+        self.send_json({'success': True, 'sessions': memory_store.list_sessions(limit=int(data.get('limit', 20)), owner=self._memory_scope(data))})
 
     def api_session_clear(self, data):
         if not memory_store:
@@ -924,8 +924,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not sid:
             self.send_json({'success': False, 'error': 'session_id obrigatório'})
             return
-        memory_store.clear_session(sid)
-        self.send_json({'success': True})
+        ok = memory_store.clear_session(sid, owner=self._memory_scope(data))
+        self.send_json({'success': bool(ok)} if ok else {'success': False, 'error': 'Sessão não encontrada'})
 
 
     def api_download(self, data):
