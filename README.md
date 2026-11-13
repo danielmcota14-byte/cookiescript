@@ -133,7 +133,7 @@ ou no campo de API Key da própria interface — nunca direto no código.
 
 | Variável | Descrição | Exemplo |
 |----------|-----------|---------|
-| `OMNIROUTE_URL` | Endpoint OmniRoute | `http://54.227.158.25:20128/v1` |
+| `OMNIROUTE_URL` | Endpoint OmniRoute | `http://54.197.31.160:20128/v1` |
 | `OMNIROUTE_API_KEY` | Chave OmniRoute | (dashboard OmniRoute) |
 | `OMNIROUTE_MODEL` | Modelo padrão | `auto` |
 | `GROK_API_KEY` | Chave xAI / Grok | `xai-...` |
@@ -158,7 +158,7 @@ Ordem no modo **Auto**: OmniRoute → Grok → Groq.
 ### Deploy no Render
 
 1. Defina no Environment:
-   - `OMNIROUTE_URL=http://54.227.158.25:20128/v1`
+   - `OMNIROUTE_URL=http://54.197.31.160:20128/v1`
    - `OMNIROUTE_API_KEY=sua_chave`
    - `GROK_API_KEY=sua_chave` (opcional)
    - `GROQ_API_KEY=sua_chave` (opcional)

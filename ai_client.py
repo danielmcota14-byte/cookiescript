@@ -37,7 +37,7 @@ def _base_url(url: str) -> str:
     return u
 
 
-OMNIROUTE_URL = _base_url(_env("OMNIROUTE_URL", "http://54.227.158.25:20128/v1"))
+OMNIROUTE_URL = _base_url(_env("OMNIROUTE_URL", "http://54.197.31.160:20128/v1"))
 OMNIROUTE_KEY = _env("OMNIROUTE_API_KEY") or _env("OMNIROUTE_KEY")
 GROK_URL = _base_url(_env("GROK_URL", "https://api.x.ai/v1"))
 GROK_KEY = _env("GROK_API_KEY") or _env("XAI_API_KEY")
