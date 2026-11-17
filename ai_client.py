@@ -183,7 +183,7 @@ def chat_completion(
                     "stream": False,
                 }
                 headers = {"Authorization": f"Bearer {key}"} if key and key != "local" else {}
-                data = _http_json(url, headers=headers, body=body)
+                data = _http_json(url, headers=headers, body=body, timeout=60)
                 text = _extract_text(data)
                 if text:
                     return text, f"OmniRoute/{m}"

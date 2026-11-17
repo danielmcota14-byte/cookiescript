@@ -107,18 +107,12 @@ def init_db() -> None:
 
                     CREATE TABLE IF NOT EXISTS sessions (
                         id TEXT PRIMARY KEY,
-                        owner TEXT,
                         title TEXT,
                         created_at REAL,
                         updated_at REAL
                     );
                     """
                 )
-                # Migração: bancos antigos não tinham dono na sessão (histórico universal)
-                cols = [r[1] for r in c.execute("PRAGMA table_info(sessions)").fetchall()]
-                if "owner" not in cols:
-                    c.execute("ALTER TABLE sessions ADD COLUMN owner TEXT")
-                c.execute("CREATE INDEX IF NOT EXISTS idx_sessions_owner ON sessions(owner, updated_at)")
             _use_json = False
         except Exception as e:
             print(f"[memory] SQLite indisponível ({e}); usando JSON em {JSON_FALLBACK}")
@@ -294,70 +288,37 @@ def memory_count(scope: str = "global") -> int:
     return len(list_memories(scope=scope, limit=1000))
 
 
-def _norm_owner(owner: Optional[str]) -> str:
-    return (owner or "").strip() or "user:anonymous"
-
-
-def session_owner(session_id: str) -> Optional[str]:
-    """Dono da sessão (None se a sessão não existe ou é antiga/sem dono)."""
-    with _lock:
-        if _use_json:
-            for s in _load_json().get("sessions", []):
-                if s["id"] == session_id:
-                    return s.get("owner")
-            return None
-        with _conn() as c:
-            row = c.execute("SELECT owner FROM sessions WHERE id = ?", (session_id,)).fetchone()
-    return row["owner"] if row else None
-
-
-def owns_session(session_id: str, owner: str) -> bool:
-    return bool(session_id) and session_owner(session_id) == _norm_owner(owner)
-
-
-def ensure_session(session_id: Optional[str] = None, title: str = "", owner: str = "") -> str:
-    """
-    Garante uma sessão PERTENCENTE a `owner`.
-    Se o session_id informado já existe mas é de outra pessoa (ou não tem dono),
-    NÃO é reutilizado: cria-se uma sessão nova — assim ninguém lê o histórico dos outros.
-    """
-    owner = _norm_owner(owner)
-    ts = _now()
+def ensure_session(session_id: Optional[str] = None, title: str = "") -> str:
     sid = session_id or str(uuid.uuid4())
+    ts = _now()
     with _lock:
         if _use_json:
             data = _load_json()
-            existing = next((s for s in data.get("sessions", []) if s["id"] == sid), None)
-            if existing is not None and existing.get("owner") != owner:
-                sid = str(uuid.uuid4())
-                existing = None
-            if existing is None:
+            ids = {s["id"] for s in data.get("sessions", [])}
+            if sid not in ids:
                 data.setdefault("sessions", []).append(
-                    {"id": sid, "owner": owner, "title": title or "Conversa", "created_at": ts, "updated_at": ts}
+                    {"id": sid, "title": title or "Conversa", "created_at": ts, "updated_at": ts}
                 )
             else:
-                existing["updated_at"] = ts
+                for s in data["sessions"]:
+                    if s["id"] == sid:
+                        s["updated_at"] = ts
             _save_json(data)
             return sid
         with _conn() as c:
-            row = c.execute("SELECT owner FROM sessions WHERE id = ?", (sid,)).fetchone()
-            if row is not None and row["owner"] != owner:
-                sid = str(uuid.uuid4())
-                row = None
-            if row is None:
+            row = c.execute("SELECT id FROM sessions WHERE id = ?", (sid,)).fetchone()
+            if not row:
                 c.execute(
-                    "INSERT INTO sessions (id, owner, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (sid, owner, title or "Conversa", ts, ts),
+                    "INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (sid, title or "Conversa", ts, ts),
                 )
             else:
                 c.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (ts, sid))
     return sid
 
 
-def append_message(session_id: str, role: str, content: str, owner: str = "") -> None:
-    # só grava em sessão do próprio dono
-    if not owns_session(session_id, owner):
-        return
+def append_message(session_id: str, role: str, content: str) -> None:
+    ensure_session(session_id)
     mid = str(uuid.uuid4())
     ts = _now()
     with _lock:
@@ -381,10 +342,7 @@ def append_message(session_id: str, role: str, content: str, owner: str = "") ->
             c.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (ts, session_id))
 
 
-def get_history(session_id: str, limit: int = 40, owner: str = "") -> List[Dict[str, str]]:
-    # histórico só é devolvido para o dono da sessão
-    if not owns_session(session_id, owner):
-        return []
+def get_history(session_id: str, limit: int = 40) -> List[Dict[str, str]]:
     with _lock:
         if _use_json:
             rows = [x for x in _load_json().get("conversations", []) if x.get("session_id") == session_id]
@@ -392,47 +350,38 @@ def get_history(session_id: str, limit: int = 40, owner: str = "") -> List[Dict[
             rows = rows[-limit:]
             return [{"role": r["role"], "content": r["content"]} for r in rows]
         with _conn() as c:
-            # as últimas `limit` mensagens, em ordem cronológica
             rows = c.execute(
-                "SELECT role, content FROM ("
-                "  SELECT role, content, created_at FROM conversations "
-                "  WHERE session_id = ? ORDER BY created_at DESC LIMIT ?"
-                ") ORDER BY created_at ASC",
+                "SELECT role, content FROM conversations WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
                 (session_id, limit),
             ).fetchall()
     return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 
-def list_sessions(limit: int = 20, owner: str = "") -> List[Dict[str, Any]]:
-    owner = _norm_owner(owner)
+def list_sessions(limit: int = 20) -> List[Dict[str, Any]]:
     with _lock:
         if _use_json:
-            sessions = [s for s in _load_json().get("sessions", []) if s.get("owner") == owner]
+            sessions = list(_load_json().get("sessions", []))
             sessions.sort(key=lambda x: -(x.get("updated_at") or 0))
             return sessions[:limit]
         with _conn() as c:
             rows = c.execute(
-                "SELECT id, title, created_at, updated_at FROM sessions "
-                "WHERE owner = ? ORDER BY updated_at DESC LIMIT ?",
-                (owner, limit),
+                "SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
             ).fetchall()
     return [dict(r) for r in rows]
 
 
-def clear_session(session_id: str, owner: str = "") -> bool:
-    if not owns_session(session_id, owner):
-        return False
+def clear_session(session_id: str) -> None:
     with _lock:
         if _use_json:
             data = _load_json()
             data["conversations"] = [x for x in data.get("conversations", []) if x.get("session_id") != session_id]
             data["sessions"] = [x for x in data.get("sessions", []) if x.get("id") != session_id]
             _save_json(data)
-            return True
+            return
         with _conn() as c:
             c.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
             c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-    return True
 
 
 EXPLICIT_HINTS = (
