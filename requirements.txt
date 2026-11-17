@@ -1,2 +1,7 @@
+websockets
 requests
+flask
+fastapi
+uvicorn
+pillow
 psutil
