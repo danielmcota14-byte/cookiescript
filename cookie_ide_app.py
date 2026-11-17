@@ -79,6 +79,17 @@ except ImportError:
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.environ.get('PORT', 8080))
 
+# ── CORS / API pública ────────────────────────────────────────────────────────
+# Rotas que OUTROS sites podem chamar (chat de IA). Todas as demais rotas
+# (/api/execute, /api/save, /api/open, git...) ficam restritas ao próprio site.
+CORS_PUBLIC_PREFIXES = (
+    '/health', '/api/chat', '/api/providers', '/api/session/clear',
+    '/api/memory/', '/api/upload_analyze', '/api/v1/',
+)
+# ALLOWED_ORIGINS="*" (padrão) ou lista separada por vírgula:
+# ALLOWED_ORIGINS=https://meusite.com,https://outro.netlify.app
+ALLOWED_ORIGINS = [o.strip().rstrip('/') for o in os.environ.get('ALLOWED_ORIGINS', '*').split(',') if o.strip()]
+
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     """HTTPServer que atende cada requisição numa thread própria. Necessário
@@ -98,11 +109,49 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         print(f"[LOG] {format % args}")
 
+    # ── CORS ──────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_public_path(path):
+        return any(path == p.rstrip('/') or path.startswith(p) for p in CORS_PUBLIC_PREFIXES)
+
+    def _cors_origin(self):
+        origin = (self.headers.get('Origin') or '').rstrip('/')
+        if not origin:
+            return None
+        if '*' in ALLOWED_ORIGINS:
+            return '*'
+        return origin if origin in ALLOWED_ORIGINS else None
+
+    def _send_cors_headers(self):
+        path = urlparse(self.path).path
+        if not self._is_public_path(path):
+            return
+        allow = self._cors_origin()
+        if allow:
+            self.send_header('Access-Control-Allow-Origin', allow)
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id')
+            self.send_header('Access-Control-Max-Age', '86400')
+            self.send_header('Vary', 'Origin')
+
+    def do_OPTIONS(self):
+        """Preflight CORS — sem isto o navegador bloqueia POST JSON vindo de outro site."""
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == '/health':
             self.send_json({'status': 'ok'})
+            return
+        if path in ('/api/v1/status', '/api/v1'):
+            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 1,
+                            'endpoints': {'chat': 'POST /api/v1/chat', 'providers': 'POST /api/providers',
+                                          'clear_session': 'POST /api/session/clear'}})
             return
         if path in ('/', ''):
             self.path = '/index1.html' if (BASE_DIR / 'index1.html').exists() else '/cookie_ide.html'
@@ -124,7 +173,15 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
         path = urlparse(self.path).path
 
+        # Bloqueia sites de fora de chamarem rotas internas (execute/save/open/git...)
+        origin = (self.headers.get('Origin') or '').strip()
+        if origin and not self._is_public_path(path):
+            if urlparse(origin).netloc != (self.headers.get('Host') or ''):
+                self.send_json({'success': False, 'error': 'Origem não permitida para esta rota.'}, 403)
+                return
+
         routes = {
+            '/api/v1/chat':        self.api_chat,
             '/api/open':           self.api_open,
             '/api/save':           self.api_save,
             '/api/execute':        self.api_execute,
@@ -199,7 +256,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_response(status)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(response)))
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self._send_cors_headers()
             self.end_headers()
             self.wfile.write(response)
         except (BrokenPipeError, ConnectionResetError):
@@ -604,6 +661,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         api_key = data.get('api_key') or data.get('groq_api_key') or data.get('omniroute_api_key') or data.get('grok_api_key')
         files_in = data.get('files') or []
         save_files = bool(data.get('save_files', True))
+        # Chamadas vindas de OUTRO site nunca gravam arquivos no disco do servidor
+        _origin = (self.headers.get('Origin') or '').strip()
+        if _origin and urlparse(_origin).netloc != (self.headers.get('Host') or ''):
+            save_files = False
         # Memória ISOLADA por usuário (como ChatGPT — cada pessoa tem a sua)
         user_id = (data.get('user_id') or data.get('user') or '').strip()
         if memory_store and hasattr(memory_store, 'user_scope'):
