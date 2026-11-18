@@ -50,6 +50,11 @@ try:
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
+        extract_image_prompts,
+        strip_image_blocks,
+        generate_image,
+        looks_like_image_request,
+        image_generation_available,
         SYSTEM_BASE,
         AIClientError,
     )
@@ -60,6 +65,11 @@ except ImportError:
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
+    extract_image_prompts = None
+    strip_image_blocks = None
+    generate_image = None
+    looks_like_image_request = None
+    image_generation_available = None
     SYSTEM_BASE = ""
     AIClientError = RuntimeError
 
@@ -85,6 +95,8 @@ PORT = int(os.environ.get('PORT', 8080))
 CORS_PUBLIC_PREFIXES = (
     '/health', '/api/chat', '/api/providers', '/api/session/clear',
     '/api/memory/', '/api/upload_analyze', '/api/v1/',
+    '/api/generate_image', '/api/execute', '/api/generate',
+    '/api/ask', '/api/ask_enhanced', '/api/sessions',
 )
 # ALLOWED_ORIGINS="*" (padrão) ou lista separada por vírgula:
 # ALLOWED_ORIGINS=https://meusite.com,https://outro.netlify.app
@@ -149,9 +161,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_json({'status': 'ok'})
             return
         if path in ('/api/v1/status', '/api/v1'):
-            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 1,
-                            'endpoints': {'chat': 'POST /api/v1/chat', 'providers': 'POST /api/providers',
-                                          'clear_session': 'POST /api/session/clear'}})
+            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 2,
+                            'endpoints': {
+                                'chat': 'POST /api/v1/chat',
+                                'generate_image': 'POST /api/v1/generate_image',
+                                'providers': 'POST /api/providers',
+                                'execute': 'POST /api/execute',
+                                'generate': 'POST /api/generate',
+                                'upload_analyze': 'POST /api/upload_analyze',
+                                'clear_session': 'POST /api/session/clear',
+                                'memory': 'POST /api/memory/*',
+                            },
+                            'features': ['chat', 'vision', 'image_generation', 'files', 'cookiescript', 'memory']})
             return
         if path in ('/', ''):
             self.path = '/index1.html' if (BASE_DIR / 'index1.html').exists() else '/cookie_ide.html'
@@ -210,6 +231,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/save_ai_files':  self.api_save_ai_files,
             '/api/providers':      self.api_providers,
             '/api/download':      self.api_download,
+            '/api/generate_image': self.api_generate_image,
+            '/api/v1/generate_image': self.api_generate_image,
         }
 
         handler = routes.get(path)
@@ -635,8 +658,44 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             },
             'memory': memory_store is not None,
             'max_upload_mb': MAX_FILE_BYTES // (1024 * 1024),
-            'no_image_generation': True,
+            'no_image_generation': False,
+            'image_generation': (image_generation_available() if image_generation_available else {'pollinations': True}),
         })
+
+
+    def api_generate_image(self, data):
+        """Gera imagens a partir de um prompt.
+        Body: { prompt, n?, width?, height?, model?, provider?, api_key? }
+        """
+        if generate_image is None:
+            self.send_json({'success': False, 'error': 'Geração de imagens não disponível neste servidor.'})
+            return
+        prompt = (data.get('prompt') or data.get('message') or data.get('pergunta') or '').strip()
+        if not prompt:
+            self.send_json({'success': False, 'error': 'Informe o prompt da imagem.'})
+            return
+        try:
+            gens = generate_image(
+                prompt,
+                n=int(data.get('n') or 1),
+                width=int(data.get('width') or 1024),
+                height=int(data.get('height') or 1024),
+                model=data.get('model'),
+                api_key=data.get('api_key') or data.get('grok_api_key'),
+                provider=(data.get('provider') or 'auto'),
+            )
+            images = []
+            for g in gens:
+                images.append({
+                    'prompt': prompt,
+                    'url': g.get('url'),
+                    'content_base64': g.get('content_base64'),
+                    'mime': g.get('mime') or 'image/png',
+                    'provider': g.get('provider'),
+                })
+            self.send_json({'success': True, 'images': images, 'prompt': prompt})
+        except Exception as e:
+            self.send_json({'success': False, 'error': str(e)})
 
     def api_chat(self, data):
         """
@@ -757,7 +816,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             history=history,
             file_parts=file_parts if file_parts else None,
             system_extra=(
-                'Você NÃO gera imagens. Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
+                'Você PODE analisar fotos e gerar imagens. Se o usuário pedir imagem/foto/arte, use '
+                '<<<GENERATE_IMAGE prompt="descrição detalhada em inglês">>>. '
+                'Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
                 'Quando criar arquivos use o formato <<<FILE path="...>>> ... <<<END_FILE>>>. '
                 'OBRIGATÓRIO: use a MEMÓRIA DE LONGO PRAZO do system para personalizar a resposta '
                 '(nome, preferências, projetos). Se o usuário pedir para lembrar algo, confirme que anotou.'
@@ -826,6 +887,34 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         files_out = extract_file_blocks(texto) if extract_file_blocks else []
         visible = strip_file_blocks(texto) if strip_file_blocks else texto
 
+        # Geração de imagens a partir de blocos <<<GENERATE_IMAGE>>> ou intenção clara
+        images_out = []
+        try:
+            prompts = extract_image_prompts(texto) if extract_image_prompts else []
+            if not prompts and looks_like_image_request and looks_like_image_request(message) and generate_image:
+                # fallback: usa a própria mensagem do usuário como prompt se a IA não emitiu o bloco
+                prompts = [message[:500]]
+            if prompts and generate_image:
+                for pr in prompts[:3]:
+                    try:
+                        gens = generate_image(pr, n=1, api_key=api_key)
+                        for g in gens:
+                            images_out.append({
+                                'prompt': pr,
+                                'url': g.get('url'),
+                                'content_base64': g.get('content_base64'),
+                                'mime': g.get('mime') or 'image/png',
+                                'provider': g.get('provider'),
+                            })
+                    except Exception as ie:
+                        print(f'[image-gen] {ie}')
+            if strip_image_blocks:
+                visible = strip_image_blocks(visible)
+            if images_out and not (visible or '').strip():
+                visible = f'Aqui está a imagem gerada para: {prompts[0][:120]}'
+        except Exception as e:
+            print(f'[image-gen outer] {e}')
+
         saved = []
         if save_files and files_out:
             for item in files_out:
@@ -872,6 +961,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'model': usado,
             'session_id': session_id,
             'files': files_out,
+            'images': images_out,
             'saved_files': saved,
             'analyzed': [{'name': p.get('name'), 'kind': p.get('kind'), 'size': p.get('size')} for p in prepared],
             'council': council_summary,

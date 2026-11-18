@@ -3,10 +3,11 @@ Cliente unificado OpenAI-compatible para:
   - OmniRoute  (OMNIROUTE_URL + OMNIROUTE_API_KEY)
   - Grok / xAI (GROK_API_KEY  → https://api.x.ai/v1)
   - Groq       (GROQ_API_KEY)
+  - geração de imagens (Pollinations gratuito + xAI quando houver chave)
   - fallbacks locais
 
-Não gera imagens. Suporta chat, visão (quando o modelo permitir) e tool-like
-respostas estruturadas para criar arquivos.
+Suporta chat, visão (análise de fotos), geração de imagens e respostas
+estruturadas para criar arquivos.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -48,14 +50,18 @@ GROQ_KEY = _env("GROQ_API_KEY")
 DEFAULT_OMNIROUTE_MODEL = _env("OMNIROUTE_MODEL", "auto")
 DEFAULT_GROK_MODEL = _env("GROK_MODEL", "grok-2-latest")
 DEFAULT_GROQ_MODEL = _env("GROQ_MODEL", "openai/gpt-oss-120b")
+DEFAULT_IMAGE_MODEL = _env("IMAGE_MODEL", "grok-2-image")
 
-# System prompt obrigatório — proíbe geração de imagens e define comportamento de arquivos + memória
+# System prompt — visão + geração de imagens + arquivos + memória
 SYSTEM_BASE = """Você é a Cookie AI, assistente integrada ao CookieScript IDE.
 Responda sempre em português brasileiro, de forma clara e útil.
 
 REGRAS OBRIGATÓRIAS:
-1. NUNCA gere, descreva prompts para, ou ofereça geração de imagens, arte, fotos ou vídeos. Se pedirem imagem, diga educadamente que você não gera imagens e ofereça alternativas (código, planilha, texto, diagrama ASCII, etc.).
-2. Você PODE e DEVE criar arquivos, códigos, planilhas (CSV/JSON), scripts, documentos e qualquer artefato de texto que uma IA normal construa.
+1. Você PODE analisar fotos/imagens enviadas pelo usuário (visão) e PODE gerar imagens novas.
+   Quando o usuário pedir para criar/gerar/desenhar uma imagem, foto ou arte, use exatamente:
+   <<<GENERATE_IMAGE prompt="descrição detalhada em inglês da imagem desejada">>>
+   O servidor gera a imagem de verdade a partir desse bloco. Você pode adicionar uma frase curta antes ou depois.
+2. Você PODE e DEVE criar arquivos, códigos, planilhas (CSV/JSON), scripts, documentos e qualquer artefato de texto.
 3. Quando for criar um arquivo, use exatamente este formato (um bloco por arquivo):
 
 <<<FILE path="caminho/relativo/arquivo.ext">>>
@@ -68,7 +74,7 @@ conteúdo completo do arquivo aqui
    Quando o usuário contar algo sobre si, assuma que deve ser lembrado nas próximas conversas.
 5. Analise SEMPRE os arquivos enviados (código, texto, planilhas, imagens, PDFs, logs etc.).
    Se houver bloco "Arquivos enviados para análise", use esse conteúdo como fonte principal.
-   Para imagens, descreva o que conseguir e responda com base nisso (você não gera imagens novas).
+   Para imagens enviadas, descreva o que ver e responda com base nisso.
 6. Para planilhas, prefira CSV ou JSON limpo que possa ser aberto no Excel/Google Sheets.
 7. Grave na prática o que o usuário revelar sobre si (nome, preferências, projetos) usando a memória.
 """
@@ -313,7 +319,8 @@ Sua missão é:
    <<<FILE path="caminho/arquivo.ext">>>
    conteúdo
    <<<END_FILE>>>
-6. NUNCA gere imagens. NUNCA diga que é um "resumo de várias IAs" de forma meta demais —
+6. Se o usuário pedir imagem, use <<<GENERATE_IMAGE prompt="...">>> na resposta final.
+   NÃO diga que é um "resumo de várias IAs" de forma meta demais —
    entregue a resposta final como se fosse a resposta definitiva da Cookie AI.
 7. Se as outras IAs divergirem, escolha a solução mais correta e explique brevemente o motivo só se for importante.
 8. Use a memória de longo prazo quando estiver no contexto.
@@ -485,7 +492,7 @@ Sua tarefa:
 2. Corrigir erros factuais, de código ou de lógica.
 3. Completar o que estiver incompleto.
 4. Manter o idioma português brasileiro.
-5. NÃO gere imagens.
+5. Se o usuário pediu imagem, preserve ou adicione <<<GENERATE_IMAGE prompt="...">>>.
 6. Se a resposta primária estiver boa, refine e estruture melhor.
 7. Se estiver ruim ou vazia, gere uma resposta correta do zero.
 8. Quando criar arquivos, use:
@@ -503,7 +510,7 @@ Você recebe a pergunta do usuário e a resposta já PROCESSADA E VALIDADA pelo 
 Sua missão final:
 1. Produzir a resposta DEFINITIVA, clara, completa e em português brasileiro.
 2. Usar o melhor da resposta validada; corrija qualquer residual e eleve a qualidade.
-3. NÃO gere imagens.
+3. Se o usuário pediu imagem, use <<<GENERATE_IMAGE prompt="descrição em inglês">>>.
 4. Quando criar arquivos, use exatamente:
 <<<FILE path="caminho/arquivo.ext">>>
 conteúdo
@@ -632,3 +639,133 @@ def pipeline_chat(
         "Pipeline falhou em todas as etapas. "
         + " | ".join(f"{s['provider']}: {s['error']}" for s in steps if s.get("error"))
     )
+
+
+# ── Geração de imagens ───────────────────────────────────────────────────────
+
+IMAGE_BLOCK_RE = re.compile(
+    r'<<<GENERATE_IMAGE\s+prompt=["\']([^"\']+)["\']\s*>>>',
+    re.IGNORECASE,
+)
+
+# Heurística: usuário pediu geração de imagem
+IMAGE_INTENT_RE = re.compile(
+    r'\b(gera(?:r)?|crie?|desenhe?|faz(?:er)?|faça|gera(?:r)?\s+(?:uma\s+)?(?:imagem|foto|arte|ilustra)|'
+    r'generate\s+(?:an?\s+)?image|draw|paint|create\s+(?:an?\s+)?(?:image|picture|photo)|'
+    r'imagem\s+de|foto\s+de|ilustra(?:ção|r))\b',
+    re.IGNORECASE,
+)
+
+
+def extract_image_prompts(text: str) -> List[str]:
+    """Extrai prompts de blocos <<<GENERATE_IMAGE prompt="...">>>."""
+    return [m.group(1).strip() for m in IMAGE_BLOCK_RE.finditer(text or "") if m.group(1).strip()]
+
+
+def strip_image_blocks(text: str) -> str:
+    return IMAGE_BLOCK_RE.sub("", text or "").strip()
+
+
+def looks_like_image_request(message: str) -> bool:
+    return bool(IMAGE_INTENT_RE.search(message or ""))
+
+
+def _download_bytes(url: str, timeout: int = 90) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "CookieAI/2.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def generate_image(
+    prompt: str,
+    *,
+    n: int = 1,
+    width: int = 1024,
+    height: int = 1024,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+    provider: str = "auto",
+) -> List[Dict[str, Any]]:
+    """
+    Gera uma ou mais imagens.
+    Ordem de preferência:
+      1. xAI / Grok (se GROK_API_KEY ou api_key)
+      2. Pollinations.ai (gratuito, sem chave)
+    Retorna lista de dicts: {url, content_base64, mime, provider, prompt}
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        raise AIClientError("Prompt de imagem vazio.")
+    n = max(1, min(int(n or 1), 4))
+    results: List[Dict[str, Any]] = []
+    key = (api_key or GROK_KEY or "").strip()
+    use_xai = provider in ("grok", "xai", "auto") and key
+
+    if use_xai:
+        try:
+            url = f"{GROK_URL}/images/generations"
+            body = {
+                "model": model or DEFAULT_IMAGE_MODEL,
+                "prompt": prompt,
+                "n": n,
+            }
+            data = _http_json(url, body, key)
+            # Formato OpenAI-like: data[{url|b64_json}]
+            items = (data or {}).get("data") or []
+            for item in items:
+                entry: Dict[str, Any] = {
+                    "provider": "grok",
+                    "prompt": prompt,
+                    "mime": "image/png",
+                }
+                if item.get("b64_json"):
+                    entry["content_base64"] = item["b64_json"]
+                    entry["url"] = f"data:image/png;base64,{item['b64_json']}"
+                elif item.get("url"):
+                    entry["url"] = item["url"]
+                    try:
+                        raw = _download_bytes(item["url"])
+                        entry["content_base64"] = base64.b64encode(raw).decode("ascii")
+                    except Exception:
+                        pass
+                if entry.get("url") or entry.get("content_base64"):
+                    results.append(entry)
+            if results:
+                return results
+        except Exception as e:
+            if provider in ("grok", "xai"):
+                raise AIClientError(f"xAI image generation falhou: {e}") from e
+            # cai para pollinations
+
+    # Pollinations.ai — gratuito, sem chave
+    # https://image.pollinations.ai/prompt/{encoded}?width=&height=&nologo=true
+    for i in range(n):
+        seed = abs(hash(prompt + str(i))) % 1_000_000
+        q = urllib.parse.quote(prompt)
+        poll_url = (
+            f"https://image.pollinations.ai/prompt/{q}"
+            f"?width={int(width)}&height={int(height)}&nologo=true&seed={seed}&model=flux"
+        )
+        try:
+            raw = _download_bytes(poll_url, timeout=120)
+            b64 = base64.b64encode(raw).decode("ascii")
+            results.append({
+                "provider": "pollinations",
+                "prompt": prompt,
+                "mime": "image/jpeg",
+                "url": f"data:image/jpeg;base64,{b64}",
+                "content_base64": b64,
+                "source_url": poll_url,
+            })
+        except Exception as e:
+            if not results:
+                raise AIClientError(f"Falha ao gerar imagem (Pollinations): {e}") from e
+    return results
+
+
+def image_generation_available() -> Dict[str, Any]:
+    return {
+        "pollinations": True,
+        "grok": bool(GROK_KEY),
+        "default_provider": "grok" if GROK_KEY else "pollinations",
+    }
