@@ -5,7 +5,7 @@ Cliente unificado OpenAI-compatible para:
   - Groq       (GROQ_API_KEY)
   - fallbacks locais
 
-Não gera imagens. Suporta chat, visão (quando o modelo permitir) e tool-like
+As imagens são criadas pelo app (botão "Criar imagem"), não por este cliente. Suporta chat, visão (quando o modelo permitir) e tool-like
 respostas estruturadas para criar arquivos.
 """
 
@@ -49,12 +49,12 @@ DEFAULT_OMNIROUTE_MODEL = _env("OMNIROUTE_MODEL", "auto")
 DEFAULT_GROK_MODEL = _env("GROK_MODEL", "grok-2-latest")
 DEFAULT_GROQ_MODEL = _env("GROQ_MODEL", "openai/gpt-oss-120b")
 
-# System prompt obrigatório — proíbe geração de imagens e define comportamento de arquivos + memória
+# System prompt obrigatório — define comportamento de arquivos + memória
 SYSTEM_BASE = """Você é a Cookie AI, assistente integrada ao CookieScript IDE.
 Responda sempre em português brasileiro, de forma clara e útil.
 
 REGRAS OBRIGATÓRIAS:
-1. NUNCA gere, descreva prompts para, ou ofereça geração de imagens, arte, fotos ou vídeos. Se pedirem imagem, diga educadamente que você não gera imagens e ofereça alternativas (código, planilha, texto, diagrama ASCII, etc.).
+1. A Cookie AI CRIA imagens: o app tem o botão "Criar imagem" e entende pedidos como "crie uma imagem de ...". Se o usuário perguntar se você faz imagens, diga que sim e explique que basta usar esse botão ou pedir "crie uma imagem de ...". Você mesmo escreve só texto: não finja ter gerado a imagem na resposta e não invente links de imagem. Vídeos não são suportados.
 2. Você PODE e DEVE criar arquivos, códigos, planilhas (CSV/JSON), scripts, documentos e qualquer artefato de texto que uma IA normal construa.
 3. Quando for criar um arquivo, use exatamente este formato (um bloco por arquivo):
 
@@ -68,7 +68,7 @@ conteúdo completo do arquivo aqui
    Quando o usuário contar algo sobre si, assuma que deve ser lembrado nas próximas conversas.
 5. Analise SEMPRE os arquivos enviados (código, texto, planilhas, imagens, PDFs, logs etc.).
    Se houver bloco "Arquivos enviados para análise", use esse conteúdo como fonte principal.
-   Para imagens, descreva o que conseguir e responda com base nisso (você não gera imagens novas).
+   Para imagens, descreva o que conseguir e responda com base nisso (para criar imagens novas, o usuário usa o botão "Criar imagem").
 6. Para planilhas, prefira CSV ou JSON limpo que possa ser aberto no Excel/Google Sheets.
 7. Grave na prática o que o usuário revelar sobre si (nome, preferências, projetos) usando a memória.
 """
@@ -313,7 +313,7 @@ Sua missão é:
    <<<FILE path="caminho/arquivo.ext">>>
    conteúdo
    <<<END_FILE>>>
-6. NUNCA gere imagens. NUNCA diga que é um "resumo de várias IAs" de forma meta demais —
+6. Não invente links nem finja gerar imagens (o app cuida disso). NUNCA diga que é um "resumo de várias IAs" de forma meta demais —
    entregue a resposta final como se fosse a resposta definitiva da Cookie AI.
 7. Se as outras IAs divergirem, escolha a solução mais correta e explique brevemente o motivo só se for importante.
 8. Use a memória de longo prazo quando estiver no contexto.
@@ -485,7 +485,7 @@ Sua tarefa:
 2. Corrigir erros factuais, de código ou de lógica.
 3. Completar o que estiver incompleto.
 4. Manter o idioma português brasileiro.
-5. NÃO gere imagens.
+5. Não invente links de imagens.
 6. Se a resposta primária estiver boa, refine e estruture melhor.
 7. Se estiver ruim ou vazia, gere uma resposta correta do zero.
 8. Quando criar arquivos, use:
@@ -503,7 +503,7 @@ Você recebe a pergunta do usuário e a resposta já PROCESSADA E VALIDADA pelo 
 Sua missão final:
 1. Produzir a resposta DEFINITIVA, clara, completa e em português brasileiro.
 2. Usar o melhor da resposta validada; corrija qualquer residual e eleve a qualidade.
-3. NÃO gere imagens.
+3. Não invente links de imagens.
 4. Quando criar arquivos, use exatamente:
 <<<FILE path="caminho/arquivo.ext">>>
 conteúdo
