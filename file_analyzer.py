@@ -1,7 +1,7 @@
 """
 Análise de arquivos enviados pelo usuário (qualquer tipo comum).
 Extrai texto quando possível; para imagens prepara data-URL para modelos de visão.
-A geração de imagens fica em ai_client.generate_image (Pollinations / xAI).
+Não gera imagens.
 """
 
 from __future__ import annotations

@@ -40,7 +40,7 @@ claude
 python cookie_ide_app.py
 ```
 
-Abra `index1.html` → selecione **"🤖 Claude Code Local (CLI)"** → pronto!
+Abra `index1.html` → selecione **"Claude Code Local (CLI)"** → pronto!
 
 > O backend chama `claude --print --output-format json "..."` (modo headless do
 > Claude Code) via subprocess. Nenhum prompt passa pelos servidores da Cookie AI —
@@ -76,7 +76,7 @@ ollama pull phi3
 python cookie_ide_app.py
 ```
 
-Abra `index1.html` → selecione **"🧠 DeepSeek Local (sem API)"** (ou veja o status
+Abra `index1.html` → selecione **"DeepSeek Local (sem API)"** (ou veja o status
 do Ollama no endpoint `/api/ollama_status`) → pronto!
 
 ## Modelos recomendados por RAM (Ollama)
@@ -116,7 +116,7 @@ cookiescript/
 | `OLLAMA_MODEL`         | Modelo padrão do Ollama                    | `phi3`                  |
 | `GROQ_API_KEY`         | Chave da Groq para a Cookie Potencializada | —                       |
 
-## ⚠️ Aviso de segurança
+## [aviso] Aviso de segurança
 
 Durante a adaptação deste repositório, foi encontrada uma **chave de API da Groq
 exposta diretamente no código-fonte** (em `cookie_ide_app.py` e `index1.html`).
@@ -176,3 +176,10 @@ No modo **Auto / Conselho**, várias IAs respondem à mesma pergunta e o **Grok*
 
 Providers isolados (`omniroute`, `grok`, `groq`) continuam disponíveis se quiser uma IA só.
 Envie `"council": true` no body de `/api/chat` para forçar o conselho mesmo com provider isolado.
+
+
+## Cookie AI (chat publico)
+
+- `index.html`: pagina inicial. O botao "Comecar" abre `chat.html`. Login e opcional (`chat.html#entrar` abre direto o login).
+- Privacidade: cada usuario (anonimo ou logado no Firebase) tem sessao e memoria isoladas no servidor. O servidor confere o token do Firebase no Google e nunca confia num `user_id` qualquer.
+- Limite de contexto: `COOKIE_CONTEXT_LIMIT` (padrao 20 mensagens). Passou disso, a IA esquece as mais antigas.

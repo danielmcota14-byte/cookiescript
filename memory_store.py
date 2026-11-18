@@ -121,7 +121,27 @@ def init_db() -> None:
                 _save_json({"long_term": [], "conversations": [], "sessions": []})
 
 
+def _migrate_owner() -> None:
+    """Sessoes passam a ter dono (scope). Sessoes antigas ficam sem dono e nunca sao reaproveitadas."""
+    if _use_json:
+        return
+    try:
+        with _conn() as c:
+            cols = [r[1] for r in c.execute("PRAGMA table_info(sessions)").fetchall()]
+            if "owner" not in cols:
+                c.execute("ALTER TABLE sessions ADD COLUMN owner TEXT DEFAULT ''")
+    except Exception as e:
+        print(f"[memory] migracao owner: {e}")
+
+
 init_db()
+_migrate_owner()
+
+# Janela de contexto: a IA so "enxerga" as ultimas N mensagens. O que sai da janela e esquecido.
+CONTEXT_LIMIT = max(2, int(os.environ.get("COOKIE_CONTEXT_LIMIT", "20")))
+MAX_MSG_CHARS = 6000      # corta mensagens gigantes dentro da janela
+MAX_CTX_CHARS = 24000     # teto total do historico enviado a IA (evita travar)
+HARD_CAP = 400            # maximo guardado por sessao no disco
 
 
 def add_memory(
@@ -256,16 +276,21 @@ def list_memories(
     return out
 
 
-def delete_memory(mem_id: str) -> bool:
+def delete_memory(mem_id: str, scope: Optional[str] = None) -> bool:
+    """Se scope for informado, so apaga memoria que pertence a esse scope."""
     with _lock:
         if _use_json:
             data = _load_json()
             before = len(data["long_term"])
-            data["long_term"] = [x for x in data["long_term"] if x.get("id") != mem_id]
+            data["long_term"] = [x for x in data["long_term"]
+                                 if not (x.get("id") == mem_id and (scope is None or x.get("scope") == scope))]
             _save_json(data)
             return len(data["long_term"]) < before
         with _conn() as c:
-            cur = c.execute("DELETE FROM long_term WHERE id = ?", (mem_id,))
+            if scope is None:
+                cur = c.execute("DELETE FROM long_term WHERE id = ?", (mem_id,))
+            else:
+                cur = c.execute("DELETE FROM long_term WHERE id = ? AND scope = ?", (mem_id, scope))
             return cur.rowcount > 0
 
 
@@ -288,100 +313,166 @@ def memory_count(scope: str = "global") -> int:
     return len(list_memories(scope=scope, limit=1000))
 
 
-def ensure_session(session_id: Optional[str] = None, title: str = "") -> str:
-    sid = session_id or str(uuid.uuid4())
+def _session_row(sid: str) -> Optional[dict]:
+    if _use_json:
+        for x in _load_json().get("sessions", []):
+            if x.get("id") == sid:
+                return x
+        return None
+    with _conn() as c:
+        r = c.execute("SELECT id, owner FROM sessions WHERE id = ?", (sid,)).fetchone()
+    return dict(r) if r else None
+
+
+def owns_session(session_id: str, owner: str) -> bool:
+    row = _session_row(session_id) if session_id else None
+    return bool(row) and bool(owner) and (row.get("owner") or "") == owner
+
+
+def ensure_session(session_id: Optional[str] = None, title: str = "", owner: str = "") -> str:
+    """Devolve uma sessao DO dono. Se o id pertence a outra pessoa (ou nao existe), cria uma nova:
+    ninguem consegue entrar na conversa de outro usuario so conhecendo o id."""
     ts = _now()
     with _lock:
+        sid = session_id or ""
+        if sid and not owns_session(sid, owner):
+            sid = ""
+        if sid:
+            if _use_json:
+                data = _load_json()
+                for x in data["sessions"]:
+                    if x["id"] == sid:
+                        x["updated_at"] = ts
+                _save_json(data)
+            else:
+                with _conn() as c:
+                    c.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (ts, sid))
+            return sid
+        sid = str(uuid.uuid4())
         if _use_json:
             data = _load_json()
-            ids = {s["id"] for s in data.get("sessions", [])}
-            if sid not in ids:
-                data.setdefault("sessions", []).append(
-                    {"id": sid, "title": title or "Conversa", "created_at": ts, "updated_at": ts}
-                )
-            else:
-                for s in data["sessions"]:
-                    if s["id"] == sid:
-                        s["updated_at"] = ts
+            data.setdefault("sessions", []).append(
+                {"id": sid, "title": title or "Conversa", "owner": owner, "created_at": ts, "updated_at": ts})
             _save_json(data)
-            return sid
-        with _conn() as c:
-            row = c.execute("SELECT id FROM sessions WHERE id = ?", (sid,)).fetchone()
-            if not row:
-                c.execute(
-                    "INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                    (sid, title or "Conversa", ts, ts),
-                )
-            else:
-                c.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (ts, sid))
+        else:
+            with _conn() as c:
+                c.execute("INSERT INTO sessions (id, title, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                          (sid, title or "Conversa", owner, ts, ts))
     return sid
 
 
 def append_message(session_id: str, role: str, content: str) -> None:
-    ensure_session(session_id)
     mid = str(uuid.uuid4())
     ts = _now()
     with _lock:
         if _use_json:
             data = _load_json()
             data.setdefault("conversations", []).append(
-                {"id": mid, "session_id": session_id, "role": role, "content": content, "created_at": ts}
-            )
-            if len(data["conversations"]) > 2000:
-                data["conversations"] = data["conversations"][-1500:]
-            for s in data.get("sessions", []):
-                if s["id"] == session_id:
-                    s["updated_at"] = ts
+                {"id": mid, "session_id": session_id, "role": role, "content": content, "created_at": ts})
+            if len(data["conversations"]) > 4000:
+                data["conversations"] = data["conversations"][-3000:]
+            for s_ in data.get("sessions", []):
+                if s_["id"] == session_id:
+                    s_["updated_at"] = ts
             _save_json(data)
             return
         with _conn() as c:
-            c.execute(
-                "INSERT INTO conversations (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (mid, session_id, role, content, ts),
-            )
+            c.execute("INSERT INTO conversations (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                      (mid, session_id, role, content, ts))
             c.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (ts, session_id))
 
 
-def get_history(session_id: str, limit: int = 40) -> List[Dict[str, str]]:
+def count_messages(session_id: str) -> int:
+    with _lock:
+        if _use_json:
+            return sum(1 for x in _load_json().get("conversations", []) if x.get("session_id") == session_id)
+        with _conn() as c:
+            return c.execute("SELECT COUNT(*) FROM conversations WHERE session_id = ?", (session_id,)).fetchone()[0]
+
+
+def forgotten_count(session_id: str) -> int:
+    """Quantas mensagens ja sairam da janela de contexto (a IA esqueceu)."""
+    return max(0, count_messages(session_id) - CONTEXT_LIMIT)
+
+
+def get_history(session_id: str, limit: Optional[int] = None, owner: str = "") -> List[Dict[str, str]]:
+    """Ultimas `limit` mensagens (ordem cronologica). So devolve se a sessao for do `owner`."""
+    limit = limit or CONTEXT_LIMIT
+    if not owns_session(session_id, owner):
+        return []
     with _lock:
         if _use_json:
             rows = [x for x in _load_json().get("conversations", []) if x.get("session_id") == session_id]
             rows.sort(key=lambda x: x.get("created_at") or 0)
             rows = rows[-limit:]
-            return [{"role": r["role"], "content": r["content"]} for r in rows]
-        with _conn() as c:
-            rows = c.execute(
-                "SELECT role, content FROM conversations WHERE session_id = ? ORDER BY created_at ASC LIMIT ?",
-                (session_id, limit),
-            ).fetchall()
-    return [{"role": r["role"], "content": r["content"]} for r in rows]
+        else:
+            with _conn() as c:
+                rows = c.execute(
+                    "SELECT role, content FROM (SELECT role, content, created_at FROM conversations "
+                    "WHERE session_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
+                    (session_id, limit)).fetchall()
+    out, total = [], 0
+    for r in reversed(rows):                      # do mais novo para o mais antigo
+        txt = (r["content"] or "")[:MAX_MSG_CHARS]
+        if total + len(txt) > MAX_CTX_CHARS and out:
+            break                                 # estourou o teto: o resto tambem e esquecido
+        total += len(txt)
+        out.append({"role": r["role"], "content": txt})
+    return list(reversed(out))
 
 
-def list_sessions(limit: int = 20) -> List[Dict[str, Any]]:
+def context_info(session_id: str, forgotten_before: int = 0) -> Dict[str, Any]:
+    total = count_messages(session_id)
+    forgotten = max(0, total - CONTEXT_LIMIT)
+    return {"limit": CONTEXT_LIMIT, "used": min(total, CONTEXT_LIMIT), "total": total,
+            "forgotten": forgotten, "forgot_now": forgotten > forgotten_before}
+
+
+def prune_session(session_id: str, keep: int = HARD_CAP) -> None:
     with _lock:
         if _use_json:
-            sessions = list(_load_json().get("sessions", []))
-            sessions.sort(key=lambda x: -(x.get("updated_at") or 0))
-            return sessions[:limit]
+            data = _load_json()
+            mine = sorted([x for x in data.get("conversations", []) if x.get("session_id") == session_id],
+                          key=lambda x: x.get("created_at") or 0)
+            drop = {x["id"] for x in mine[:-keep]} if len(mine) > keep else set()
+            if drop:
+                data["conversations"] = [x for x in data["conversations"] if x["id"] not in drop]
+                _save_json(data)
+            return
         with _conn() as c:
-            rows = c.execute(
-                "SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            c.execute("DELETE FROM conversations WHERE session_id = ? AND id NOT IN "
+                      "(SELECT id FROM conversations WHERE session_id = ? ORDER BY created_at DESC LIMIT ?)",
+                      (session_id, session_id, keep))
+
+
+def list_sessions(limit: int = 20, owner: str = "") -> List[Dict[str, Any]]:
+    if not owner:
+        return []
+    with _lock:
+        if _use_json:
+            sessions = [x for x in _load_json().get("sessions", []) if (x.get("owner") or "") == owner]
+            sessions.sort(key=lambda x: -(x.get("updated_at") or 0))
+            return [{k: v for k, v in x.items() if k != "owner"} for x in sessions[:limit]]
+        with _conn() as c:
+            rows = c.execute("SELECT id, title, created_at, updated_at FROM sessions WHERE owner = ? "
+                             "ORDER BY updated_at DESC LIMIT ?", (owner, limit)).fetchall()
     return [dict(r) for r in rows]
 
 
-def clear_session(session_id: str) -> None:
+def clear_session(session_id: str, owner: str = "") -> bool:
+    if not owns_session(session_id, owner):
+        return False
     with _lock:
         if _use_json:
             data = _load_json()
             data["conversations"] = [x for x in data.get("conversations", []) if x.get("session_id") != session_id]
             data["sessions"] = [x for x in data.get("sessions", []) if x.get("id") != session_id]
             _save_json(data)
-            return
+            return True
         with _conn() as c:
             c.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
             c.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+    return True
 
 
 EXPLICIT_HINTS = (

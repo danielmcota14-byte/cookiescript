@@ -50,11 +50,6 @@ try:
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
-        extract_image_prompts,
-        strip_image_blocks,
-        generate_image,
-        looks_like_image_request,
-        image_generation_available,
         SYSTEM_BASE,
         AIClientError,
     )
@@ -65,11 +60,6 @@ except ImportError:
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
-    extract_image_prompts = None
-    strip_image_blocks = None
-    generate_image = None
-    looks_like_image_request = None
-    image_generation_available = None
     SYSTEM_BASE = ""
     AIClientError = RuntimeError
 
@@ -86,6 +76,32 @@ except ImportError:
     save_upload = None
     MAX_FILE_BYTES = 15 * 1024 * 1024
 
+import hashlib, re, time, urllib.request
+
+# Login opcional via Firebase: o servidor confere o token no Google (nunca confia no navegador).
+FIREBASE_API_KEY = os.environ.get('FIREBASE_API_KEY', 'AIzaSyD7teSvQ2Xmymr7zNhqi1KvY_fyXEtr0hE')
+_token_cache = {}
+
+
+def _firebase_uid(token):
+    now = time.time()
+    hit = _token_cache.get(token)
+    if hit and hit[1] > now:
+        return hit[0]
+    try:
+        req = urllib.request.Request(
+            'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + FIREBASE_API_KEY,
+            data=json.dumps({'idToken': token}).encode(), headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            uid = json.loads(r.read())['users'][0]['localId']
+    except Exception:
+        return None
+    if len(_token_cache) > 2000:
+        _token_cache.clear()
+    _token_cache[token] = (uid, now + 300)
+    return uid
+
+
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.environ.get('PORT', 8080))
 
@@ -95,8 +111,6 @@ PORT = int(os.environ.get('PORT', 8080))
 CORS_PUBLIC_PREFIXES = (
     '/health', '/api/chat', '/api/providers', '/api/session/clear',
     '/api/memory/', '/api/upload_analyze', '/api/v1/',
-    '/api/generate_image', '/api/execute', '/api/generate',
-    '/api/ask', '/api/ask_enhanced', '/api/sessions',
 )
 # ALLOWED_ORIGINS="*" (padrão) ou lista separada por vírgula:
 # ALLOWED_ORIGINS=https://meusite.com,https://outro.netlify.app
@@ -161,18 +175,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_json({'status': 'ok'})
             return
         if path in ('/api/v1/status', '/api/v1'):
-            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 2,
-                            'endpoints': {
-                                'chat': 'POST /api/v1/chat',
-                                'generate_image': 'POST /api/v1/generate_image',
-                                'providers': 'POST /api/providers',
-                                'execute': 'POST /api/execute',
-                                'generate': 'POST /api/generate',
-                                'upload_analyze': 'POST /api/upload_analyze',
-                                'clear_session': 'POST /api/session/clear',
-                                'memory': 'POST /api/memory/*',
-                            },
-                            'features': ['chat', 'vision', 'image_generation', 'files', 'cookiescript', 'memory']})
+            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 1,
+                            'endpoints': {'chat': 'POST /api/v1/chat', 'providers': 'POST /api/providers',
+                                          'clear_session': 'POST /api/session/clear'}})
             return
         if path in ('/', ''):
             self.path = '/index1.html' if (BASE_DIR / 'index1.html').exists() else '/cookie_ide.html'
@@ -231,8 +236,6 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/save_ai_files':  self.api_save_ai_files,
             '/api/providers':      self.api_providers,
             '/api/download':      self.api_download,
-            '/api/generate_image': self.api_generate_image,
-            '/api/v1/generate_image': self.api_generate_image,
         }
 
         handler = routes.get(path)
@@ -246,6 +249,21 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 self.send_json({'success': False, 'error': str(e)})
         else:
             self.send_json({'error': 'Rota não encontrada'}, 404)
+
+    # ── identidade (cada usuario so enxerga o que e dele) ─────────────────────
+
+    def _identity(self, data):
+        """Retorna o 'scope' dono dos dados, ou None.
+        - Logado: token Firebase verificado no Google -> 'fb:<uid>' (nao da para forjar)
+        - Anonimo: segredo aleatorio longo gerado no navegador -> 'anon:<sha256>' (o segredo nunca e gravado)"""
+        auth = (self.headers.get('Authorization') or '').strip()
+        if auth.lower().startswith('bearer '):
+            uid = _firebase_uid(auth[7:].strip())
+            return ('fb:' + uid) if uid else None
+        raw = (self.headers.get('X-User-Id') or data.get('user_id') or data.get('user') or '').strip()
+        if re.fullmatch(r'[A-Za-z0-9_-]{24,128}', raw):
+            return 'anon:' + hashlib.sha256(raw.encode()).hexdigest()[:40]
+        return None
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -658,44 +676,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             },
             'memory': memory_store is not None,
             'max_upload_mb': MAX_FILE_BYTES // (1024 * 1024),
-            'no_image_generation': False,
-            'image_generation': (image_generation_available() if image_generation_available else {'pollinations': True}),
+            'no_image_generation': True,
         })
-
-
-    def api_generate_image(self, data):
-        """Gera imagens a partir de um prompt.
-        Body: { prompt, n?, width?, height?, model?, provider?, api_key? }
-        """
-        if generate_image is None:
-            self.send_json({'success': False, 'error': 'Geração de imagens não disponível neste servidor.'})
-            return
-        prompt = (data.get('prompt') or data.get('message') or data.get('pergunta') or '').strip()
-        if not prompt:
-            self.send_json({'success': False, 'error': 'Informe o prompt da imagem.'})
-            return
-        try:
-            gens = generate_image(
-                prompt,
-                n=int(data.get('n') or 1),
-                width=int(data.get('width') or 1024),
-                height=int(data.get('height') or 1024),
-                model=data.get('model'),
-                api_key=data.get('api_key') or data.get('grok_api_key'),
-                provider=(data.get('provider') or 'auto'),
-            )
-            images = []
-            for g in gens:
-                images.append({
-                    'prompt': prompt,
-                    'url': g.get('url'),
-                    'content_base64': g.get('content_base64'),
-                    'mime': g.get('mime') or 'image/png',
-                    'provider': g.get('provider'),
-                })
-            self.send_json({'success': True, 'images': images, 'prompt': prompt})
-        except Exception as e:
-            self.send_json({'success': False, 'error': str(e)})
 
     def api_chat(self, data):
         """
@@ -725,11 +707,10 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if _origin and urlparse(_origin).netloc != (self.headers.get('Host') or ''):
             save_files = False
         # Memória ISOLADA por usuário (como ChatGPT — cada pessoa tem a sua)
-        user_id = (data.get('user_id') or data.get('user') or '').strip()
-        if memory_store and hasattr(memory_store, 'user_scope'):
-            scope = memory_store.user_scope(user_id or data.get('memory_scope') or '')
-        else:
-            scope = data.get('memory_scope') or (f'user:{user_id}' if user_id else 'global')
+        scope = self._identity(data)
+        if not scope:
+            self.send_json({'success': False, 'error': 'Identificação do usuário ausente ou inválida. Recarregue a página ou entre de novo.'}, 401)
+            return
 
         if not message and not files_in:
             self.send_json({'success': False, 'error': 'Mensagem vazia.'})
@@ -756,12 +737,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         # Memória
         history = []
         mem_block = ''
+        forgotten_before = 0
         if memory_store:
-            if session_id:
-                session_id = memory_store.ensure_session(session_id)
-                history = memory_store.get_history(session_id, limit=30)
-            else:
-                session_id = memory_store.ensure_session()
+            # sessao sempre do dono; janela de contexto = ultimas N mensagens (o resto e esquecido)
+            session_id = memory_store.ensure_session(session_id, owner=scope)
+            history = memory_store.get_history(session_id, owner=scope)
+            forgotten_before = memory_store.forgotten_count(session_id)
             mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
             # aprendizado automático se o usuário pedir para lembrar
             if message:
@@ -816,12 +797,13 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             history=history,
             file_parts=file_parts if file_parts else None,
             system_extra=(
-                'Você PODE analisar fotos e gerar imagens. Se o usuário pedir imagem/foto/arte, use '
-                '<<<GENERATE_IMAGE prompt="descrição detalhada em inglês">>>. '
-                'Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
+                'Você NÃO gera imagens. Você cria códigos, planilhas (CSV/JSON), scripts e arquivos de texto. '
                 'Quando criar arquivos use o formato <<<FILE path="...>>> ... <<<END_FILE>>>. '
                 'OBRIGATÓRIO: use a MEMÓRIA DE LONGO PRAZO do system para personalizar a resposta '
                 '(nome, preferências, projetos). Se o usuário pedir para lembrar algo, confirme que anotou.'
+                + (' AVISO: as mensagens mais antigas desta conversa foram ESQUECIDAS (limite de contexto). '
+                   'Se o usuário citar algo que você não está vendo, diga com naturalidade que esqueceu essa parte e peça para ele repetir.'
+                   if forgotten_before else '')
             ),
         )
 
@@ -887,34 +869,6 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         files_out = extract_file_blocks(texto) if extract_file_blocks else []
         visible = strip_file_blocks(texto) if strip_file_blocks else texto
 
-        # Geração de imagens a partir de blocos <<<GENERATE_IMAGE>>> ou intenção clara
-        images_out = []
-        try:
-            prompts = extract_image_prompts(texto) if extract_image_prompts else []
-            if not prompts and looks_like_image_request and looks_like_image_request(message) and generate_image:
-                # fallback: usa a própria mensagem do usuário como prompt se a IA não emitiu o bloco
-                prompts = [message[:500]]
-            if prompts and generate_image:
-                for pr in prompts[:3]:
-                    try:
-                        gens = generate_image(pr, n=1, api_key=api_key)
-                        for g in gens:
-                            images_out.append({
-                                'prompt': pr,
-                                'url': g.get('url'),
-                                'content_base64': g.get('content_base64'),
-                                'mime': g.get('mime') or 'image/png',
-                                'provider': g.get('provider'),
-                            })
-                    except Exception as ie:
-                        print(f'[image-gen] {ie}')
-            if strip_image_blocks:
-                visible = strip_image_blocks(visible)
-            if images_out and not (visible or '').strip():
-                visible = f'Aqui está a imagem gerada para: {prompts[0][:120]}'
-        except Exception as e:
-            print(f'[image-gen outer] {e}')
-
         saved = []
         if save_files and files_out:
             for item in files_out:
@@ -943,6 +897,11 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[memory/learn] {e}')
 
+        ctx = None
+        if memory_store and session_id:
+            memory_store.prune_session(session_id)
+            ctx = memory_store.context_info(session_id, forgotten_before)
+
         # Resumo do conselho (sem textos enormes no JSON — só labels + erros)
         council_summary = []
         for m in (council_members or []):
@@ -961,12 +920,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'model': usado,
             'session_id': session_id,
             'files': files_out,
-            'images': images_out,
             'saved_files': saved,
             'analyzed': [{'name': p.get('name'), 'kind': p.get('kind'), 'size': p.get('size')} for p in prepared],
             'council': council_summary,
             'mode': 'council' if council_summary else 'single',
             'memory_learned': learned if memory_store else [],
+            'context': ctx,
             'memory_count': (memory_store.memory_count(scope) if memory_store and hasattr(memory_store, 'memory_count') else 0),
             'memory_block_preview': (mem_block[:300] if mem_block else ''),
         })
@@ -1007,13 +966,11 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
 
     def _memory_scope(self, data):
-        """Resolve escopo isolado por user_id (nunca global compartilhado entre pessoas)."""
-        user_id = (data.get('user_id') or data.get('user') or '').strip()
-        if memory_store and hasattr(memory_store, 'user_scope'):
-            return memory_store.user_scope(user_id or data.get('scope') or '')
-        if user_id:
-            return f'user:{user_id}'
-        return data.get('scope') or data.get('memory_scope') or 'global'
+        """Escopo isolado por usuario autenticado. Sem identidade valida, nada e lido nem apagado."""
+        scope = self._identity(data)
+        if not scope:
+            raise PermissionError('Identificação do usuário ausente ou inválida.')
+        return scope
 
     def api_memory_list(self, data):
         if not memory_store:
@@ -1044,7 +1001,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not memory_store:
             self.send_json({'success': False, 'error': 'Memória não disponível'})
             return
-        ok = memory_store.delete_memory(data.get('id') or '')
+        ok = memory_store.delete_memory(data.get('id') or '', scope=self._memory_scope(data))
         self.send_json({'success': ok})
 
     def api_memory_clear(self, data):
@@ -1065,7 +1022,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not memory_store:
             self.send_json({'success': True, 'sessions': []})
             return
-        self.send_json({'success': True, 'sessions': memory_store.list_sessions(limit=int(data.get('limit', 20)))})
+        self.send_json({'success': True, 'sessions': memory_store.list_sessions(limit=int(data.get('limit', 20)), owner=self._memory_scope(data))})
 
     def api_session_clear(self, data):
         if not memory_store:
@@ -1075,7 +1032,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if not sid:
             self.send_json({'success': False, 'error': 'session_id obrigatório'})
             return
-        memory_store.clear_session(sid)
+        memory_store.clear_session(sid, owner=self._memory_scope(data))
         self.send_json({'success': True})
 
 
