@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Versão leve para cloud: sem torch/transformers (use GROQ_API_KEY).
 # Para modelo local: pip install -r requirements-local-ai.txt e ENABLE_LOCAL_AI=1
-RUN pip install --no-cache-dir requests psutil
+RUN pip install --no-cache-dir requests psutil pypdf
 
 RUN mkdir -p data uploads memory
 COPY . .

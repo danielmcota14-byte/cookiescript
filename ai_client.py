@@ -48,6 +48,9 @@ GROQ_KEY = _env("GROQ_API_KEY")
 DEFAULT_OMNIROUTE_MODEL = _env("OMNIROUTE_MODEL", "auto")
 DEFAULT_GROK_MODEL = _env("GROK_MODEL", "grok-2-latest")
 DEFAULT_GROQ_MODEL = _env("GROQ_MODEL", "openai/gpt-oss-120b")
+# Modelos com visão. O Llama 4 Scout foi aposentado no Groq em 17/07/2026; troque por env se mudar de novo.
+GROQ_VISION_MODELS = [m for m in (_env("GROQ_VISION_MODEL", ""), "qwen/qwen3.6-27b") if m]
+GROK_VISION_MODEL = _env("GROK_VISION_MODEL", "grok-2-vision-latest")
 
 # System prompt obrigatório — define comportamento de arquivos + memória
 SYSTEM_BASE = """Você é a Cookie AI, assistente integrada ao CookieScript IDE.
@@ -572,8 +575,16 @@ def pipeline_chat(
         f"Resposta primária (DeepSeek Local):\n{primary or '(vazia — gere do zero)'}\n\n"
         "Valide, corrija e refine."
     )
+    # histórico recente da conversa (só texto) — sem isso a IA "esquece" tudo entre mensagens
+    hist_msgs: List[Dict[str, Any]] = []
+    for hm in messages[1:-1]:
+        if hm.get("role") in ("user", "assistant") and isinstance(hm.get("content"), str) and hm["content"].strip():
+            hist_msgs.append({"role": hm["role"], "content": hm["content"][:4000]})
+    hist_msgs = hist_msgs[-16:]
+
     omni_messages = [
         {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_VALIDATE_SYSTEM + mem_extra},
+        *hist_msgs,
         {"role": "user", "content": validate_user},
     ]
     omni_text, omni_label, omni_err = _single_provider(
@@ -603,6 +614,7 @@ def pipeline_chat(
     )
     groq_messages = [
         {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_GROQ_SYSTEM + mem_extra},
+        *hist_msgs,
         {"role": "user", "content": groq_user},
     ]
     final_text, groq_label, groq_err = _single_provider(
@@ -632,3 +644,32 @@ def pipeline_chat(
         "Pipeline falhou em todas as etapas. "
         + " | ".join(f"{s['provider']}: {s['error']}" for s in steps if s.get("error"))
     )
+
+
+def vision_chat(
+    messages: List[Dict[str, Any]],
+    *,
+    temperature: float = 0.5,
+    max_tokens: int = 4096,
+    api_key: Optional[str] = None,
+) -> Tuple[str, str]:
+    """Responde mensagens que contêm imagens (image_url). Tenta modelos com visão em sequência."""
+    errors: List[str] = []
+    for m in GROQ_VISION_MODELS:
+        try:
+            return chat_completion(messages, provider="groq", model=m, temperature=temperature,
+                                   max_tokens=max_tokens, api_key=api_key)
+        except Exception as e:
+            errors.append(f"groq/{m}: {e}")
+    if GROK_KEY or api_key:
+        try:
+            return chat_completion(messages, provider="grok", model=GROK_VISION_MODEL, temperature=temperature,
+                                   max_tokens=max_tokens, api_key=api_key)
+        except Exception as e:
+            errors.append(f"grok/{GROK_VISION_MODEL}: {e}")
+    try:
+        return chat_completion(messages, provider="omniroute", temperature=temperature,
+                               max_tokens=max_tokens, api_key=api_key)
+    except Exception as e:
+        errors.append(f"omniroute: {e}")
+    raise AIClientError("Nenhum modelo com visão respondeu. " + " | ".join(errors))

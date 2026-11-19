@@ -47,6 +47,7 @@ try:
         chat_completion,
         council_chat,
         pipeline_chat,
+        vision_chat,
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
@@ -57,6 +58,7 @@ except ImportError:
     chat_completion = None
     council_chat = None
     pipeline_chat = None
+    vision_chat = None
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
@@ -698,16 +700,34 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         # Memória
         history = []
         mem_block = ''
+        client_history = []
+        for h in (data.get('history') or [])[-40:]:
+            if isinstance(h, dict) and h.get('role') in ('user', 'assistant') and isinstance(h.get('content'), str) and h['content'].strip():
+                client_history.append({'role': h['role'], 'content': h['content'][:6000]})
         if memory_store:
             if session_id:
                 session_id = memory_store.ensure_session(session_id)
                 history = memory_store.get_history(session_id, limit=30)
             else:
                 session_id = memory_store.ensure_session()
-            mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
-            # aprendizado automático se o usuário pedir para lembrar
+            # O cliente guarda a própria cópia da conversa e da memória: o disco do servidor
+            # (Render grátis) é apagado a cada reinício, então restauramos a partir dela.
+            if client_history:
+                history = client_history
+            try:
+                if hasattr(memory_store, 'import_memories'):
+                    memory_store.import_memories(data.get('memories') or [], scope=scope)
+            except Exception as e:
+                print(f'[memory/import] {e}')
+            # aprendizado automático ANTES de montar o prompt, para valer já nesta resposta
             if message:
-                memory_store.maybe_learn_from_user(message, scope=scope)
+                try:
+                    memory_store.maybe_learn_from_user(message, scope=scope)
+                except Exception as e:
+                    print(f'[memory/learn-pre] {e}')
+            mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
+        else:
+            history = client_history
 
         # Arquivos enviados — análise obrigatória de TODOS os tipos
         prepared = []
@@ -737,12 +757,16 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                         prepared.append({'name': name, 'kind': 'error', 'text': str(e), 'size': 0, 'image_part': None})
                 if prepared and build_file_context:
                     file_text_ctx, image_parts = build_file_context(prepared)
-                    file_parts = image_parts or []
+                    file_parts = (image_parts or [])[:5]   # limite dos modelos de visão
+                    if image_parts and len(image_parts) > 5:
+                        file_text_ctx += '\n(Aviso: só as 5 primeiras imagens foram enviadas ao modelo de visão.)'
                 elif prepared:
                     file_text_ctx = '\n'.join(
                         f"=== {x.get('name')} ({x.get('kind')}) ===\n{x.get('text') or ''}" for x in prepared
                     )
 
+        if len(file_text_ctx) > 45000:
+            file_text_ctx = file_text_ctx[:45000] + '\n\n...[conteúdo dos arquivos truncado para a IA responder rápido]...'
         user_content = message or ''
         if file_text_ctx:
             user_content = (
@@ -770,10 +794,18 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         use_pipeline = provider in ('pipeline', 'auto', 'council', 'ensemble', 'conselho', '')
 
         try:
-            if use_pipeline and pipeline_chat is not None:
+            if file_parts and vision_chat is not None:
+                # imagens / quadros de vídeo: o pipeline só lida com texto, então usamos um modelo com visão
+                texto, usado = vision_chat(
+                    messages,
+                    temperature=float(data.get('temperature', 0.5)),
+                    max_tokens=min(int(data.get('max_tokens', 4096)), 4096),
+                    api_key=api_key,
+                )
+            elif use_pipeline and pipeline_chat is not None:
                 # 1) DeepSeek Local gera a resposta primária
                 deepseek_text = None
-                deepseek_input = user_content or message
+                deepseek_input = message or (user_content or '')[:4000]
                 if CookieAIGenerator:
                     try:
                         gen = CookieAIGenerator()
@@ -880,7 +912,15 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'memory_learned': learned if memory_store else [],
             'memory_count': (memory_store.memory_count(scope) if memory_store and hasattr(memory_store, 'memory_count') else 0),
             'memory_block_preview': (mem_block[:300] if mem_block else ''),
+            'memories': (memory_store.export_memories(scope) if memory_store and hasattr(memory_store, 'export_memories') else []),
+            'context': self._context_info(client_history, message),
         })
+
+    def _context_info(self, client_history, message):
+        limit = 20
+        total = len(client_history) + 1
+        forgotten = max(0, total - limit)
+        return {'limit': limit, 'total': total, 'forgotten': forgotten, 'forgot_now': 0 < forgotten <= 2}
 
     def api_upload_analyze(self, data):
         """Analisa um ou mais arquivos sem chat completo (só extrai + opcionalmente pergunta curta)."""

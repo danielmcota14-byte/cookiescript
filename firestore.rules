@@ -81,6 +81,17 @@ service cloud.firestore {
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
         && request.resource.data.bio is string && request.resource.data.bio.size() <= 300;
       allow delete: if false;
+
+      // Memória da Cookie AI: cada pessoa (inclusive login anônimo) lê e grava só a própria.
+      match /memories/{memId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['kind', 'content', 'updatedAt'])
+          && request.resource.data.kind is string && request.resource.data.kind.size() <= 20
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 3600
+          && request.resource.data.updatedAt is number;
+      }
     }
 
     // Tudo que não foi liberado acima fica bloqueado.

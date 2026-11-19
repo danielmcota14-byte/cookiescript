@@ -124,18 +124,18 @@ def extract_text_from_bytes(filename: str, data: bytes) -> Tuple[str, str]:
         except Exception:
             pass
 
-    # PDF básico sem dependência: tenta extrair strings legíveis
+    # PDF: extração real de texto (pypdf) com fallback leve sem dependências
     if ext == ".pdf" or mime == "application/pdf":
-        try:
-            # extração tosca de strings ASCII/UTF-16 embutidas
-            raw = data
-            strings = re.findall(rb"[\x20-\x7E]{6,}", raw)
-            text = "\n".join(s.decode("ascii", errors="ignore") for s in strings[:500])
-            if text.strip():
-                return f"[PDF texto aproximado de {filename}]\n{text[:80000]}", "text"
-        except Exception:
-            pass
-        return f"[PDF binário: {filename}, {len(data)} bytes — texto não extraído automaticamente]", "binary"
+        text = _extract_pdf_text(data)
+        if text.strip():
+            if len(text) > 60_000:
+                text = text[:60_000] + "\n\n...[PDF truncado]..."
+            return f"[Texto extraído do PDF {filename}]\n{text}", "text"
+        return (
+            f"[PDF {filename}, {len(data)} bytes — não encontrei texto selecionável. "
+            "Provavelmente é um PDF escaneado (só imagem). Avise o usuário e peça o texto ou uma foto da página.]",
+            "binary",
+        )
 
     # Office antigo / zip-based: só informa
     if ext in {".docx", ".xlsx", ".pptx", ".odt", ".ods"}:
@@ -152,6 +152,67 @@ def extract_text_from_bytes(filename: str, data: bytes) -> Tuple[str, str]:
         "Não foi possível extrair texto legível.]",
         "binary",
     )
+
+
+def _extract_pdf_text(data: bytes, max_pages: int = 80, max_chars: int = 70_000) -> str:
+    """Extrai texto de PDF. Usa pypdf se instalado; senão um parser simples (zlib + operadores Tj/TJ)."""
+    try:
+        import io
+        from pypdf import PdfReader  # type: ignore
+        reader = PdfReader(io.BytesIO(data))
+        if getattr(reader, "is_encrypted", False):
+            try:
+                reader.decrypt("")
+            except Exception:
+                return ""
+        parts = []
+        total = 0
+        for i, page in enumerate(reader.pages):
+            if i >= max_pages or total >= max_chars:
+                break
+            try:
+                t = page.extract_text() or ""
+            except Exception:
+                t = ""
+            if t.strip():
+                parts.append(f"--- página {i + 1} ---\n{t.strip()}")
+                total += len(t)
+        return "\n\n".join(parts)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[pdf] pypdf falhou: {e}")
+    return _extract_pdf_text_basic(data, max_chars)
+
+
+def _extract_pdf_text_basic(data: bytes, max_chars: int = 70_000) -> str:
+    import zlib
+    chunks = []
+    total = 0
+    for m in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        raw = m.group(1)
+        try:
+            raw = zlib.decompress(raw)
+        except Exception:
+            pass
+        if b"BT" not in raw:
+            continue
+        for bt in re.findall(rb"BT(.*?)ET", raw, re.S):
+            line = []
+            for s in re.findall(rb"\(((?:\\.|[^\\)])*)\)\s*Tj|\[(.*?)\]\s*TJ", bt, re.S):
+                if s[0]:
+                    line.append(s[0])
+                else:
+                    line.extend(re.findall(rb"\(((?:\\.|[^\\)])*)\)", s[1]))
+            txt = b"".join(line).decode("latin-1", errors="ignore")
+            txt = re.sub(r"\\([()\\])", r"\1", txt)
+            if txt.strip():
+                chunks.append(txt)
+                total += len(txt)
+        if total >= max_chars:
+            break
+    return "\n".join(chunks)
+
 
 
 def prepare_for_ai(
