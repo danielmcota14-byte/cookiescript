@@ -48,8 +48,8 @@ GROQ_KEY = _env("GROQ_API_KEY")
 DEFAULT_OMNIROUTE_MODEL = _env("OMNIROUTE_MODEL", "auto")
 DEFAULT_GROK_MODEL = _env("GROK_MODEL", "grok-2-latest")
 DEFAULT_GROQ_MODEL = _env("GROQ_MODEL", "openai/gpt-oss-120b")
-# Modelos com visão. O Llama 4 Scout foi aposentado no Groq em 17/07/2026; troque por env se mudar de novo.
-GROQ_VISION_MODELS = [m for m in (_env("GROQ_VISION_MODEL", ""), "qwen/qwen3.6-27b") if m]
+# Modelos com visão no Groq (o Llama 4 Scout foi aposentado em 17/07/2026). Troque por env GROQ_VISION_MODEL se mudar.
+GROQ_VISION_MODELS = [m for m in dict.fromkeys((_env("GROQ_VISION_MODEL", ""), "qwen/qwen3.8-27b", "qwen/qwen3.6-27b")) if m]
 GROK_VISION_MODEL = _env("GROK_VISION_MODEL", "grok-2-vision-latest")
 
 # System prompt obrigatório — define comportamento de arquivos + memória
@@ -228,8 +228,13 @@ def chat_completion(
                 }
                 if str(m).startswith("openai/gpt-oss"):
                     body["reasoning_effort"] = "low"
+                elif str(m).startswith("qwen/"):
+                    body["reasoning_effort"] = "default"
+                    body["top_p"] = 0.95
                 data = _http_json(url, headers={"Authorization": f"Bearer {key}"}, body=body)
                 text = _extract_text(data)
+                if str(m).startswith("qwen/"):
+                    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
                 if text:
                     return text, f"Groq/{m}"
                 errors.append("Groq: resposta vazia")
