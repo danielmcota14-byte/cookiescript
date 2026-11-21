@@ -158,9 +158,20 @@ class CookieAIGenerator:
 
     def _fallback_resposta(self, pergunta: str) -> str:
         p = pergunta.lower()
-        # Este fallback local não responde perguntas de identidade.
-        # A identidade da Jertruge é contexto do SYSTEM_BASE e deve ser
-        # interpretada pelo modelo principal do pipeline.
+        termos_desenvolvedor = (
+            'quem desenvolveu', 'quem criou', 'quem é seu criador',
+            'quem e seu criador', 'quem programou', 'quem fez você',
+            'quem fez voce', 'seu desenvolvedor', 'sua desenvolvedora',
+            'quem está por trás', 'quem esta por tras',
+            'quem é o desenvolvedor', 'quem e o desenvolvedor',
+            'quem é a desenvolvedora', 'quem e a desenvolvedora',
+            'desenvolvedor dela', 'desenvolvedora dela',
+            'desenvolvedor da jertruge', 'desenvolvedora da jertruge'
+        )
+        if any(termo in p for termo in termos_desenvolvedor):
+            return ('Fui desenvolvida por Daniel Moriconi Cota, um estudante da '
+                    'FAETEC e pesquisador voluntário da FAPERJ, de 17 anos. '
+                    'Eu sou a Jertruge, e Daniel é meu desenvolvedor.')
         if 'calculadora' in p:
             return 'Jertruge aqui! 🍪\nUma calculadora simples em Python:\n\n```python\n' + self._CALC_PY + '\n```'
         if 'capital' in p and ('brasil' in p or 'brazil' in p):
