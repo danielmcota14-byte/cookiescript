@@ -1,4 +1,4 @@
-"""Controle de entrada do Cookie AI: no máximo N usuários ativos ao mesmo tempo.
+"""Controle de entrada do Jertruge: no máximo N usuários ativos ao mesmo tempo.
 
 Regras
 - "Ativo" = usuário que mandou algo nos últimos ACTIVE_TTL segundos (padrão 10 min).

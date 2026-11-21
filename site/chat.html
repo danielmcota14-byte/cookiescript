@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#09090b">
-<title>Cookie AI</title>
+<title>Jertruge</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 6c-1 5 3 9 8 9 0 5 4 9 9 9 0 4 3 7 7 8-1 15-12 26-25 26C16 58 6 47 6 33 6 18 17 6 32 6Z' fill='%23f2b45a'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -443,9 +443,9 @@
   .v-panel .chk input { margin-top:3px; accent-color:#ff9d4d; }
   .v-stage { flex:1; min-height:0; width:100%; max-width:640px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; }
   .v-cookie { --l:0; position:relative; width:min(44vw,196px); aspect-ratio:1; display:grid; place-items:center; margin-bottom:10px; }
-  .v-cookie::before { content:""; position:absolute; inset:-34%; border-radius:50%; background:radial-gradient(closest-side,#ff9d4d66,#c565ff24 60%,transparent 72%);
+  .v-cookie::before { content:""; position:absolute; inset:-34%; border-radius:50%; background:radial-gradient(closest-side,#ffffff24,transparent 72%);
     transform:scale(calc(.82 + var(--l) * .7)); transition:transform .09s linear; }
-  .v-cookie svg { position:relative; width:100%; height:100%; transform:scale(calc(1 + var(--l) * .1)); transition:transform .09s linear; filter:drop-shadow(0 18px 46px #ff9d4d77); }
+  .v-cookie svg { position:relative; width:100%; height:100%; transform:scale(calc(1 + var(--l) * .1)); transition:transform .09s linear; filter:drop-shadow(0 12px 30px #ffffff22); }
   .voice[data-st="loading"] .v-cookie svg, .voice[data-st="transcribing"] .v-cookie svg, .voice[data-st="thinking"] .v-cookie svg { animation:wobble 1.7s ease-in-out infinite; }
   .voice[data-st="loading"] .v-cookie svg { opacity:.65; }
   .voice[data-st="speaking"] .v-cookie svg { animation:chew .46s ease-in-out infinite alternate; }
@@ -472,10 +472,12 @@
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <symbol id="i-cookie" viewBox="0 0 64 64">
-      <path d="M32 6c-1 5 3 9 8 9 0 5 4 9 9 9 0 4 3 7 7 8-1 15-12 26-25 26C16 58 6 47 6 33 6 18 17 6 32 6Z" fill="#f2b45a" stroke="#4a2a12" stroke-width="3" stroke-linejoin="round"/>
-      <circle cx="22" cy="27" r="3" fill="#4a2a12"/><circle cx="35" cy="34" r="3" fill="#4a2a12"/>
-      <circle cx="24" cy="44" r="3" fill="#4a2a12"/><circle cx="43" cy="46" r="2.6" fill="#4a2a12"/><circle cx="46" cy="30" r="2.2" fill="#4a2a12"/>
+    <symbol id="i-robot" viewBox="0 0 64 64">
+      <path d="M32 15V8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="32" cy="6" r="3" fill="currentColor"/>
+      <rect x="9" y="17" width="46" height="38" rx="13" fill="none" stroke="currentColor" stroke-width="3"/>
+      <circle cx="23" cy="35" r="3.5" fill="currentColor"/>
+      <circle cx="41" cy="35" r="3.5" fill="currentColor"/>
     </symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
@@ -503,7 +505,7 @@
 
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar" aria-label="Conversas">
-    <a class="brand" href="index.html" title="Voltar ao início"><svg><use href="#i-cookie"/></svg>Cookie AI</a>
+    <a class="brand" href="index.html" title="Voltar ao início"><svg><use href="#i-robot"/></svg>Jertruge</a>
     <button class="btn-new" id="newChat"><svg><use href="#i-plus"/></svg>Nova conversa</button>
     <div class="side-label">Conversas</div>
     <nav class="history" id="history"></nav>
@@ -515,13 +517,13 @@
   <main class="main">
     <header class="topbar">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir menu"><svg><use href="#i-menu"/></svg></button>
-      <div class="top-title" id="topTitle">Cookie AI</div>
+      <div class="top-title" id="topTitle">Jertruge</div>
       <div class="meter" id="meter" title="Sem limite fixo de mensagens. A IA lê as mais recentes por inteiro e guarda as antigas num estado resumido (objetivo, fatos, decisões e pendências)."><svg><use href="#i-mem"/></svg><span id="meterTxt"></span><i><b id="meterBar"></b></i></div>
     </header>
 
     <div class="scroller" id="scroller">
       <section class="hero" id="hero">
-        <svg class="mark"><use href="#i-cookie"/></svg>
+        <svg class="mark"><use href="#i-robot"/></svg>
         <h1>Como posso ajudar hoje?</h1>
         <p>Sua conversa é só sua. Ninguém mais enxerga a sua memória.</p>
         <div class="chips" id="chips">
@@ -565,8 +567,8 @@
 <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-label="Entrar">
   <div class="card">
     <button class="icon-btn x" id="authClose" aria-label="Fechar"><svg><use href="#i-x"/></svg></button>
-    <svg class="mark"><use href="#i-cookie"/></svg>
-    <h2>Entre na Cookie AI</h2>
+    <svg class="mark"><use href="#i-robot"/></svg>
+    <h2>Entre na Jertruge</h2>
     <p>É opcional. Com conta, sua memória fica salva e protegida só para você.</p>
     <button class="gbtn" id="gLogin">Continuar com Google</button>
     <div class="or"><span>ou</span></div>
@@ -579,7 +581,7 @@
 </div>
 <div class="voice" id="voice" hidden data-st="idle" role="dialog" aria-modal="true" aria-label="Conversa por voz">
   <div class="v-top">
-    <span class="v-brand"><svg><use href="#i-cookie"/></svg>Conversa por voz</span>
+    <span class="v-brand"><svg><use href="#i-robot"/></svg>Conversa por voz</span>
     <button class="icon-btn" id="vGear" type="button" aria-label="Configurações de voz"><svg><use href="#i-gear"/></svg></button>
   </div>
   <div class="v-panel" id="vPanel" hidden>
@@ -594,7 +596,7 @@
     <label class="chk"><input type="checkbox" id="vsInt"> Poder interromper a IA falando (use fones para evitar eco)</label>
   </div>
   <div class="v-stage">
-    <div class="v-cookie" id="vCookie"><svg><use href="#i-cookie"/></svg></div>
+    <div class="v-cookie" id="vCookie"><svg><use href="#i-robot"/></svg></div>
     <div class="v-status" id="vStatus" role="status" aria-live="polite"></div>
     <div class="v-detail" id="vDetail"></div>
     <div class="v-user" id="vUser"></div>
@@ -814,7 +816,7 @@ function msgHTML(m, idx) {
   }
   if (m.role === "notice") return `<div class="notice"><span>${icon("fade")}${esc(m.content)}</span></div>`;
   if (m.error) {
-    return `<div class="msg ai"><svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="err">${esc(m.content)}<br><button class="mini" data-retry="${idx}">${icon("retry")}Tentar de novo</button></div></div></div>`;
+    return `<div class="msg ai"><svg class="avatar"><use href="#i-robot"/></svg><div class="body"><div class="err">${esc(m.content)}<br><button class="mini" data-retry="${idx}">${icon("retry")}Tentar de novo</button></div></div></div>`;
   }
   const gen = (m.generated || []).map((f, k) => `<button class="file-chip" data-dl="${idx}:${k}">${icon("down")}<span>${esc(f.path || "arquivo.txt")}</span></button>`).join("");
   const imgs = (m.images || []).map((im) => {
@@ -822,7 +824,7 @@ function msgHTML(m, idx) {
     if (!src) return "";
     return `<button type="button" data-zoom="${esc(src)}"><img class="img-thumb lg" src="${src}" alt="${esc(im.prompt || "imagem gerada")}"></button>`;
   }).join("");
-  return `<div class="msg ai"><svg class="avatar"><use href="#i-cookie"/></svg><div class="body">
+  return `<div class="msg ai"><svg class="avatar"><use href="#i-robot"/></svg><div class="body">
     <div class="md">${renderMarkdown(m.content)}</div>
     ${imgs ? `<div class="msg-images">${imgs}</div>` : ""}
     ${gen ? `<div class="attach-row">${gen}</div>` : ""}
@@ -871,7 +873,7 @@ function renderThread() {
   const c = current();
   const has = c && c.messages.length;
   el.hero.style.display = has ? "none" : "";
-  $("#topTitle").textContent = has ? c.title : "Cookie AI";
+  $("#topTitle").textContent = has ? c.title : "Jertruge";
   const msgs = has ? c.messages : [], nodes = Array.from(el.thread.children);
   msgs.forEach((m, i) => {
     m.id = m.id || uid();
@@ -1051,7 +1053,7 @@ async function waitForTurn(signal, onWait) {
       if (res.ok) r = await res.json();
     } catch (e) { if (e && e.name === "AbortError") throw e; }
     if (!r || r.status === "active" || r.status === "none") return waited;
-    if (r.status === "full") throw new Error("O Cookie AI está com a fila cheia agora. Tente de novo em alguns minutos.");
+    if (r.status === "full") throw new Error("O Jertruge está com a fila cheia agora. Tente de novo em alguns minutos.");
     waited = true;
     onWait(r);
     await sleep(Math.min(15, Math.max(2, r.poll_seconds || 4)) * 1000, signal);
@@ -1092,7 +1094,7 @@ async function send(textOverride, filesOverride) {
 
   const typing = document.createElement("div");
   typing.className = "msg ai";
-  typing.innerHTML = `<svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="wake"></div></div>`;
+  typing.innerHTML = `<svg class="avatar"><use href="#i-robot"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="wake"></div></div>`;
   el.thread.appendChild(typing); scrollEnd();
   let queued = false;
   const wakeTimer = setTimeout(() => { const w = $("#wake"); if (w && !queued) w.textContent = "Acordando o servidor… a primeira resposta pode levar até 1 minuto."; }, 7000);
@@ -1103,7 +1105,7 @@ async function send(textOverride, filesOverride) {
     await waitForTurn(state.controller.signal, (r) => {
       queued = true;
       const w = $("#wake");
-      if (w) w.textContent = `Cookie AI lotado: ${r.active} de ${r.limit} vagas em uso. Você é o ${r.position}º da fila · espera estimada: ${fmtWait(r.eta_seconds)}. Mantenha esta aba aberta.`;
+      if (w) w.textContent = `Jertruge lotado: ${r.active} de ${r.limit} vagas em uso. Você é o ${r.position}º da fila · espera estimada: ${fmtWait(r.eta_seconds)}. Mantenha esta aba aberta.`;
     });
     queued = false;
     // 2) com a vez garantida, começa o tempo limite da resposta
@@ -1285,7 +1287,7 @@ async function generateImageDirect(prompt, skipUser) {
   renderAll(); updateSend();
   const typing = document.createElement("div");
   typing.className = "msg ai";
-  typing.innerHTML = `<svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="imgNote">Criando sua imagem… pode levar até 30 segundos.</div></div>`;
+  typing.innerHTML = `<svg class="avatar"><use href="#i-robot"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="imgNote">Criando sua imagem… pode levar até 30 segundos.</div></div>`;
   el.thread.appendChild(typing); scrollEnd();
   try {
     const im = await requestImage(prompt, state.controller.signal, (t) => { const n = $("#imgNote"); if (n) n.textContent = t; });

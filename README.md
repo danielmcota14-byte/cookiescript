@@ -43,7 +43,7 @@ python cookie_ide_app.py
 Abra `index1.html` → selecione **"🤖 Claude Code Local (CLI)"** → pronto!
 
 > O backend chama `claude --print --output-format json "..."` (modo headless do
-> Claude Code) via subprocess. Nenhum prompt passa pelos servidores da Cookie AI —
+> Claude Code) via subprocess. Nenhum prompt passa pelos servidores da Jertruge —
 > a chamada é local, direto para o binário `claude` já configurado na máquina.
 
 ## Configurar IA Local — Ollama (alternativa, sem login)
@@ -96,7 +96,7 @@ cookiescript/
 ├── cookie_ai.py           # DeepSeek local / templates (fallback)
 ├── cookiescript_vm.py     # Máquina virtual CookieScript
 ├── index.html             # IDE principal
-├── index1.html            # Cookie AI (chat com IA)
+├── index1.html            # Jertruge (chat com IA)
 ├── index2.html             # Wiki / Documentação
 ├── instalar_claude_code.bat/.sh  # Scripts de instalação do Claude Code
 └── instalar_ollama.bat/.sh       # Scripts de instalação do Ollama
@@ -127,7 +127,7 @@ A partir de agora, configure sua chave via variável de ambiente `GROQ_API_KEY`
 ou no campo de API Key da própria interface — nunca direto no código.
 
 
-## Cookie AI 2.0 — OmniRoute + Grok + Memória + Arquivos
+## Jertruge 2.0 — OmniRoute + Grok + Memória + Arquivos
 
 ### Variáveis de ambiente (Render / Fly)
 

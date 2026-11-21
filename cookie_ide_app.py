@@ -165,7 +165,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_json(ADMISSION.stats() if ADMISSION else {'active': 0, 'waiting': 0, 'limit': 0})
             return
         if path in ('/api/v1/status', '/api/v1'):
-            self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 1,
+            self.send_json({'status': 'ok', 'name': 'Jertruge API', 'version': 1,
                             'endpoints': {'chat': 'POST /api/v1/chat', 'providers': 'POST /api/providers',
                                           'clear_session': 'POST /api/session/clear'}})
             return
@@ -214,7 +214,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/claude_code_status': self.api_claude_code_status,
             '/api/ask':            self.api_ask,
             '/api/ask_enhanced':   self.api_ask_enhanced,
-            # Novos endpoints Cookie AI 2.0
+            # Novos endpoints Jertruge 2.0
             '/api/chat':           self.api_chat,
             '/api/upload_analyze': self.api_upload_analyze,
             '/api/memory/list':    self.api_memory_list,
@@ -628,7 +628,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             data['message'] = data.get('pergunta')
         return self.api_chat(data)
 
-    # ── Cookie AI 2.0: chat unificado + memória + arquivos ────────────────────
+    # ── Jertruge 2.0: chat unificado + memória + arquivos ────────────────────
 
     def api_providers(self, data):
         """Status dos provedores configurados no servidor (env)."""
@@ -730,7 +730,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                     'status': adm.get('status'), 'position': adm.get('position', 0),
                     'eta_seconds': adm.get('eta_seconds', 0),
                     'active': adm.get('active', 0), 'limit': adm.get('limit', 0),
-                    'error': 'O Cookie AI está lotado agora. Você está na fila (posição %s).' % adm.get('position', '?'),
+                    'error': 'O Jertruge está lotado agora. Você está na fila (posição %s).' % adm.get('position', '?'),
                 }, 429)
                 return
 

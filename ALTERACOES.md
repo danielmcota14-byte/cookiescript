@@ -1,4 +1,4 @@
-# Alterações (Cookie AI)
+# Alterações (Jertruge)
 
 ## Pasta site/  (páginas do front-end)
 - chat.html: gerar imagens (botão "Criar imagem"), ler imagens e vídeos (5 quadros), memória no Firestore (login anônimo),

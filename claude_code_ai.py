@@ -1,7 +1,7 @@
 """
 claude_code_ai.py
 ──────────────────
-Integração da Cookie AI com o Claude Code CLI rodando localmente na máquina
+Integração da Jertruge com o Claude Code CLI rodando localmente na máquina
 do usuário (https://docs.claude.com/en/docs/claude-code/overview).
 
 Em vez de baixar um modelo (Ollama) ou carregar pesos locais (DeepSeek/transformers),
@@ -17,7 +17,7 @@ Pré-requisitos na máquina do usuário:
                               — ou —
      variável ANTHROPIC_API_KEY definida (uso com API key / CI)
 
-Nada disso passa pela rede da Cookie AI: o subprocess fala direto com o
+Nada disso passa pela rede da Jertruge: o subprocess fala direto com o
 binário `claude` já configurado no computador local.
 """
 
@@ -158,7 +158,7 @@ class ClaudeCodeAI:
         if not pergunta:
             return {'success': False, 'texto': '', 'error': 'Por favor, faça uma pergunta.'}
         instrucao = (
-            'Você é a Cookie AI, assistente integrada ao CookieScript IDE, '
+            'Você é a Jertruge, assistente integrada ao CookieScript IDE, '
             'rodando localmente via Claude Code. Responda em português, '
             f'de forma direta e útil.\n\nPergunta: {pergunta}'
         )

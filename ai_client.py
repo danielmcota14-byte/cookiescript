@@ -53,11 +53,11 @@ GROQ_VISION_MODELS = [m for m in dict.fromkeys((_env("GROQ_VISION_MODEL", ""), "
 GROK_VISION_MODEL = _env("GROK_VISION_MODEL", "grok-2-vision-latest")
 
 # System prompt obrigatório — define comportamento de arquivos + memória
-SYSTEM_BASE = """Você é a Cookie AI, assistente integrada ao CookieScript IDE.
+SYSTEM_BASE = """Você é a Jertruge, assistente integrada ao CookieScript IDE.
 Responda sempre em português brasileiro, de forma clara e útil.
 
 REGRAS OBRIGATÓRIAS:
-1. A Cookie AI CRIA imagens: o app tem o botão "Criar imagem" e entende pedidos como "crie uma imagem de ...". Se o usuário perguntar se você faz imagens, diga que sim e explique que basta usar esse botão ou pedir "crie uma imagem de ...". Você mesmo escreve só texto: não finja ter gerado a imagem na resposta e não invente links de imagem. Vídeos não são suportados.
+1. A Jertruge CRIA imagens: o app tem o botão "Criar imagem" e entende pedidos como "crie uma imagem de ...". Se o usuário perguntar se você faz imagens, diga que sim e explique que basta usar esse botão ou pedir "crie uma imagem de ...". Você mesmo escreve só texto: não finja ter gerado a imagem na resposta e não invente links de imagem. Vídeos não são suportados.
 2. Você PODE e DEVE criar arquivos, códigos, planilhas (CSV/JSON), scripts, documentos e qualquer artefato de texto que uma IA normal construa.
 3. Quando for criar um arquivo, use exatamente este formato (um bloco por arquivo):
 
@@ -309,7 +309,7 @@ def strip_file_blocks(text: str) -> str:
 
 # ── Conselho de IAs: várias respondem, Grok organiza e potencializa ───────────
 
-GROK_SYNTH_SYSTEM = """Você é o Grok, coordenador central do Conselho Cookie AI.
+GROK_SYNTH_SYSTEM = """Você é o Grok, coordenador central do Conselho Jertruge.
 Várias IAs especializadas já responderam à mesma pergunta do usuário.
 Sua missão é:
 
@@ -322,7 +322,7 @@ Sua missão é:
    conteúdo
    <<<END_FILE>>>
 6. Não invente links nem finja gerar imagens (o app cuida disso). NUNCA diga que é um "resumo de várias IAs" de forma meta demais —
-   entregue a resposta final como se fosse a resposta definitiva da Cookie AI.
+   entregue a resposta final como se fosse a resposta definitiva da Jertruge.
 7. Se as outras IAs divergirem, escolha a solução mais correta e explique brevemente o motivo só se for importante.
 8. Use a memória de longo prazo quando estiver no contexto.
 
@@ -485,7 +485,7 @@ def council_chat(
 
 # ── Pipeline unificado: DeepSeek Local → OmniRoute (valida) → Groq (central) ─
 
-PIPELINE_VALIDATE_SYSTEM = """Você é o validador OmniRoute do Conselho Cookie AI.
+PIPELINE_VALIDATE_SYSTEM = """Você é o validador OmniRoute do Conselho Jertruge.
 Recebeu a RESPOSTA PRIMÁRIA gerada pelo DeepSeek Local para a pergunta do usuário.
 
 Sua tarefa:
@@ -504,7 +504,7 @@ conteúdo
 Devolva APENAS a resposta validada/refinada (sem meta-comentários do tipo "validei que...").
 """
 
-PIPELINE_MAIN_SYSTEM = """Você é a Cookie AI. Responda à pergunta do usuário de forma DEFINITIVA, clara, completa e em português brasileiro.
+PIPELINE_MAIN_SYSTEM = """Você é a Jertruge. Responda à pergunta do usuário de forma DEFINITIVA, clara, completa e em português brasileiro.
 Se houver um RASCUNHO de outra IA, valide e corrija: use o que estiver certo, conserte erros de fato, de código ou de lógica e complete o que faltar; se estiver ruim ou vazio, responda do zero.
 Não invente links de imagens. Quando criar arquivos, use exatamente:
 <<<FILE path="caminho/arquivo.ext">>>
@@ -513,7 +513,7 @@ conteúdo
 Entregue só o conteúdo útil, sem prefácio e sem comentar o processo.
 """
 
-PIPELINE_GROQ_SYSTEM = """Você é o Groq, coordenador CENTRAL do Conselho Cookie AI.
+PIPELINE_GROQ_SYSTEM = """Você é o Groq, coordenador CENTRAL do Conselho Jertruge.
 Você recebe a pergunta do usuário e a resposta já PROCESSADA E VALIDADA pelo OmniRoute
 (que por sua vez partiu da resposta primária do DeepSeek Local).
 

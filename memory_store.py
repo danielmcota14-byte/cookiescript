@@ -1,5 +1,5 @@
 """
-Memória persistente da Cookie AI.
+Memória persistente da Jertruge.
 
 - Conversas por sessão (histórico curto)
 - Memória de longo prazo / aprendizagem (fatos, preferências)

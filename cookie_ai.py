@@ -159,24 +159,24 @@ class CookieAIGenerator:
     def _fallback_resposta(self, pergunta: str) -> str:
         p = pergunta.lower()
         if 'calculadora' in p:
-            return 'Cookie AI aqui! 🍪\nUma calculadora simples em Python:\n\n```python\n' + self._CALC_PY + '\n```'
+            return 'Jertruge aqui! 🍪\nUma calculadora simples em Python:\n\n```python\n' + self._CALC_PY + '\n```'
         if 'capital' in p and ('brasil' in p or 'brazil' in p):
-            return 'Olá! Sou a Cookie AI 🍪\nA capital do Brasil é Brasília.'
+            return 'Olá! Sou a Jertruge 🍪\nA capital do Brasil é Brasília.'
         if 'capital' in p and 'frança' in p:
-            return 'Olá! Sou a Cookie AI 🍪\nA capital da França é Paris.'
+            return 'Olá! Sou a Jertruge 🍪\nA capital da França é Paris.'
         if any(w in p.replace(',', ' ').replace('!', ' ').replace('?', ' ').split() for w in ('olá', 'ola', 'oi', 'hey', 'hello')) or 'tudo bem' in p or 'tudo bom' in p:
-            return 'Olá! Sou a Cookie AI 🍪, assistente oficial do CookieScript IDE. Como posso ajudar você hoje?'
+            return 'Olá! Sou a Jertruge 🍪, assistente oficial do CookieScript IDE. Como posso ajudar você hoje?'
         if 'quem' in p and ('você' in p or 'voce' in p):
-            return 'Sou a Cookie AI 🍪, a inteligência artificial integrada ao CookieScript IDE! Fui criada para ajudar você a programar em CookieScript e outras linguagens.'
+            return 'Sou a Jertruge 🍪, a inteligência artificial integrada ao CookieScript IDE! Fui criada para ajudar você a programar em CookieScript e outras linguagens.'
         if 'cookiescript' in p:
-            return 'Cookie AI aqui! 🍪\nCookieScript é uma linguagem de programação para automação e scripting, com suporte nativo a filesystem, HTTP, JSON e muito mais.'
+            return 'Jertruge aqui! 🍪\nCookieScript é uma linguagem de programação para automação e scripting, com suporte nativo a filesystem, HTTP, JSON e muito mais.'
         if 'ler arquivo' in p or 'abrir arquivo' in p:
-            return 'Cookie AI aqui! 🍪\nPara ler um arquivo:\n\nconteudo = filesystem.ler_arquivo(caminho="meu_arquivo.txt")'
+            return 'Jertruge aqui! 🍪\nPara ler um arquivo:\n\nconteudo = filesystem.ler_arquivo(caminho="meu_arquivo.txt")'
         if 'escrever arquivo' in p:
-            return 'Cookie AI aqui! 🍪\nPara escrever em arquivo:\n\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="texto", modo="w")'
+            return 'Jertruge aqui! 🍪\nPara escrever em arquivo:\n\nfilesystem.escrever_arquivo(caminho="saida.txt", conteudo="texto", modo="w")'
         if 'http' in p or 'request' in p or 'requisição' in p:
-            return 'Cookie AI aqui! 🍪\nPara fazer requisição HTTP:\n\nresult = network.http_request(url="https://api.exemplo.com", metodo="GET")'
-        return f'Oi! Sou a Cookie AI 🍪\nRecebi sua pergunta: "{pergunta}"\nPara respostas completas, use o provedor Groq no AI Assistant!'
+            return 'Jertruge aqui! 🍪\nPara fazer requisição HTTP:\n\nresult = network.http_request(url="https://api.exemplo.com", metodo="GET")'
+        return f'Oi! Sou a Jertruge 🍪\nRecebi sua pergunta: "{pergunta}"\nPara respostas completas, use o provedor Groq no AI Assistant!'
 
     def _exemplo_basico(self) -> str:
         return '// Exemplo CookieScript\nfilesystem.escrever_arquivo(caminho="output.txt", conteudo="CookieScript IDE!", modo="w")\nresultado = network.http_request(url="https://httpbin.org/get", metodo="GET")'
