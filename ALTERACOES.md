@@ -31,3 +31,14 @@ GROQ_API_KEY, GROQ_VISION_MODEL (opcional), GROK_API_KEY, OMNIROUTE_URL/OMNIROUT
 - **site/chat.html:** antes de enviar, o chat entra na fila e mostra "Você é o Nº da fila · espera estimada". O tempo limite de 120 s só começa depois que a vez chega. O botão parar tira da fila.
 - **Configuração (Render):** os padrões já são 180 vagas e 10 min de inatividade, então nada é obrigatório. Para mudar, crie as variáveis de ambiente `MAX_ACTIVE_USERS` e `ACTIVE_TTL_SECONDS` no painel do Render (`MAX_ACTIVE_USERS=0` desliga a fila). Os valores no fly.toml só valem se você usar o Fly.
 - Limitação: a contagem fica na memória. Ao reiniciar o servidor ela zera, e se o Render rodar mais de uma instância cada uma conta separado (no plano grátis é uma só).
+
+## Modo de voz: ditado, transcrição de áudio e conversa por voz
+- **site/chat.html (único arquivo alterado; o servidor não muda):**
+  - Botão de microfone ao lado do enviar: grava, transcreve e coloca o texto na caixa de mensagem. "Concluir" deixa revisar; "Concluir e enviar" manda direto.
+  - Anexar um arquivo de áudio (mp3, wav, m4a, ogg, opus, flac…) transcreve para texto na caixa de mensagem (até 1 hora; o áudio não vai para o servidor).
+  - Botão de ondas sonoras: conversa por voz em tela cheia (ouve, detecta o fim da fala, envia pelo mesmo pipeline com memória e estado, lê a resposta em voz alta, volta a ouvir). Dá para interromper falando por cima, silenciar, pular a fala e ajustar idioma, qualidade, pausa e velocidade.
+  - Fala → texto: Whisper (transformers.js 4.3.2) em Web Worker, no aparelho da pessoa, com detecção automática de idioma. O modelo baixa uma vez (CDN jsDelivr + Hugging Face) e fica no cache do navegador.
+  - Texto → fala: vozes do próprio aparelho (speechSynthesis), no idioma da resposta.
+  - Reserva: se o Whisper não carregar, usa o reconhecimento do navegador (Chrome, Edge, Safari).
+  - No modo conversa, o chat acrescenta à mensagem uma instrução para a IA responder curto, sem markdown e no idioma da pessoa.
+- Custo para o site: zero (tudo roda no navegador de quem usa).

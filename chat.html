@@ -172,6 +172,8 @@
     border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
   }
   .tool-btn:hover { background: var(--bg-hover); color: var(--ink); }
+  .tool-btn.on { border-color:#ffb35e !important; color:#ffb35e !important; background:#ffb35e1a !important; }
+  .img-thumb.lg { max-width:min(100%,420px); height:auto; border-radius:16px; background:#15151b; min-height:120px; }
   .lightbox {
     position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 80;
     display: none; align-items: center; justify-content: center; padding: 20px;
@@ -393,6 +395,77 @@
   .err-line { min-height:20px; margin-bottom:6px; font-size:13px; color:var(--danger); }
   .skip { margin-top:12px; font-size:13.5px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px; }
   @media (max-width: 520px) { .meter i { display:none; } }
+
+  /* ───────── voz: ditado e conversa ───────── */
+  .attach.rec { background:#ff4d5e22; color:#ff8f86; animation: recpulse 1.4s ease-in-out infinite; }
+  @keyframes recpulse { 50% { box-shadow:0 0 0 6px #ff4d5e1f; } }
+  .attach[hidden] { display:none; }
+  .dictbar { display:flex; align-items:center; gap:10px; padding:2px 0 10px; font-size:14px; color:var(--ink-2); }
+  .dictbar[hidden] { display:none; }
+  .dictbar .rdot { width:10px; height:10px; border-radius:50%; background:#ff5a6a; flex:none; animation:pulse 1.2s infinite; }
+  .dictbar[data-mode="work"] .rdot { background:#ffb35e; }
+  .dictbar .info { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dictbar .lvl { width:56px; height:6px; border-radius:9px; background:var(--line-strong); overflow:hidden; flex:none; }
+  .dictbar .lvl::after { content:""; display:block; height:100%; width:calc(var(--l,0) * 100%); background:var(--g); transition:width .08s linear; }
+  .dictbar[data-mode="work"] .lvl, .dictbar[data-mode="work"] .acts { display:none; }
+  .dictbar .acts { display:flex; gap:6px; flex:none; }
+  .dictbar .acts button { white-space:nowrap; height:32px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; border:1px solid var(--line-strong); color:var(--ink-2); }
+  .dictbar .acts button:hover { background:var(--bg-hover); color:var(--ink); }
+  .dictbar .acts .go { background:var(--g); color:#1a0f05; border:0; }
+  @media (max-width:520px) {
+    .dictbar { flex-wrap:wrap; row-gap:8px; }
+    .dictbar .lvl { display:none; }
+    .dictbar .info { flex-basis:calc(100% - 24px); }
+    .dictbar .acts { width:100%; }
+    .dictbar .acts button { flex:1 1 auto; padding:0 8px; white-space:nowrap; font-size:12.5px; }
+    .dictbar .acts .go { flex-grow:1.6; }
+    .composer { padding-left:12px; }
+    .composer .row { gap:2px; }
+    .composer .row .attach { width:36px; height:36px; }
+    .composer .row .send { width:38px; height:38px; }
+    .composer textarea::placeholder { font-size:15px; }
+  }
+
+  .voice { position:fixed; inset:0; z-index:85; display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+    padding:calc(14px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));
+    background:radial-gradient(60% 46% at 50% 36%,#2d1708f5,#09090bfa 72%); backdrop-filter:blur(22px); }
+  .voice[hidden] { display:none; }
+  .v-top { width:100%; max-width:720px; display:flex; align-items:center; justify-content:space-between; }
+  .v-brand { display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px; color:var(--ink-2); }
+  .v-brand svg { width:22px; height:22px; }
+  .v-panel { position:absolute; z-index:2; top:calc(58px + env(safe-area-inset-top,0px)); right:max(20px, calc(50% - 360px)); width:min(340px, calc(100vw - 40px)); max-height:calc(100dvh - 120px); overflow:auto;
+    display:grid; gap:12px; padding:16px; border:1px solid #ffffff1a; border-radius:20px; background:#121217; box-shadow:0 30px 80px -20px #000; }
+  .v-panel[hidden] { display:none; }
+  .v-panel label { display:grid; gap:6px; font-size:13px; font-weight:600; color:var(--ink-2); }
+  .v-panel .hint { margin-top:-6px; font-size:12.5px; line-height:1.4; color:var(--ink-3); }
+  .v-panel select { width:100%; padding:10px 12px; border:1px solid var(--line-strong); border-radius:12px; background:#0b0b0f; color:var(--ink); font-size:14.5px; }
+  .v-panel .chk { display:flex; align-items:flex-start; gap:10px; font-weight:500; line-height:1.4; }
+  .v-panel .chk input { margin-top:3px; accent-color:#ff9d4d; }
+  .v-stage { flex:1; min-height:0; width:100%; max-width:640px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; }
+  .v-cookie { --l:0; position:relative; width:min(44vw,196px); aspect-ratio:1; display:grid; place-items:center; margin-bottom:10px; }
+  .v-cookie::before { content:""; position:absolute; inset:-34%; border-radius:50%; background:radial-gradient(closest-side,#ff9d4d66,#c565ff24 60%,transparent 72%);
+    transform:scale(calc(.82 + var(--l) * .7)); transition:transform .09s linear; }
+  .v-cookie svg { position:relative; width:100%; height:100%; transform:scale(calc(1 + var(--l) * .1)); transition:transform .09s linear; filter:drop-shadow(0 18px 46px #ff9d4d77); }
+  .voice[data-st="loading"] .v-cookie svg, .voice[data-st="transcribing"] .v-cookie svg, .voice[data-st="thinking"] .v-cookie svg { animation:wobble 1.7s ease-in-out infinite; }
+  .voice[data-st="loading"] .v-cookie svg { opacity:.65; }
+  .voice[data-st="speaking"] .v-cookie svg { animation:chew .46s ease-in-out infinite alternate; }
+  .voice[data-st="speaking"] .v-cookie::before { animation:glow .9s ease-in-out infinite alternate; }
+  @keyframes wobble { 0%,100% { transform:rotate(-6deg); } 50% { transform:rotate(6deg) translateY(-6px); } }
+  @keyframes chew { from { transform:scale(1,1); } to { transform:scale(1.06,.94); } }
+  @keyframes glow { from { transform:scale(.9); } to { transform:scale(1.18); } }
+  .v-status { font-size:clamp(24px,4.4vw,32px); font-weight:650; letter-spacing:-.025em; min-height:1.3em; }
+  .v-detail { min-height:22px; max-width:480px; font-size:14px; line-height:1.4; color:var(--ink-3); }
+  .v-user { min-height:1.5em; max-width:560px; font-size:15px; line-height:1.45; color:var(--ink-3); overflow-wrap:anywhere; }
+  .v-ai { min-height:3.4em; max-width:600px; font-size:clamp(18px,3.2vw,23px); line-height:1.4; letter-spacing:-.01em; overflow-wrap:anywhere; }
+  .v-ctl { display:flex; gap:26px; justify-content:center; }
+  .vb { display:grid; justify-items:center; gap:8px; font-size:13px; color:var(--ink-2); }
+  .vb i { width:60px; height:60px; border-radius:50%; display:grid; place-items:center; background:#ffffff12; border:1px solid #ffffff1f; transition:background .15s, transform .1s; }
+  .vb svg { width:24px; height:24px; }
+  .vb:hover i { background:#ffffff1f; } .vb:active i { transform:scale(.94); }
+  .vb:disabled { opacity:.4; cursor:default; } .vb:disabled:hover i { background:#ffffff12; }
+  .vb.off i { background:#ff4d5e2e; border-color:#ff4d5e88; color:#ff8f86; }
+  .vb.end i { background:#e5384a; border-color:#e5384a; color:#fff; }
+  body.voice-open { overflow:hidden; }
 </style>
 </head>
 <body>
@@ -411,6 +484,7 @@
     <symbol id="i-clip" viewBox="0 0 24 24"><path d="m20 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1.7" fill="currentColor"/><path d="m4 17 5-4.5 3.5 3 3-2.5L20 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Zm0 0v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
     <symbol id="i-retry" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -419,6 +493,11 @@
     <symbol id="i-mem" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c.8-4 4-6 7.500-6s6.700 2 7.500 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-fade" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1 0 0 3"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-micoff" viewBox="0 0 24 24"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2a3 3 0 0 0 4.6 2.5M5.5 11.5a6.5 6.5 0 0 0 10.2 5.3M18.5 11.5c0 .9-.2 1.7-.5 2.4M12 18v3M4 4l16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h8M18 7h2M4 17h2M12 17h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M6 5.5v13l9-6.5-9-6.5ZM19 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </defs>
 </svg>
 
@@ -437,7 +516,7 @@
     <header class="topbar">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir menu"><svg><use href="#i-menu"/></svg></button>
       <div class="top-title" id="topTitle">Cookie AI</div>
-      <div class="meter" id="meter" title="Quantas mensagens a IA consegue lembrar nesta conversa. Passou do limite, ela esquece as mais antigas."><svg><use href="#i-mem"/></svg><span id="meterTxt"></span><i><b id="meterBar"></b></i></div>
+      <div class="meter" id="meter" title="Sem limite fixo de mensagens. A IA lê as mais recentes por inteiro e guarda as antigas num estado resumido (objetivo, fatos, decisões e pendências)."><svg><use href="#i-mem"/></svg><span id="meterTxt"></span><i><b id="meterBar"></b></i></div>
     </header>
 
     <div class="scroller" id="scroller">
@@ -447,6 +526,7 @@
         <p>Sua conversa é só sua. Ninguém mais enxerga a sua memória.</p>
         <div class="chips" id="chips">
           <button class="chip">Explique o que é uma API</button>
+          <button class="chip">Crie uma imagem de um gato astronauta</button>
           <button class="chip">Crie um script em Python</button>
           <button class="chip">Resuma um texto para mim</button>
           <button class="chip">Me ajude com um bug</button>
@@ -458,18 +538,25 @@
 
     <div class="composer-wrap">
       <div class="tools-bar" id="toolsBar">
+        <button type="button" class="tool-btn" id="imgModeBtn" data-tool="image-mode" title="Tudo que você escrever vira uma imagem"><svg><use href="#i-image"/></svg>Criar imagem</button>
         <button type="button" class="tool-btn" data-tool="clear-session" title="A IA esquece esta conversa"><svg><use href="#i-retry"/></svg>Limpar sessão</button>
         <button type="button" class="tool-btn" data-tool="clear-memory" title="Apaga o que a IA guardou sobre você"><svg><use href="#i-mem"/></svg>Limpar memória</button>
         <button type="button" class="tool-btn" data-tool="run-cs" title="Executar CookieScript"><svg><use href="#i-play"/></svg>CookieScript</button>
       </div>
       <div class="composer">
         <div class="files" id="files"></div>
+        <div class="dictbar" id="dictBar" data-mode="off" hidden>
+          <i class="rdot"></i><span class="info" id="dictInfo" role="status" aria-live="polite"></span><span class="lvl" id="dictLvl"></span>
+          <span class="acts"><button type="button" id="dictCancel">Cancelar</button><button type="button" id="dictOk">Concluir</button><button type="button" class="go" id="dictSend">Concluir e enviar</button></span>
+        </div>
         <div class="row">
           <button class="attach" id="attachBtn" aria-label="Anexar arquivos" title="Anexar arquivos"><svg><use href="#i-clip"/></svg></button>
           <textarea id="input" rows="1" placeholder="Envie uma mensagem" aria-label="Mensagem"></textarea>
+          <button class="attach" id="micBtn" type="button" aria-label="Ditar por voz" title="Ditar por voz: fale e o texto aparece aqui"><svg><use href="#i-mic"/></svg></button>
+          <button class="attach" id="voiceBtn" type="button" aria-label="Conversar por voz" title="Conversar por voz"><svg><use href="#i-wave"/></svg></button>
           <button class="send" id="sendBtn" aria-label="Enviar" disabled><svg><use href="#i-send"/></svg></button>
         </div>
-        <input type="file" id="fileInput" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.cookiescript,application/pdf,text/*" hidden>
+        <input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.weba,.mp4,.mov,.webm,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.cookiescript,application/pdf,text/*" hidden>
       </div>
       <div class="fine">Enter envia · Shift+Enter quebra linha · A IA pode errar, confira informações importantes.</div>
     </div>
@@ -490,6 +577,35 @@
     <button class="skip" id="authSkip">Continuar sem conta</button>
   </div>
 </div>
+<div class="voice" id="voice" hidden data-st="idle" role="dialog" aria-modal="true" aria-label="Conversa por voz">
+  <div class="v-top">
+    <span class="v-brand"><svg><use href="#i-cookie"/></svg>Conversa por voz</span>
+    <button class="icon-btn" id="vGear" type="button" aria-label="Configurações de voz"><svg><use href="#i-gear"/></svg></button>
+  </div>
+  <div class="v-panel" id="vPanel" hidden>
+    <label>Idioma que você fala<select id="vsLang"></select></label>
+    <div class="hint">Automático descobre o idioma sozinho. Escolher um idioma melhora o reconhecimento de frases curtas.</div>
+    <label>Qualidade do reconhecimento
+      <select id="vsModel"><option value="fast">Rápida (modelo pequeno)</option><option value="balanced">Equilibrada (recomendada)</option><option value="accurate">Precisa (modelo grande, baixa mais dados)</option></select></label>
+    <label>Esperar antes de responder
+      <select id="vsPause"><option value="600">Pouco (responde rápido)</option><option value="850">Normal</option><option value="1300">Bastante (para falas longas)</option></select></label>
+    <label>Velocidade da voz
+      <select id="vsRate"><option value="0.85">Mais devagar</option><option value="1">Normal</option><option value="1.15">Um pouco mais rápida</option><option value="1.3">Rápida</option></select></label>
+    <label class="chk"><input type="checkbox" id="vsInt"> Poder interromper a IA falando (use fones para evitar eco)</label>
+  </div>
+  <div class="v-stage">
+    <div class="v-cookie" id="vCookie"><svg><use href="#i-cookie"/></svg></div>
+    <div class="v-status" id="vStatus" role="status" aria-live="polite"></div>
+    <div class="v-detail" id="vDetail"></div>
+    <div class="v-user" id="vUser"></div>
+    <div class="v-ai" id="vAi"></div>
+  </div>
+  <div class="v-ctl">
+    <button class="vb" id="vMute" type="button"><i><svg><use href="#i-mic"/></svg></i><span>Silenciar</span></button>
+    <button class="vb" id="vSkip" type="button" disabled><i><svg><use href="#i-skip"/></svg></i><span>Pular</span></button>
+    <button class="vb end" id="vEnd" type="button"><i><svg><use href="#i-x"/></svg></i><span>Encerrar</span></button>
+  </div>
+</div>
 <div class="toast" id="toast" role="status"></div>
 <div class="lightbox" id="lightbox" role="dialog" aria-label="Imagem ampliada">
   <button class="close-lb" id="closeLb" aria-label="Fechar"><svg width="18" height="18"><use href="#i-x"/></svg></button>
@@ -508,11 +624,13 @@ const CONFIG = {
   GENERATE_PATH: "/api/generate",
   SESSION_CLEAR_PATH: "/api/session/clear",
   MEMORY_CLEAR_PATH: "/api/memory/clear",
+  STATE_PATH: "/api/v1/state",
+  QUEUE_PATH: "/api/queue/join",   // fila de entrada: o servidor aceita um número máximo de usuários ao mesmo tempo
   PROVIDER: "pipeline",          // IA padrão: DeepSeek Local → OmniRoute → Groq
   TIMEOUT_MS: 120000,            // Render gratuito pode levar ~1 min para acordar
   MAX_FILE_MB: 10,
-  CONTEXT_LIMIT: 20,             // o servidor devolve o valor real em cada resposta
-  AD: { key: "5eff732876fbe681c4bcf4138968a691", w: 468, h: 60 },
+  AD: { src: "ad.html", key: "5eff732876fbe681c4bcf4138968a691", w: 468, h: 60 },
+  IMG: { base: "https://image.pollinations.ai/prompt/", models: ["flux", "turbo"], size: 1024, attemptMs: 70000 },
   IMAGE_EXTS: ["png","jpg","jpeg","gif","webp","bmp"]
 };
 
@@ -632,6 +750,9 @@ const state = {
   currentId: null,
   pending: [],        // arquivos anexados (antes de enviar)
   busy: false,
+  imageMode: false,
+  memories: store.get("cookie_memories_" + (store.get("cookie_user_id", "")), []),
+  memUid: null,
   controller: null
 };
 const save = () => store.set(chatsKey(), state.chats.slice(0, 60).map((c) => ({
@@ -715,10 +836,9 @@ const hash = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h <
 function mountAd(node) {
   const box = node.querySelector(".ad-box"); if (!box) return;
   const A = CONFIG.AD, f = document.createElement("iframe");
-  f.width = A.w; f.height = A.h; f.title = "Publicidade"; f.loading = "lazy";
-  // sandbox SEM allow-same-origin: o anúncio roda isolado e não alcança sua conta, memória nem localStorage
-  f.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
-  f.srcdoc = '<!doctype html><html><head><meta name="color-scheme" content="dark"></head><body style="margin:0;background:transparent"><script>atOptions={"key":"' + A.key + '","format":"iframe","height":' + A.h + ',"width":' + A.w + ',"params":{}};<\/script><script src="https://bauval.org/22/' + A.key + '"><\/script></body></html>';
+  f.width = A.w; f.height = A.h; f.title = "Publicidade"; 
+  // Sem sandbox: a Adsterra precisa de cookies/armazenamento para entregar o anúncio.
+  f.src = A.src;   // página própria (endereço real do seu site), o que as redes de anúncio exigem
   box.appendChild(f); fitAds();
 }
 function fitAds() {
@@ -728,12 +848,22 @@ function fitAds() {
   });
 }
 window.addEventListener("resize", fitAds);
+// estado da conversa: a IA atualiza um registro curto a cada troca (em segundo plano, sem travar o chat)
+async function updateConvState(chat, userText, aiText) {
+  if (!userText || userText.length < 12 || !aiText) return;
+  try {
+    const r = await apiPost(CONFIG.STATE_PATH, { estado: chat.estado || null, user: userText.slice(0, 3000), assistant: aiText.slice(0, 3000) });
+    if (r && r.success && r.estado) { chat.estado = r.estado; save(); }
+  } catch {}
+}
 function updateMeter() {
-  const c = current(), lim = (c && c.ctx && c.ctx.limit) || CONFIG.CONTEXT_LIMIT;
+  const c = current(), ctx = c && c.ctx;
   const real = c ? c.messages.filter((m) => m.role !== "notice" && !m.error).length : 0;
-  const total = c && c.ctx ? c.ctx.total : real, used = Math.min(total, lim), forgot = Math.max(0, total - lim);
-  $("#meterTxt").textContent = forgot ? `Esqueceu ${forgot}` : `Memória ${used}/${lim}`;
-  $("#meterBar").style.width = Math.round(used / lim * 100) + "%";
+  const total = ctx ? ctx.total : real;
+  const used = ctx ? Math.min(ctx.limit, total) : total;        // janela real, calculada pelo servidor por tokens
+  const forgot = Math.max(0, total - used);
+  $("#meterTxt").textContent = forgot ? (c && c.estado ? `Resumida ${forgot}` : `Esqueceu ${forgot}`) : `Memória · ${total} msg`;
+  $("#meterBar").style.width = (total ? Math.round(used / total * 100) : 100) + "%";
   $("#meter").classList.toggle("full", forgot > 0);
 }
 // Atualiza só o que mudou: mensagens antigas (e os anúncios delas) não são recarregadas.
@@ -787,18 +917,63 @@ function updateSend() {
 
 /* ═════════════ arquivos ═════════════ */
 const toB64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = rej; r.readAsDataURL(file); });
+const isVideoFile = (f) => (f.type || "").startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(f.name);
+const isImageFile = (f) => (f.type || "").startsWith("image/") || isImageName(f.name);
+const loadEl = (el, ev) => new Promise((res, rej) => { el.addEventListener(ev, res, { once: true }); el.addEventListener("error", () => rej(new Error("falha")), { once: true }); });
+// imagens grandes (fotos de celular) estouram o limite do modelo: reduz para no máx. 1600px em JPEG
+async function shrinkImage(file) {
+  if (file.type === "image/gif" || file.type === "image/svg+xml") return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await loadEl(img, "load");
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    if (k === 1 && file.size < 1.5 * 1024 * 1024) return null;
+    const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85).split(",")[1];
+  } catch { return null; } finally { URL.revokeObjectURL(url); }
+}
+// vídeo: tira N quadros igualmente espaçados (a IA vê imagens, não o arquivo de vídeo)
+async function videoFrames(file, n = 5) {
+  const url = URL.createObjectURL(file);
+  try {
+    const v = document.createElement("video"); v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = url;
+    await loadEl(v, "loadedmetadata");
+    const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
+    const k = Math.min(1, 768 / Math.max(v.videoWidth || 768, v.videoHeight || 768));
+    const c = document.createElement("canvas"); c.width = Math.round((v.videoWidth || 768) * k); c.height = Math.round((v.videoHeight || 432) * k);
+    const g = c.getContext("2d"), out = [];
+    for (let i = 0; i < n; i++) {
+      const t = Math.min(dur - 0.05, Math.max(0, dur * (i + 0.5) / n));
+      const seeked = loadEl(v, "seeked"); v.currentTime = t; await seeked;
+      g.drawImage(v, 0, 0, c.width, c.height); out.push(c.toDataURL("image/jpeg", 0.7).split(",")[1]);
+    }
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
 async function addFiles(list) {
   const max = CONFIG.MAX_FILE_MB * 1024 * 1024;
   for (const f of Array.from(list)) {
     if (state.pending.length >= 8) { toast("Máximo de 8 arquivos"); break; }
-    if (f.size > max) { toast(`${f.name} passa de ${CONFIG.MAX_FILE_MB} MB`); continue; }
     try {
-      const content_base64 = await toB64(f);
-      const mime = f.type || (isImageName(f.name) ? "image/png" : "application/octet-stream");
-      const item = { name: f.name, content_base64, mime };
-      if (isImageName(f.name) || (mime && mime.startsWith("image/"))) {
-        item.previewUrl = dataUrlFromB64(content_base64, mime);
+      if (typeof isAudioFile === "function" && isAudioFile(f)) { transcribeAudioFile(f); continue; }   // áudio: vira texto na caixa de mensagem
+      if (isVideoFile(f)) {
+        if (f.size > 300 * 1024 * 1024) { toast(`${f.name} passa de 300 MB`); continue; }
+        toast("Lendo o vídeo…");
+        const frames = await videoFrames(f, 5);
+        state.pending.push({ name: f.name, kind: "video", frames, mime: "image/jpeg", previewUrl: dataUrlFromB64(frames[0], "image/jpeg") });
+        toast("Vídeo: a IA vê 5 quadros dele (sem o áudio).");
+        continue;
       }
+      if (f.size > max && !isImageFile(f)) { toast(`${f.name} passa de ${CONFIG.MAX_FILE_MB} MB`); continue; }
+      let content_base64, mime = f.type || (isImageName(f.name) ? "image/png" : "application/octet-stream"), name = f.name;
+      if (isImageFile(f)) {
+        const small = await shrinkImage(f);
+        if (small) { content_base64 = small; mime = "image/jpeg"; name = f.name.replace(/\.[^.]+$/, "") + ".jpg"; }
+      }
+      if (!content_base64) content_base64 = await toB64(f);
+      const item = { name, content_base64, mime };
+      if (isImageFile(f)) item.previewUrl = dataUrlFromB64(content_base64, mime);
       state.pending.push(item);
     } catch { toast("Não consegui ler " + f.name); }
   }
@@ -811,16 +986,35 @@ async function authHeaders() {
   try { const t = window.cookieAuth && await window.cookieAuth.token(); if (t) h.Authorization = "Bearer " + t; } catch {}
   return h;
 }
+// cópia local da conversa: o servidor (Render grátis) perde o disco ao reiniciar, o navegador não
+function buildHistory(chat) {
+  const msgs = chat.messages.filter((m) => (m.role === "user" || m.role === "assistant") && !m.error && typeof m.content === "string" && m.content.trim());
+  if (msgs.length && msgs[msgs.length - 1].role === "user") msgs.pop();   // a mensagem atual vai em "message"
+  return msgs.slice(-40).map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+}
 async function callAPI(chat, text, files, signal) {
+  try { if (window.__memReady) await Promise.race([window.__memReady, new Promise((r) => setTimeout(r, 4000))]); } catch {}
+  // vídeo → quadros (imagens) + aviso para a IA saber do que se trata
+  let note = "";
+  const outFiles = [];
+  for (const f of files) {
+    if (f.frames) {
+      f.frames.forEach((b, i) => outFiles.push({ name: `${f.name}__quadro${i + 1}.jpg`, content_base64: b, mime: "image/jpeg" }));
+      note += `\n\n(Os arquivos "${f.name}__quadro1.jpg" … "__quadro${f.frames.length}.jpg" são ${f.frames.length} quadros em ordem cronológica do vídeo "${f.name}". Analise o vídeo com base neles; o áudio não está disponível.)`;
+    } else outFiles.push({ name: f.name, content_base64: f.content_base64, mime: f.mime });
+  }
   const res = await fetch(CONFIG.API_BASE.replace(/\/$/, "") + CONFIG.CHAT_PATH, {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({
-      message: text,
+      message: (text || (outFiles.length ? "Analise o(s) arquivo(s) enviado(s)." : "")) + note + (state.voiceMode ? state.voiceHint : ""),
       provider: CONFIG.PROVIDER,
       session_id: chat.session_id || undefined,
-      user_id: state.userId,
-      files,
+      user_id: state.memUid || state.userId,
+      history: buildHistory(chat),
+      estado: chat.estado || null,
+      memories: state.memories,
+      files: outFiles,
       save_files: false
     }),
     signal
@@ -834,11 +1028,51 @@ async function callAPI(chat, text, files, signal) {
   return data;
 }
 
+/* ═════════════ fila de entrada ═════════════ */
+const fmtWait = (s) => {
+  s = Math.max(0, Math.round(s || 0));
+  if (s < 60) return "menos de 1 minuto";
+  const m = Math.ceil(s / 60);
+  return m === 1 ? "cerca de 1 minuto" : `cerca de ${m} minutos`;
+};
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  const t = setTimeout(resolve, ms);
+  if (signal) signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once: true });
+});
+// Espera a vez. Se o servidor não tem fila (versão antiga) ou não responde, segue direto.
+async function waitForTurn(signal, onWait) {
+  let waited = false;
+  for (;;) {
+    let r = null;
+    try {
+      const res = await fetch(CONFIG.API_BASE.replace(/\/$/, "") + CONFIG.QUEUE_PATH, {
+        method: "POST", headers: await authHeaders(), body: JSON.stringify({ user_id: state.memUid || state.userId }), signal
+      });
+      if (res.ok) r = await res.json();
+    } catch (e) { if (e && e.name === "AbortError") throw e; }
+    if (!r || r.status === "active" || r.status === "none") return waited;
+    if (r.status === "full") throw new Error("O Cookie AI está com a fila cheia agora. Tente de novo em alguns minutos.");
+    waited = true;
+    onWait(r);
+    await sleep(Math.min(15, Math.max(2, r.poll_seconds || 4)) * 1000, signal);
+  }
+}
+
 async function send(textOverride, filesOverride) {
   if (state.busy) { state.controller && state.controller.abort(); return; }
   const text = (textOverride ?? el.input.value).trim();
   const files = filesOverride ?? state.pending.slice();
   if (!text && !files.length) return;
+
+  // pedido de imagem: gera direto (sem anexos)
+  if (text && !files.length) {
+    const ip = parseImagePrompt(text, state.imageMode);
+    if (ip) {
+      const fresh = textOverride === undefined;
+      if (fresh) { el.input.value = ""; autosize(); }
+      return generateImageDirect(ip, !fresh);
+    }
+  }
 
   let chat = current();
   if (!chat) { newChat(); chat = current(); }
@@ -860,12 +1094,23 @@ async function send(textOverride, filesOverride) {
   typing.className = "msg ai";
   typing.innerHTML = `<svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="wake"></div></div>`;
   el.thread.appendChild(typing); scrollEnd();
-  const wakeTimer = setTimeout(() => { const w = $("#wake"); if (w) w.textContent = "Acordando o servidor… a primeira resposta pode levar até 1 minuto."; }, 7000);
-  const timeout = setTimeout(() => state.controller.abort("timeout"), CONFIG.TIMEOUT_MS);
+  let queued = false;
+  const wakeTimer = setTimeout(() => { const w = $("#wake"); if (w && !queued) w.textContent = "Acordando o servidor… a primeira resposta pode levar até 1 minuto."; }, 7000);
+  let timeout = null;
 
   try {
+    // 1) fila: se o servidor estiver lotado, espera a vez (sem contar no tempo limite da resposta)
+    await waitForTurn(state.controller.signal, (r) => {
+      queued = true;
+      const w = $("#wake");
+      if (w) w.textContent = `Cookie AI lotado: ${r.active} de ${r.limit} vagas em uso. Você é o ${r.position}º da fila · espera estimada: ${fmtWait(r.eta_seconds)}. Mantenha esta aba aberta.`;
+    });
+    queued = false;
+    // 2) com a vez garantida, começa o tempo limite da resposta
+    timeout = setTimeout(() => state.controller.abort("timeout"), CONFIG.TIMEOUT_MS);
     const data = await callAPI(chat, text, files, state.controller.signal);
     if (data.session_id) chat.session_id = data.session_id;
+    if (Array.isArray(data.memories) && data.memories.length) setMemories(data.memories);
     const aid = uid(); adIds.add(aid);
     chat.messages.push({
       id: aid,
@@ -880,19 +1125,24 @@ async function send(textOverride, filesOverride) {
       const firstForget = !(chat.ctx && chat.ctx.forgotten > 0);   // avisa só na 1ª vez; depois o contador do topo basta
       chat.ctx = data.context;
       if (data.context.forgot_now && firstForget) {
-        chat.messages.push({ role: "notice", content: `Esquecimento: passou de ${data.context.limit} mensagens, então a IA esqueceu o começo desta conversa. Ela só lembra das últimas ${data.context.limit}.` });
-        toast("A IA esqueceu as mensagens mais antigas");
+        chat.messages.push({ role: "notice", content: `A conversa ficou longa: a IA lê as ${data.context.limit} mensagens mais recentes por inteiro e guarda o resto num estado resumido (objetivo, fatos, decisões e pendências).` });
+        toast("Mensagens antigas viraram um estado resumido");
       }
     }
     setStatus("on");
+    if (data.estado) { chat.estado = data.estado; save(); }                    // o estado veio junto da resposta (0 chamadas extras)
+    else updateConvState(chat, text, data.resposta || "");   // reserva: chamada separada em segundo plano
   } catch (err) {
     const aborted = err && err.name === "AbortError";
     let msg = err.message || "Falha ao falar com o servidor.";
-    if (aborted) msg = state.controller.signal.reason === "timeout" ? "O servidor demorou demais para responder." : "Resposta interrompida.";
+    if (aborted) {
+      msg = state.controller.signal.reason === "timeout" ? "O servidor demorou demais para responder." : (queued ? "Você saiu da fila." : "Resposta interrompida.");
+      if (queued) { try { fetch(CONFIG.API_BASE.replace(/\/$/, "") + "/api/queue/leave", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ user_id: state.memUid || state.userId }), keepalive: true }); } catch {} }
+    }
     else if (err instanceof TypeError) { msg = "Não consegui conectar ao servidor. Confira sua internet ou se o Render está no ar."; setStatus("off"); }
     chat.messages.push({ role: "assistant", content: msg, error: true, retry: { text, files } });
   } finally {
-    clearTimeout(wakeTimer); clearTimeout(timeout);
+    clearTimeout(wakeTimer); if (timeout) clearTimeout(timeout);
     state.busy = false; state.controller = null;
     chat.updated = Date.now(); save(); renderAll(); updateSend();
     scrollToLastAnswer();
@@ -990,63 +1240,92 @@ async function apiPost(path, body, signal) {
   return data;
 }
 
-async function generateImageDirect(prompt) {
+/* ═════════════ geração de imagens (direto no navegador) ═════════════ */
+const IMG_RE = /\b(?:gera\w*|cri\w*|faz\w*|fa[çc]\w*|desenh\w*|pint\w*|mostr\w*)\s+(?:(?:pra|para)\s+mim\s+|me\s+)?(?:(?:uma|um|umas|uns|a|o)\s+)?(?:nova\s+)?(?:imagem|imagens|foto|fotos|fotografia|ilustra[çc][ãa]o|desenho|logo|logotipo|wallpaper|picture|image|photo)\b(?:\s+(?:de|do|da|dos|das|com|que|sobre))?/i;
+const IMG_CMD = /^\s*(?:\/(?:imagem|img|foto)|imagine)\b[:\s]*/i;
+function parseImagePrompt(text, force) {
+  const t = text.trim();
+  const c = t.match(IMG_CMD);
+  if (c) return t.slice(c[0].length).trim() || t;
+  const m = t.match(IMG_RE);
+  if (m) return (t.slice(m.index + m[0].length).trim() || t).replace(/^[:,\-\s]+/, "");
+  return force ? t : null;
+}
+function loadImage(url, signal, ms) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const done = (fn, v) => { clearTimeout(tm); signal && signal.removeEventListener("abort", onAbort); img.onload = img.onerror = null; fn(v); };
+    const onAbort = () => { img.src = ""; done(reject, Object.assign(new Error("abort"), { name: "AbortError" })); };
+    const tm = setTimeout(() => { img.src = ""; done(reject, new Error("tempo esgotado")); }, ms);
+    if (signal) { if (signal.aborted) return onAbort(); signal.addEventListener("abort", onAbort); }
+    img.onload = () => done(resolve, url);
+    img.onerror = () => done(reject, new Error("falha ao carregar"));
+    img.src = url;
+  });
+}
+async function requestImage(prompt, signal, setNote) {
+  const seed = Math.floor(Math.random() * 1e9);
+  let lastErr;
+  for (const model of CONFIG.IMG.models) {
+    const url = CONFIG.IMG.base + encodeURIComponent(prompt) + `?model=${model}&width=${CONFIG.IMG.size}&height=${CONFIG.IMG.size}&seed=${seed}&nologo=true&enhance=true`;
+    try { await loadImage(url, signal, CONFIG.IMG.attemptMs); return { url, prompt, provider: model, mime: "image/jpeg" }; }
+    catch (e) { if (e && e.name === "AbortError") throw e; lastErr = e; setNote && setNote("Tentando outro gerador…"); }
+  }
+  throw new Error("Não consegui gerar a imagem agora. Tente de novo ou mude a descrição.");
+}
+
+async function generateImageDirect(prompt, skipUser) {
   if (state.busy) return;
   let chat = current();
   if (!chat) { newChat(); chat = current(); }
   if (!chat.messages.length) chat.title = ("Imagem: " + prompt).slice(0, 48);
-  chat.messages.push({ role: "user", content: "Gere uma imagem: " + prompt, files: [] });
+  if (!skipUser) chat.messages.push({ role: "user", content: "Gere uma imagem: " + prompt, files: [] });
   chat.updated = Date.now();
   state.busy = true; state.controller = new AbortController();
   renderAll(); updateSend();
   const typing = document.createElement("div");
   typing.className = "msg ai";
-  typing.innerHTML = `<svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note">Gerando imagem…</div></div>`;
+  typing.innerHTML = `<svg class="avatar"><use href="#i-cookie"/></svg><div class="body"><div class="typing"><i></i><i></i><i></i></div><div class="wake-note" id="imgNote">Criando sua imagem… pode levar até 30 segundos.</div></div>`;
   el.thread.appendChild(typing); scrollEnd();
-  const timeout = setTimeout(() => state.controller.abort("timeout"), CONFIG.TIMEOUT_MS);
   try {
-    const data = await apiPost(CONFIG.IMAGE_PATH, { prompt, n: 1 }, state.controller.signal);
-    chat.messages.push({
-      role: "assistant",
-      content: "Aqui está a imagem gerada.",
-      model: (data.images && data.images[0] && data.images[0].provider) || "image",
-      generated: [],
-      images: Array.isArray(data.images) ? data.images : [],
-      steps: []
-    });
-    setStatus("on");
+    const im = await requestImage(prompt, state.controller.signal, (t) => { const n = $("#imgNote"); if (n) n.textContent = t; });
+    const aid = uid(); adIds.add(aid);
+    chat.messages.push({ id: aid, role: "assistant", content: "Aqui está a sua imagem. Quer ajustar algo? É só descrever a mudança.", model: im.provider, generated: [], images: [im], steps: [] });
   } catch (err) {
     const aborted = err && err.name === "AbortError";
-    let msg = err.message || "Falha ao gerar imagem.";
-    if (aborted) msg = "Geração de imagem interrompida ou timeout.";
-    chat.messages.push({ role: "assistant", content: msg, error: true, retry: { text: "Gere uma imagem: " + prompt, files: [] } });
+    chat.messages.push({ role: "assistant", content: aborted ? "Criação de imagem interrompida." : (err.message || "Falha ao gerar imagem."), error: true, retry: { text: "Gere uma imagem: " + prompt, files: [] } });
   } finally {
-    clearTimeout(timeout);
     state.busy = false; state.controller = null;
     chat.updated = Date.now(); save(); renderAll(); updateSend();
     scrollToLastAnswer();
   }
 }
 
+function setImageMode(on) {
+  state.imageMode = on;
+  $("#imgModeBtn").classList.toggle("on", on);
+  el.input.placeholder = on ? "Descreva a imagem que você quer criar" : "Envie uma mensagem";
+  el.input.focus();
+}
+
 $("#toolsBar").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-tool]"); if (!btn || state.busy) return;
   const tool = btn.dataset.tool;
-  if (tool === "image") {
-    const prompt = (el.input.value || "").trim() || promptUser("Descreva a imagem que deseja gerar:");
-    if (!prompt) return;
-    el.input.value = ""; autosize();
-    await generateImageDirect(prompt);
+  if (tool === "image-mode") {
+    setImageMode(!state.imageMode);
   } else if (tool === "clear-session") {
     const chat = current();
     if (!chat) return;
     try {
       await apiPost(CONFIG.SESSION_CLEAR_PATH, { session_id: chat.session_id, user_id: state.userId });
-      chat.session_id = null; chat.ctx = null;
+      chat.session_id = null; chat.ctx = null; chat.estado = null;
       toast("Sessão limpa"); renderAll();
     } catch (err) { toast(err.message || "Falha ao limpar sessão"); }
   } else if (tool === "clear-memory") {
     try {
-      await apiPost(CONFIG.MEMORY_CLEAR_PATH, { user_id: state.userId });
+      state.memories = []; store.set("cookie_memories_" + state.userId, []);
+      try { window.cookieMem && await window.cookieMem.clear(); } catch {}
+      await apiPost(CONFIG.MEMORY_CLEAR_PATH, { user_id: state.memUid || state.userId });
       toast("Memória limpa");
     } catch (err) { toast(err.message || "Falha ao limpar memória"); }
   } else if (tool === "run-cs") {
@@ -1077,7 +1356,21 @@ function promptUser(msg) {
   try { return window.prompt(msg) || ""; } catch { return ""; }
 }
 
-/* ═════════════ login opcional ═════════════ */
+/* ═════════════ memória (Firestore) ═════════════ */
+function setMemories(list) {
+  state.memories = (list || []).slice(0, 80);
+  store.set("cookie_memories_" + state.userId, state.memories);          // cópia local de segurança
+  try { window.cookieMem && window.cookieMem.sync(state.memories).catch(() => {}); } catch {}
+}
+window.addEventListener("cookie-mem", (e) => {
+  if (state.memUid && state.memUid !== e.detail.uid) { state.memories = []; store.set("cookie_memories_" + state.userId, []); }   // outra conta: não carrega a memória da anterior
+  state.memUid = e.detail.uid;
+  const remote = e.detail.items || [];
+  if (remote.length) { state.memories = remote.slice(0, 80); store.set("cookie_memories_" + state.userId, state.memories); }
+  else if (state.memories.length && window.cookieMem) window.cookieMem.sync(state.memories).catch(() => {});   // migra a cópia local
+});
+
+/* ═════════════ login opcional ═════════════
 const authModal = $("#authModal"), authErr = $("#authErr");
 const AUTH_MSG = { "auth/invalid-credential": "E-mail ou senha incorretos.", "auth/invalid-email": "E-mail inválido.", "auth/email-already-in-use": "Este e-mail já tem conta. Use Entrar.", "auth/weak-password": "A senha precisa de pelo menos 6 caracteres.", "auth/popup-closed-by-user": "Login cancelado.", "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco." };
 const openAuth = () => { authErr.textContent = ""; authModal.classList.add("show"); };
@@ -1099,8 +1392,10 @@ window.addEventListener("cookie-auth", (e) => {
   $("#loginTxt").textContent = u ? (u.name || "Minha conta") : "Entrar (opcional)";
   if ((u ? u.uid : null) === (authUser ? authUser.uid : null)) return;
   state.controller && state.controller.abort();
+  const hadAnon = !authUser; const anonChats = state.chats;
   authUser = u; state.currentId = null; state.pending = [];
   state.chats = store.get(chatsKey(), []).filter((c) => c.messages && c.messages.length);
+  if (u && hadAnon && !state.chats.length) state.chats = anonChats.filter((c) => c.messages && c.messages.length);   // entrou na conta: leva as conversas atuais junto
   newChat();
 });
 
@@ -1113,7 +1408,8 @@ window.addEventListener("cookie-auth", (e) => {
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInAnonymously, signInWithPopup, linkWithPopup, linkWithCredential, signInWithCredential, GoogleAuthProvider, EmailAuthProvider, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp({
   apiKey: "AIzaSyD7teSvQ2Xmymr7zNhqi1KvY_fyXEtr0hE", authDomain: "cookiescript-bf257.firebaseapp.com",
   databaseURL: "https://cookiescript-bf257-default-rtdb.firebaseio.com", projectId: "cookiescript-bf257",
@@ -1121,14 +1417,593 @@ const app = initializeApp({
   appId: "1:652455430126:web:7956298f2cf00bbfb1b0ff", measurementId: "G-62PD9BBQFF"
 });
 const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ── memória no Firestore: users/{uid}/memories/{hash} ─────────────────────────
+const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+const memId = (m) => hash((m.kind || "note") + "|" + m.content);
+const memCol = () => collection(db, "users", auth.currentUser.uid, "memories");
+let known = new Set();
+async function loadMem() {
+  const snap = await getDocs(memCol());
+  const items = []; known = new Set();
+  snap.forEach((d) => { const x = d.data(); known.add(d.id); items.push({ kind: x.kind, content: x.content, t: x.updatedAt || 0 }); });
+  items.sort((a, b) => b.t - a.t);
+  return items.map(({ kind, content }) => ({ kind, content }));
+}
+window.cookieMem = {
+  async sync(items) {
+    if (!auth.currentUser) return;
+    const want = new Map();
+    for (const m of items || []) { if (m && m.content) want.set(memId(m), { kind: String(m.kind || "note").slice(0, 20), content: String(m.content).slice(0, 3500) }); }
+    if (!want.size) return;
+    const batch = writeBatch(db), now = Date.now();
+    for (const [id, m] of want) if (!known.has(id)) batch.set(doc(memCol(), id), { ...m, updatedAt: now });
+    for (const id of known) if (!want.has(id)) batch.delete(doc(memCol(), id));
+    await batch.commit();
+    known = new Set(want.keys());
+  },
+  async clear() {
+    if (!auth.currentUser) return;
+    const snap = await getDocs(memCol());
+    const batch = writeBatch(db); snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit(); known = new Set();
+  }
+};
+let memResolve; window.__memReady = new Promise((r) => { memResolve = r; });
+
+// ── login: anônimo por padrão; Google/e-mail promovem a conta mantendo a mesma memória ─────────
+const emit = (u) => window.dispatchEvent(new CustomEvent("cookie-auth", { detail: (u && !u.isAnonymous) ? { uid: u.uid, name: u.displayName || u.email } : null }));
 window.cookieAuth = {
   token: async () => (auth.currentUser ? auth.currentUser.getIdToken() : null),
-  google: () => signInWithPopup(auth, new GoogleAuthProvider()),
+  google: async () => {
+    const p = new GoogleAuthProvider(), u = auth.currentUser;
+    if (u && u.isAnonymous) {
+      try { const r = await linkWithPopup(u, p); emit(r.user); return r; }
+      catch (e) { if (e.code === "auth/credential-already-in-use") { const c = GoogleAuthProvider.credentialFromError(e); if (c) return signInWithCredential(auth, c); } throw e; }
+    }
+    return signInWithPopup(auth, p);
+  },
   login: (e, p) => signInWithEmailAndPassword(auth, e, p),
-  signup: (e, p) => createUserWithEmailAndPassword(auth, e, p),
+  signup: async (e, p) => {
+    const u = auth.currentUser;
+    if (u && u.isAnonymous) { const r = await linkWithCredential(u, EmailAuthProvider.credential(e, p)); emit(r.user); return r; }
+    const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+    return createUserWithEmailAndPassword(auth, e, p);
+  },
   logout: () => signOut(auth)
 };
-onAuthStateChanged(auth, (u) => window.dispatchEvent(new CustomEvent("cookie-auth", { detail: u ? { uid: u.uid, name: u.displayName || u.email } : null })));
+onAuthStateChanged(auth, async (u) => {
+  if (!u) { try { await signInAnonymously(auth); } catch (e) { console.warn("login anônimo falhou:", e.code); emit(null); memResolve(); } return; }
+  emit(u);
+  try {
+    const items = await loadMem();
+    window.dispatchEvent(new CustomEvent("cookie-mem", { detail: { uid: u.uid, items } }));
+  } catch (e) { console.warn("Firestore indisponível:", e.code || e); window.dispatchEvent(new CustomEvent("cookie-mem", { detail: { uid: u.uid, items: [] } })); }
+  memResolve();
+});
+</script>
+<script>
+/* ═════════════ VOZ: ditado, transcrição de áudio e conversa por voz ═════════════
+   Tudo roda no aparelho da pessoa (grátis para o site):
+   • fala → texto: Whisper (transformers.js) em um Web Worker, ~99 idiomas, detecção automática
+   • texto → fala: vozes do próprio aparelho (speechSynthesis), no idioma da resposta
+   • reserva: se o Whisper não carregar, usa o reconhecimento do navegador (SpeechRecognition)
+*/
+const VOICE_CFG = {
+  TJS_URL: "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.web.min.js",
+  MODELS: { fast: "onnx-community/whisper-tiny", balanced: "onnx-community/whisper-base", accurate: "onnx-community/whisper-small" },
+  HINT: "\n\n[Modo conversa por voz: sua resposta será lida em voz alta. Responda no mesmo idioma em que o usuário falou, de forma natural e curta (1 a 4 frases), sem markdown, listas, tabelas, emojis nem blocos de código, a não ser que o usuário peça explicitamente um código ou um texto longo.]",
+  LANGS: [["auto", "Automático (detectar)"], ["pt", "Português"], ["en", "English"], ["es", "Español"], ["fr", "Français"], ["de", "Deutsch"], ["it", "Italiano"], ["nl", "Nederlands"], ["ru", "Русский"], ["uk", "Українська"], ["pl", "Polski"], ["cs", "Čeština"], ["tr", "Türkçe"], ["ar", "العربية"], ["he", "עברית"], ["fa", "فارسی"], ["hi", "हिन्दी"], ["bn", "বাংলা"], ["ur", "اردو"], ["ta", "தமிழ்"], ["th", "ไทย"], ["vi", "Tiếng Việt"], ["id", "Bahasa Indonesia"], ["ms", "Bahasa Melayu"], ["ja", "日本語"], ["ko", "한국어"], ["zh", "中文"], ["sv", "Svenska"], ["da", "Dansk"], ["no", "Norsk"], ["fi", "Suomi"], ["el", "Ελληνικά"], ["ro", "Română"], ["hu", "Magyar"]],
+  TAGS: { pt: "pt-BR", en: "en-US", es: "es-ES", fr: "fr-FR", de: "de-DE", it: "it-IT", nl: "nl-NL", ru: "ru-RU", uk: "uk-UA", pl: "pl-PL", cs: "cs-CZ", tr: "tr-TR", ar: "ar-SA", he: "he-IL", fa: "fa-IR", hi: "hi-IN", bn: "bn-BD", ur: "ur-PK", ta: "ta-IN", th: "th-TH", vi: "vi-VN", id: "id-ID", ms: "ms-MY", ja: "ja-JP", ko: "ko-KR", zh: "zh-CN", sv: "sv-SE", da: "da-DK", no: "nb-NO", fi: "fi-FI", el: "el-GR", ro: "ro-RO", hu: "hu-HU" }
+};
+
+/* ───── funções puras (testáveis fora do navegador) ───── */
+//#PURE-START
+const SCRIPT_RANGES = [
+  ["ja", /[\u3040-\u30ff]/g], ["ko", /[\uac00-\ud7af\u1100-\u11ff]/g], ["zh", /[\u4e00-\u9fff]/g],
+  ["ar", /[\u0600-\u06ff]/g], ["he", /[\u0590-\u05ff]/g], ["th", /[\u0e00-\u0e7f]/g], ["hi", /[\u0900-\u097f]/g],
+  ["bn", /[\u0980-\u09ff]/g], ["ta", /[\u0b80-\u0bff]/g], ["el", /[\u0370-\u03ff]/g], ["ru", /[\u0400-\u04ff]/g]
+];
+const STOP = {
+  pt: "de que não uma para com os mais você está isso foi são como também mas muito ele ela nós seu sua então já ainda obrigado olá tudo bem claro posso ajudar sim pode vou agora aqui".split(" "),
+  es: "de que no una para con los las más usted está eso fue son como también pero muy el la es qué cómo hola gracias por se un bien claro puedo ayudar ahora aquí".split(" "),
+  en: "the and is are you that this with for was have not but what can your it of to in i be do will would how hello hi sure yes help just".split(" "),
+  fr: "le la les des est une pour avec vous pas que qui dans sur mais je il elle nous ce être bonjour merci très salut bien oui peux aider maintenant".split(" "),
+  de: "der die das und ist nicht ich ein eine mit für auf den zu sie wir auch aber wie hallo danke sehr gut ja kann helfen jetzt".split(" "),
+  it: "il che di non una per con sono come anche più questo è lo gli della delle ciao grazie molto bene sì posso aiutare adesso".split(" "),
+  nl: "het een van niet dat ik je is zijn de en ook maar hoe hallo dank heel".split(" "),
+  pl: "nie jest się że na do to jak ale czy tak jestem proszę dziękuję".split(" "),
+  tr: "bir ve bu için ile değil ben sen çok merhaba teşekkür ama nasıl".split(" "),
+  id: "yang dan di itu ini untuk dengan tidak saya anda apa bagaimana terima kasih halo".split(" "),
+  vi: "các và của là không có một tôi bạn này cho được xin chào cảm ơn".split(" "),
+  sv: "och att det är som en jag på inte med för har hej tack".split(" "),
+  ro: "și în un o este nu că pentru cu mai sunt bună mulțumesc foarte".split(" ")
+};
+// descobre o idioma de um texto (letras do alfabeto e, no alfabeto latino, palavras comuns)
+function detectLang(text) {
+  const t = String(text || "");
+  const letters = (t.match(/\p{L}/gu) || []).length;
+  if (!letters) return null;
+  let best = null, bestN = 0;
+  for (const [code, re] of SCRIPT_RANGES) { const n = (t.match(re) || []).length; if (n > bestN) { best = code; bestN = n; } }
+  if (best && bestN / letters > 0.3) {
+    if (best === "ar") { if (/[پچژگ]/.test(t)) return "fa"; if (/[ٹڈڑںے]/.test(t)) return "ur"; }
+    if (best === "ru" && /[іїєґ]/i.test(t)) return "uk";
+    if (best === "zh" && /[\u3040-\u30ff]/.test(t)) return "ja";
+    return best;
+  }
+  const words = t.toLowerCase().match(/\p{L}+/gu) || [];
+  let top = null, topS = 0, second = 0;
+  for (const [code, list] of Object.entries(STOP)) {
+    const set = new Set(list); let s = 0;
+    for (const w of words) if (set.has(w)) s++;
+    if (s > topS) { second = topS; topS = s; top = code; } else if (s > second) second = s;
+  }
+  if (top && topS >= 2 && topS > second) return top;
+  return null;
+}
+const guessLang = (text, hint) => detectLang(text) || hint || "en";
+// tira o que não deve ser lido em voz alta (código, links, markdown, emojis)
+function cleanForSpeech(src) {
+  let s = String(src || "");
+  s = s.replace(/```[\s\S]*?(```|$)/g, " ");
+  s = s.replace(/`([^`]*)`/g, "$1");
+  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, " ");
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  s = s.replace(/https?:\/\/\S+/g, " ");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*[-*•]\s+/gm, "");
+  s = s.replace(/^\s*\d+[.)]\s+/gm, "");
+  s = s.replace(/^\s*>\s?/gm, "");
+  s = s.replace(/\|/g, ", ").replace(/^[-:\s,]+$/gm, "");
+  s = s.replace(/[*_~]{1,3}/g, "");
+  s = s.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "");
+  return s.replace(/[ \t]+/g, " ").replace(/\n{2,}/g, "\n").trim();
+}
+// quebra em frases curtas (o Chrome corta falas muito longas)
+function splitSentences(text, max = 200) {
+  const out = [];
+  const parts = String(text || "").split(/(?<=[。！？])|(?<=[.!?…؟।])\s+|\n+/u).map((p) => p.trim()).filter(Boolean);
+  for (let p of parts) {
+    while (p.length > max) {
+      let cut = Math.max(p.lastIndexOf(", ", max), p.lastIndexOf("; ", max), p.lastIndexOf(": ", max), p.lastIndexOf(" ", max));
+      if (cut < max * 0.4) cut = max;
+      out.push(p.slice(0, cut + 1).trim()); p = p.slice(cut + 1).trim();
+    }
+    if (p) out.push(p);
+  }
+  return out;
+}
+// o Whisper "inventa" frases quando recebe silêncio ou ruído: descarta as mais comuns
+const HALLU = [/^[\s.,!?…♪\-–—]*$/, /amara\.org/i, /thanks? for watching/i, /thank you for watching/i, /subtitles? by/i, /legendas? (pela|por|de)/i, /obrigad[oa] por assistir/i, /gracias por (ver|mirar)/i, /merci d'avoir regardé/i, /sous-titr/i, /untertitel/i, /ご視聴ありがとう/, /字幕/, /^you[.!\s]*$/i];
+const isHallucination = (t) => HALLU.some((re) => re.test(String(t || "").trim()));
+// junta o áudio 16 kHz em pedaços de até maxSec, cortando no ponto mais silencioso perto do limite
+function splitAudio(audio, maxSec = 28, sr = 16000) {
+  const max = maxSec * sr; if (audio.length <= max) return [audio];
+  const parts = []; let pos = 0;
+  while (audio.length - pos > max) {
+    const from = pos + max - 4 * sr, to = pos + max, win = Math.floor(0.1 * sr);
+    let bestAt = to, bestE = Infinity;
+    for (let i = from; i + win < to; i += win) {
+      let e = 0; for (let j = i; j < i + win; j++) e += audio[j] * audio[j];
+      if (e < bestE) { bestE = e; bestAt = i + (win >> 1); }
+    }
+    parts.push(audio.subarray(pos, bestAt)); pos = bestAt;
+  }
+  parts.push(audio.subarray(pos)); return parts;
+}
+const concatF32 = (list) => { let n = 0; for (const a of list) n += a.length; const o = new Float32Array(n); let p = 0; for (const a of list) { o.set(a, p); p += a.length; } return o; };
+function toMono16k(buf, sr) {
+  if (sr === 16000) return buf;
+  const ratio = sr / 16000, n = Math.floor(buf.length / ratio), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const s = Math.floor(i * ratio), e = Math.min(buf.length, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = s; j < e; j++) sum += buf[j]; out[i] = sum / Math.max(1, e - s); }
+  return out;
+}
+// detecta início e fim de fala (energia com ruído de fundo adaptativo)
+class TurnDetector {
+  constructor(o) { this.o = Object.assign({ minOnsetMs: 120, minSpeechMs: 280, endSilenceMs: 850, preRollMs: 450, maxMs: 28000, floorMin: 0.012 }, o); this.reset(); }
+  reset(keepNoise) { this.noise = keepNoise && this.noise ? this.noise : 0.006; this.inSpeech = false; this.pre = []; this.preMs = 0; this.cur = []; this.speechMs = 0; this.silenceMs = 0; this.onsetMs = 0; this.totalMs = 0; this.level = 0; }
+  push(chunk, boost = 1, onsetMs = null) {
+    const ms = chunk.length / 16;
+    let s = 0; for (let i = 0; i < chunk.length; i++) s += chunk[i] * chunk[i];
+    const rms = Math.sqrt(s / chunk.length);
+    this.level = this.level * 0.6 + Math.min(1, rms * 7) * 0.4;
+    const voiced = rms > Math.max(this.o.floorMin, this.noise * 3) * boost;
+    const need = onsetMs == null ? this.o.minOnsetMs : onsetMs;
+    if (!this.inSpeech) {
+      if (!voiced) this.noise = Math.min(0.05, this.noise * 0.95 + rms * 0.05);
+      this.pre.push(chunk); this.preMs += ms;
+      while (this.preMs > this.o.preRollMs + need && this.pre.length > 1) { this.preMs -= this.pre[0].length / 16; this.pre.shift(); }
+      this.onsetMs = voiced ? this.onsetMs + ms : Math.max(0, this.onsetMs - ms);
+      if (this.onsetMs >= need) { this.inSpeech = true; this.cur = this.pre.slice(); this.pre = []; this.preMs = 0; this.totalMs = this.cur.reduce((a, c) => a + c.length / 16, 0); this.speechMs = this.onsetMs; this.silenceMs = 0; return { event: "start", level: this.level }; }
+      return { level: this.level };
+    }
+    this.cur.push(chunk); this.totalMs += ms;
+    if (voiced) { this.speechMs += ms; this.silenceMs = 0; } else this.silenceMs += ms;
+    if (this.silenceMs >= this.o.endSilenceMs || this.totalMs >= this.o.maxMs) {
+      const ok = this.speechMs >= this.o.minSpeechMs, audio = ok ? concatF32(this.cur) : null;
+      this.inSpeech = false; this.cur = []; this.speechMs = 0; this.silenceMs = 0; this.onsetMs = 0; this.totalMs = 0;
+      return { event: ok ? "end" : "discard", audio, level: this.level };
+    }
+    return { level: this.level };
+  }
+}
+//#PURE-END
+
+/* ───── motor de reconhecimento (Whisper em Web Worker) ───── */
+const WORKER_SRC = `
+import { pipeline, env } from "${VOICE_CFG.TJS_URL}";
+env.allowLocalModels = false;
+let asr = null;
+const post = (m) => self.postMessage(m);
+const build = (model, device) => pipeline("automatic-speech-recognition", model, device === "webgpu"
+  ? { device: "webgpu", dtype: { encoder_model: "fp32", decoder_model_merged: "q4" }, progress_callback: (p) => post({ type: "progress", p }) }
+  : { device: "wasm", dtype: "q8", progress_callback: (p) => post({ type: "progress", p }) });
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    if (m.type === "load") {
+      let device = "wasm";
+      try { if (self.navigator && navigator.gpu && await navigator.gpu.requestAdapter()) device = "webgpu"; } catch (_) {}
+      try { asr = await build(m.model, device); }
+      catch (err) { if (device === "webgpu") { device = "wasm"; asr = await build(m.model, "wasm"); } else throw err; }
+      try { await asr(new Float32Array(8000), { task: "transcribe" }); } catch (_) {}
+      post({ type: "ready", device });
+    } else if (m.type === "run") {
+      const out = await asr(m.audio, { language: m.language || null, task: "transcribe" });
+      post({ type: "result", id: m.id, text: String((out && out.text) || "").trim() });
+    }
+  } catch (err) { post({ type: "error", id: m.id, message: String((err && err.message) || err) }); }
+};`;
+
+const STT = {
+  worker: null, ready: null, failed: false, device: "", id: 0, pending: new Map(), files: new Map(), chain: Promise.resolve(), onProgress: null,
+  model() { return VOICE_CFG.MODELS[voiceSettings.model] || VOICE_CFG.MODELS.balanced; },
+  load() {
+    if (this.ready) return this.ready;
+    this.ready = new Promise((resolve, reject) => {
+      let w;
+      try { w = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })), { type: "module" }); }
+      catch (e) { reject(new Error("Este navegador não roda o reconhecimento de voz local.")); return; }
+      this.worker = w; this.files.clear();
+      w.onerror = () => reject(new Error("Não consegui baixar o motor de voz. Confira a internet."));
+      w.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "progress") this._progress(m.p);
+        else if (m.type === "ready") { this.device = m.device; this.failed = false; resolve(m.device); }
+        else if (m.type === "result" || m.type === "error") {
+          const p = this.pending.get(m.id);
+          if (m.type === "error" && !p) { reject(new Error(m.message)); return; }
+          if (p) { this.pending.delete(m.id); m.type === "result" ? p.resolve(m.text) : p.reject(new Error(m.message)); }
+        }
+      };
+      w.postMessage({ type: "load", model: this.model() });
+    });
+    this.ready.catch(() => { this.failed = true; this.reset(); });
+    return this.ready;
+  },
+  reset() { try { this.worker && this.worker.terminate(); } catch {} this.worker = null; this.ready = null; for (const p of this.pending.values()) p.reject(new Error("Reconhecimento reiniciado.")); this.pending.clear(); },
+  _progress(p) {
+    if (!p || !p.file) return;
+    if (p.status === "progress" || p.status === "download" || p.status === "initiate") { const o = this.files.get(p.file) || { loaded: 0, total: 0 }; if (p.total) o.total = p.total; if (typeof p.loaded === "number") o.loaded = p.loaded; this.files.set(p.file, o); }
+    else if (p.status === "done") { const o = this.files.get(p.file); if (o) o.loaded = o.total; }
+    let loaded = 0, total = 0; for (const o of this.files.values()) { loaded += o.loaded; total += o.total; }
+    this.onProgress && this.onProgress(total ? loaded / total : 0, loaded, total);
+  },
+  run(audio, language) {
+    return this.load().then(() => new Promise((resolve, reject) => {
+      const id = ++this.id; this.pending.set(id, { resolve, reject });
+      this.worker.postMessage({ type: "run", id, audio, language: language === "auto" ? null : language }, [audio.buffer]);
+    }));
+  },
+  // transcreve qualquer duração: pedaços de até 28 s, em fila
+  transcribe(audio, language, onPart) {
+    const job = this.chain.then(async () => {
+      const parts = splitAudio(audio); const texts = [];
+      for (let i = 0; i < parts.length; i++) {
+        onPart && onPart(i, parts.length);
+        const t = await this.run(Float32Array.from(parts[i]), language);
+        if (t && !isHallucination(t)) texts.push(t);
+      }
+      return texts.join(" ").replace(/\s+/g, " ").trim();
+    });
+    this.chain = job.catch(() => {});
+    return job;
+  }
+};
+
+/* ───── configurações salvas ───── */
+const voiceSettings = Object.assign({ lang: "auto", model: "balanced", rate: 1, pause: 850, interrupt: true }, store.get("cookie_voice", {}));
+const saveVoiceSettings = () => store.set("cookie_voice", voiceSettings);
+const langTag = () => { const l = voiceSettings.lang; return l !== "auto" ? (VOICE_CFG.TAGS[l] || l) : (navigator.language || "en-US"); };
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/* ───── microfone ───── */
+const WORKLET_SRC = `class Cap extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}process(i){const c=i[0]&&i[0][0];if(c){for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}}return true}}registerProcessor("cookie-cap",Cap);`;
+class Mic {
+  constructor(onChunk) { this.onChunk = onChunk; }
+  async start() {
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === "suspended") await this.ctx.resume();
+      await this.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: "text/javascript" })));
+      this.src = this.ctx.createMediaStreamSource(this.stream);
+      this.node = new AudioWorkletNode(this.ctx, "cookie-cap");
+      this.mute = this.ctx.createGain(); this.mute.gain.value = 0;
+      this.src.connect(this.node); this.node.connect(this.mute); this.mute.connect(this.ctx.destination);
+      this.node.port.onmessage = (e) => this.onChunk(toMono16k(e.data, this.ctx.sampleRate));
+    } catch (err) { this.stop(); throw err; }
+  }
+  stop() {
+    try { this.node && (this.node.port.onmessage = null, this.node.disconnect()); } catch {}
+    try { this.src && this.src.disconnect(); } catch {}
+    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { this.ctx && this.ctx.state !== "closed" && this.ctx.close(); } catch {}
+    this.node = this.src = this.stream = this.ctx = null;
+  }
+}
+function micError(e) {
+  const n = e && e.name;
+  if (n === "NotAllowedError" || n === "SecurityError") toast("Permita o uso do microfone no navegador");
+  else if (n === "NotFoundError") toast("Nenhum microfone encontrado");
+  else if (!window.isSecureContext) toast("O microfone só funciona em páginas https");
+  else toast("Não consegui abrir o microfone");
+}
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+/* ───── progresso do download do modelo ───── */
+function modelProgressText(frac, loaded, total) {
+  const mb = (loaded / 1048576).toFixed(0);
+  return total ? `Baixando o modelo de voz (uma vez só)… ${Math.min(99, Math.round(frac * 100))}% · ${mb} MB` : "Preparando o modelo de voz…";
+}
+
+/* ═════════════ DITADO (áudio → texto na caixa de mensagem) ═════════════ */
+const dictBar = $("#dictBar"), dictInfo = $("#dictInfo"), dictBars = $("#dictLvl"), micBtn = $("#micBtn");
+const D = { active: false, mic: null, chunks: [], t0: 0, timer: null, ws: null, wsText: "", busy: false };
+function insertIntoInput(text) {
+  if (!text) return;
+  const cur = el.input.value;
+  el.input.value = (cur && !/\s$/.test(cur) ? cur + " " : cur) + text;
+  autosize(); el.input.focus(); el.input.setSelectionRange(el.input.value.length, el.input.value.length);
+}
+function dictUI(mode, msg) {      // mode: rec | work | off
+  dictBar.hidden = mode === "off"; dictBar.dataset.mode = mode;
+  micBtn.classList.toggle("rec", mode === "rec");
+  micBtn.setAttribute("aria-label", mode === "rec" ? "Parar de gravar" : "Ditar por voz");
+  if (msg != null) dictInfo.textContent = msg;
+}
+async function dictStart() {
+  if (D.active) return dictFinish(false);
+  if (D.busy || V.on) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("Este navegador não permite usar o microfone"); return; }
+  if (STT.failed && SR) return dictWebSpeech();
+  D.chunks = []; D.t0 = Date.now();
+  D.mic = new Mic((c) => { D.chunks.push(c); let s = 0; for (let i = 0; i < c.length; i += 4) s += c[i] * c[i]; dictBars.style.setProperty("--l", Math.min(1, Math.sqrt(s / (c.length / 4)) * 7).toFixed(2)); });
+  try { await D.mic.start(); } catch (e) { D.mic = null; micError(e); return; }
+  D.active = true;
+  const tick = () => { if (!D.active) return; const st = STT.ready ? (STT.device ? "" : " · carregando o modelo…") : ""; dictInfo.textContent = "Gravando " + fmtTime((Date.now() - D.t0) / 1000) + st; };
+  dictUI("rec", "Gravando 0:00"); D.timer = setInterval(tick, 500);
+  STT.onProgress = (f, l, t) => { if (D.active || D.busy) dictInfo.textContent = (D.active ? "Gravando " + fmtTime((Date.now() - D.t0) / 1000) + " · " : "") + modelProgressText(f, l, t); };
+  STT.load().catch(() => {});
+}
+async function dictFinish(sendAfter, cancel) {
+  if (!D.active) return;
+  D.active = false; clearInterval(D.timer);
+  const mic = D.mic; D.mic = null; mic && mic.stop();
+  if (cancel) { dictUI("off"); D.chunks = []; return; }
+  const audio = concatF32(D.chunks); D.chunks = [];
+  if (audio.length < 16000 * 0.4) { dictUI("off"); toast("Gravação muito curta"); return; }
+  D.busy = true; dictUI("work", STT.device ? "Transcrevendo…" : "Preparando o modelo de voz…");
+  try {
+    const text = await STT.transcribe(audio, voiceSettings.lang, (i, n) => { dictInfo.textContent = n > 1 ? `Transcrevendo ${i + 1} de ${n}…` : "Transcrevendo…"; });
+    dictUI("off");
+    if (!text) { toast("Não entendi nada. Tente falar mais perto do microfone."); return; }
+    insertIntoInput(text);
+    if (sendAfter) send(); else toast("Texto pronto: revise e envie");
+  } catch (e) {
+    dictUI("off");
+    toast(STT.failed ? (SR ? "O motor de voz não carregou. Use o ditado de novo: vou usar o reconhecimento do navegador." : "O motor de voz não carregou neste navegador.") : (e.message || "Falha ao transcrever"));
+  } finally { D.busy = false; }
+}
+// reserva: reconhecimento do navegador (precisa de internet; idioma escolhido ou o do navegador)
+function dictWebSpeech() {
+  const r = new SR(); r.lang = langTag(); r.interimResults = true; r.continuous = true; D.ws = r; D.wsText = ""; D.active = true; D.t0 = Date.now();
+  dictUI("rec", "Ouvindo… (reconhecimento do navegador)");
+  r.onresult = (e) => { let fin = "", tmp = ""; for (let i = 0; i < e.results.length; i++) (e.results[i].isFinal ? (fin += e.results[i][0].transcript) : (tmp += e.results[i][0].transcript)); D.wsText = fin; dictInfo.textContent = (fin + " " + tmp).trim().slice(-90) || "Ouvindo…"; };
+  r.onerror = (e) => { if (e.error === "not-allowed") toast("Permita o uso do microfone no navegador"); };
+  r.onend = () => { if (D.ws === r) dictWSDone(false); };
+  try { r.start(); } catch { dictWSDone(true); }
+}
+function dictWSDone(cancel, sendAfter) {
+  const r = D.ws; if (!r) return; D.ws = null; D.active = false; try { r.onend = null; r.stop(); } catch {}
+  dictUI("off"); if (!cancel && D.wsText.trim()) { insertIntoInput(D.wsText.trim()); if (sendAfter) send(); else toast("Texto pronto: revise e envie"); }
+}
+const dictStop = (sendAfter, cancel) => (D.ws ? dictWSDone(cancel, sendAfter) : dictFinish(sendAfter, cancel));
+micBtn.addEventListener("click", () => (D.active ? dictStop(false) : dictStart()));
+$("#dictCancel").addEventListener("click", () => dictStop(false, true));
+$("#dictOk").addEventListener("click", () => dictStop(false));
+$("#dictSend").addEventListener("click", () => dictStop(true));
+
+/* transcrever um arquivo de áudio anexado */
+const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|weba|amr|wma)$/i;
+const isAudioFile = (f) => (f.type || "").startsWith("audio/") || AUDIO_RE.test(f.name);
+async function transcribeAudioFile(file) {
+  if (D.busy || D.active) { toast("Termine a gravação atual primeiro"); return; }
+  if (file.size > 200 * 1024 * 1024) { toast(file.name + " passa de 200 MB"); return; }
+  if (STT.failed) { toast("A transcrição de arquivos precisa do motor de voz, que não carregou neste navegador."); return; }
+  D.busy = true; dictUI("work", "Lendo " + file.name + "…");
+  STT.onProgress = (f, l, t) => { dictInfo.textContent = modelProgressText(f, l, t); };
+  try {
+    const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const dec = await new AC(1, 1, 16000).decodeAudioData(await file.arrayBuffer());
+    let audio;
+    if (dec.numberOfChannels === 1) audio = dec.getChannelData(0).slice();
+    else { const a = dec.getChannelData(0), b = dec.getChannelData(1); audio = new Float32Array(a.length); for (let i = 0; i < a.length; i++) audio[i] = (a[i] + b[i]) / 2; }
+    if (audio.length > 16000 * 60 * 60) { toast("Áudio com mais de 1 hora: divida em partes menores."); return; }
+    const text = await STT.transcribe(audio, voiceSettings.lang, (i, n) => { dictInfo.textContent = `Transcrevendo ${file.name}: parte ${i + 1} de ${n}…`; });
+    if (!text) { toast("Não encontrei fala nesse áudio."); return; }
+    insertIntoInput(text); toast("Áudio transcrito: revise e envie");
+  } catch (e) { toast(e && e.name === "EncodingError" || /decode/i.test(String(e && e.message)) ? "Não consegui ler esse formato de áudio" : (e.message || "Falha ao transcrever")); }
+  finally { D.busy = false; dictUI("off"); }
+}
+
+/* ═════════════ FALA (texto → voz) ═════════════ */
+const TTS = {
+  voices: [], token: 0, playing: false, warned: new Set(),
+  load() { if (this.loaded) return Promise.resolve(); return new Promise((res0) => { const res = () => { this.loaded = true; res0(); }; const g = () => (this.voices = speechSynthesis.getVoices() || []); g(); if (this.voices.length) return res(); const t = setTimeout(res, 1500); speechSynthesis.addEventListener("voiceschanged", () => { g(); clearTimeout(t); res(); }, { once: true }); }); },
+  pick(lang) {
+    const base = lang.split("-")[0].toLowerCase(), want = (VOICE_CFG.TAGS[base] || lang).toLowerCase();
+    const c = this.voices.filter((v) => v.lang.toLowerCase().replace("_", "-").split("-")[0] === base);
+    if (!c.length) return null;
+    const score = (v) => (v.lang.toLowerCase().replace("_", "-") === want ? 4 : 0) + (/natural|neural|online|premium|enhanced|siri/i.test(v.name) ? 5 : 0) + (/google/i.test(v.name) ? 3 : 0) + (v.default ? 1 : 0);
+    return c.sort((a, b) => score(b) - score(a))[0];
+  },
+  cancel() { this.token++; this.playing = false; try { speechSynthesis.cancel(); } catch {} },
+  // fala o texto frase a frase; devolve quando termina ou é interrompida
+  async say(text, onSentence, hint) {
+    const my = ++this.token; this.playing = true;
+    await this.load();
+    const clean = cleanForSpeech(text).slice(0, 3000);
+    if (!clean) { this.playing = false; return; }
+    const lang = detectLang(clean) || hint || (voiceSettings.lang !== "auto" ? voiceSettings.lang : (navigator.language || "en").split("-")[0]);
+    const voice = this.pick(lang);
+    if (!voice && !this.warned.has(lang)) { this.warned.add(lang); toast("Seu aparelho não tem voz para este idioma. Instale uma nas configurações do sistema."); }
+    for (const sentence of splitSentences(clean)) {
+      if (my !== this.token) return;
+      onSentence && onSentence(sentence);
+      await new Promise((resolve) => {
+        const u = new SpeechSynthesisUtterance(sentence);
+        if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = VOICE_CFG.TAGS[lang] || lang;
+        u.rate = voiceSettings.rate;
+        const guard = setTimeout(resolve, 4000 + sentence.length * 130 / voiceSettings.rate);
+        u.onend = u.onerror = () => { clearTimeout(guard); resolve(); };
+        speechSynthesis.speak(u);
+      });
+    }
+    if (my === this.token) this.playing = false;
+  }
+};
+
+/* ═════════════ CONVERSA POR VOZ ═════════════ */
+const vEl = { root: $("#voice"), cookie: $("#vCookie"), status: $("#vStatus"), detail: $("#vDetail"), user: $("#vUser"), ai: $("#vAi"), mute: $("#vMute"), skip: $("#vSkip"), panel: $("#vPanel") };
+const V = { lang: null, on: false, mic: null, det: new TurnDetector(), st: "idle", muted: false, ws: null, wake: null };
+const ST_TXT = { loading: "Preparando…", listening: "Ouvindo", transcribing: "Transcrevendo…", thinking: "Pensando…", speaking: "Falando", idle: "" };
+function vSet(st, detail) {
+  V.st = st; vEl.root.dataset.st = st; vEl.status.textContent = ST_TXT[st] || "";
+  if (detail !== undefined) vEl.detail.textContent = detail;
+  vEl.skip.querySelector("span").textContent = st === "thinking" ? "Cancelar" : "Pular";
+  vEl.skip.disabled = !(st === "speaking" || st === "thinking");
+  if (V.ws && st !== "listening") { try { V.ws.abort(); } catch {} }
+  if (st === "listening") vWS();
+}
+const vLevel = (l) => vEl.cookie.style.setProperty("--l", l.toFixed(2));
+async function voiceOpen() {
+  if (V.on || D.active || D.busy) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("Este navegador não permite usar o microfone"); return; }
+  if (!("speechSynthesis" in window)) { toast("Este navegador não tem voz sintética"); return; }
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {}   // destrava a fala (Safari/iOS exigem um toque do usuário)
+  V.on = true; state.voiceMode = true; state.voiceHint = VOICE_CFG.HINT; V.muted = false; vEl.mute.classList.remove("off"); vEl.mute.querySelector("use").setAttribute("href", "#i-mic");
+  vEl.root.hidden = false; document.body.classList.add("voice-open"); vEl.user.textContent = ""; vEl.ai.textContent = "";
+  vSet("loading", ""); vEl.mute.querySelector("span").textContent = "Silenciar";
+  if (!STT.failed || !SR) {
+    STT.onProgress = (f, l, t) => { if (V.st === "loading") vEl.detail.textContent = modelProgressText(f, l, t); };
+    try { await STT.load(); } catch (e) { if (!SR) { toast(e.message || "O motor de voz não carregou"); return voiceClose(); } }
+  }
+  if (!V.on) return;
+  V.det.reset();
+  if (!STT.failed) {
+    V.mic = new Mic(vChunk);
+    try { await V.mic.start(); } catch (e) { micError(e); return voiceClose(); }
+    vSet("listening", "Fale quando quiser.");
+  } else { vSet("listening", "Reconhecimento do navegador (sem interrupção por voz)."); }
+}
+function voiceClose() {
+  V.on = false; state.voiceMode = false; TTS.cancel(); clearInterval(V.wake);
+  try { V.mic && V.mic.stop(); } catch {} V.mic = null;
+  try { V.ws && V.ws.abort(); } catch {} V.ws = null;
+  vEl.root.hidden = true; document.body.classList.remove("voice-open"); vEl.panel.hidden = true; vSet("idle", "");
+  if (state.busy && state.controller) { /* a resposta segue no chat normal */ }
+}
+function vChunk(chunk) {
+  if (!V.on || V.muted || V.st === "thinking" || V.st === "transcribing" || V.st === "loading") return;
+  const speaking = V.st === "speaking";
+  if (speaking && !voiceSettings.interrupt) return;
+  V.det.o.endSilenceMs = voiceSettings.pause;
+  const r = V.det.push(chunk, speaking ? 2.6 : 1, speaking ? 420 : null);
+  vLevel(speaking ? 0 : V.det.level);
+  if (r.event === "start" && speaking) { TTS.cancel(); vSet("listening", "Pode falar."); }
+  if (r.event === "end") vUtterance(r.audio);
+}
+async function vUtterance(audio) {
+  vSet("transcribing", "");
+  let text = "";
+  try { text = await STT.transcribe(audio, voiceSettings.lang); }
+  catch (e) { if (V.on) { vSet("listening", e.message || "Não consegui transcrever."); } return; }
+  if (!V.on) return;
+  if (!text) { vSet("listening", "Fale quando quiser."); return; }
+  vAsk(text);
+}
+async function vAsk(text) {
+  if (!V.on) return;
+  vEl.user.textContent = text; vEl.ai.textContent = "";
+  vSet("thinking", "");
+  clearInterval(V.wake); V.wake = setInterval(() => { const w = $("#wake"); if (V.st === "thinking") vEl.detail.textContent = (w && w.textContent) || ""; }, 1000);
+  if (state.busy) { await new Promise((r) => { const t = setInterval(() => { if (!state.busy) { clearInterval(t); r(); } }, 200); }); }
+  const chat = current(); const before = chat ? chat.messages.length : 0;
+  el.input.value = text; autosize();
+  await send();
+  clearInterval(V.wake); vEl.detail.textContent = "";
+  if (!V.on) return;
+  const c = current(); const last = c && c.messages[c.messages.length - 1];
+  if (!c || c.messages.length <= before || !last || last.role !== "assistant") { vSet("listening", "Fale quando quiser."); return; }
+  if (last.error) { vEl.ai.textContent = last.content; vSet("listening", ""); return; }
+  vSet("speaking", "");
+  const said = detectLang(last.content || "") || detectLang(text) || V.lang || undefined;
+  if (said) V.lang = said;
+  await TTS.say(last.content || "", (s) => { vEl.ai.textContent = s; }, said);
+  if (V.on && V.st === "speaking") { V.det.reset(true); vSet("listening", "Fale quando quiser."); }
+}
+// reserva (sem Whisper): reconhecimento contínuo do navegador
+function vWS() {
+  if (!STT.failed || !SR || !V.on || V.muted || V.ws) return;
+  const r = new SR(); r.lang = langTag(); r.interimResults = false; r.continuous = false; V.ws = r;
+  r.onresult = (e) => { const t = Array.from(e.results).map((x) => x[0].transcript).join(" ").trim(); if (t) { V.ws = null; vAsk(t); } };
+  r.onend = () => { if (V.ws === r) { V.ws = null; if (V.on && V.st === "listening") setTimeout(vWS, 200); } };
+  r.onerror = (e) => { if (e.error === "not-allowed") { toast("Permita o uso do microfone no navegador"); voiceClose(); } };
+  try { r.start(); } catch { V.ws = null; }
+}
+$("#voiceBtn").addEventListener("click", voiceOpen);
+$("#vEnd").addEventListener("click", voiceClose);
+vEl.mute.addEventListener("click", () => {
+  V.muted = !V.muted; vEl.mute.classList.toggle("off", V.muted); vEl.mute.querySelector("use").setAttribute("href", V.muted ? "#i-micoff" : "#i-mic"); vEl.mute.querySelector("span").textContent = V.muted ? "Ativar" : "Silenciar";
+  if (V.muted) { try { V.ws && V.ws.abort(); } catch {} V.det.reset(true); vLevel(0); if (V.st === "listening") vEl.detail.textContent = "Microfone silenciado."; }
+  else if (V.st === "listening") { vEl.detail.textContent = "Fale quando quiser."; vWS(); }
+});
+vEl.skip.addEventListener("click", () => {
+  if (V.st === "speaking") { TTS.cancel(); V.det.reset(true); vSet("listening", "Fale quando quiser."); }
+  else if (V.st === "thinking" && state.controller) state.controller.abort();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && V.on) { if (!vEl.panel.hidden) vEl.panel.hidden = true; else voiceClose(); } });
+
+/* configurações */
+const vLang = $("#vsLang"), vModel = $("#vsModel"), vRate = $("#vsRate"), vPause = $("#vsPause"), vInt = $("#vsInt");
+vLang.innerHTML = VOICE_CFG.LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
+vLang.value = voiceSettings.lang; vModel.value = voiceSettings.model; vRate.value = String(voiceSettings.rate); vPause.value = String(voiceSettings.pause); vInt.checked = !!voiceSettings.interrupt;
+vLang.onchange = () => { voiceSettings.lang = vLang.value; saveVoiceSettings(); };
+vRate.onchange = () => { voiceSettings.rate = Number(vRate.value); saveVoiceSettings(); };
+vPause.onchange = () => { voiceSettings.pause = Number(vPause.value); saveVoiceSettings(); };
+vInt.onchange = () => { voiceSettings.interrupt = vInt.checked; saveVoiceSettings(); };
+vModel.onchange = () => {
+  voiceSettings.model = vModel.value; saveVoiceSettings(); STT.reset(); STT.failed = false;
+  if (V.on) { voiceClose(); setTimeout(voiceOpen, 60); } else toast("Qualidade alterada. O modelo baixa no próximo uso.");
+};
+$("#vGear").addEventListener("click", () => { vEl.panel.hidden = !vEl.panel.hidden; });
+
+/* sem microfone/Worker no navegador: esconde os botões de voz */
+if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { micBtn.hidden = true; $("#voiceBtn").hidden = true; }
 </script>
 </body>
 </html>
