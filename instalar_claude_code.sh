@@ -5,7 +5,7 @@ echo "===================================="
 echo ""
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "[aviso] Node.js não encontrado. Instale o Node.js antes de continuar:"
+  echo "⚠ Node.js não encontrado. Instale o Node.js antes de continuar:"
   echo "  https://nodejs.org/"
   exit 1
 fi

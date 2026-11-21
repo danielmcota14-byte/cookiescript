@@ -48,6 +48,9 @@ try:
         council_chat,
         pipeline_chat,
         vision_chat,
+        update_conversation_state,
+        clean_state,
+        format_state_block,
         build_messages,
         extract_file_blocks,
         strip_file_blocks,
@@ -59,6 +62,9 @@ except ImportError:
     council_chat = None
     pipeline_chat = None
     vision_chat = None
+    update_conversation_state = None
+    clean_state = None
+    format_state_block = None
     build_messages = None
     extract_file_blocks = None
     strip_file_blocks = None
@@ -69,6 +75,11 @@ try:
     import memory_store
 except ImportError:
     memory_store = None
+
+try:
+    from admission import ADMISSION
+except ImportError:
+    ADMISSION = None
 
 try:
     from file_analyzer import prepare_for_ai, build_file_context, save_upload, MAX_FILE_BYTES
@@ -86,7 +97,7 @@ PORT = int(os.environ.get('PORT', 8080))
 # (/api/execute, /api/save, /api/open, git...) ficam restritas ao próprio site.
 CORS_PUBLIC_PREFIXES = (
     '/health', '/api/chat', '/api/providers', '/api/session/clear',
-    '/api/memory/', '/api/upload_analyze', '/api/v1/',
+    '/api/memory/', '/api/upload_analyze', '/api/v1/', '/api/queue/',
 )
 # ALLOWED_ORIGINS="*" (padrão) ou lista separada por vírgula:
 # ALLOWED_ORIGINS=https://meusite.com,https://outro.netlify.app
@@ -150,6 +161,9 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         if path == '/health':
             self.send_json({'status': 'ok'})
             return
+        if path == '/api/queue/status':
+            self.send_json(ADMISSION.stats() if ADMISSION else {'active': 0, 'waiting': 0, 'limit': 0})
+            return
         if path in ('/api/v1/status', '/api/v1'):
             self.send_json({'status': 'ok', 'name': 'Cookie AI API', 'version': 1,
                             'endpoints': {'chat': 'POST /api/v1/chat', 'providers': 'POST /api/providers',
@@ -184,6 +198,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
         routes = {
             '/api/v1/chat':        self.api_chat,
+            '/api/v1/state':       self.api_state,
             '/api/open':           self.api_open,
             '/api/save':           self.api_save,
             '/api/execute':        self.api_execute,
@@ -211,6 +226,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             '/api/session/clear':  self.api_session_clear,
             '/api/save_ai_files':  self.api_save_ai_files,
             '/api/providers':      self.api_providers,
+            '/api/queue/join':     self.api_queue_join,
+            '/api/queue/leave':    self.api_queue_leave,
             '/api/download':      self.api_download,
         }
 
@@ -641,6 +658,31 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'image_generation': 'client',
         })
 
+    def _queue_uid(self, data):
+        """Identidade de quem entra na fila: user_id > X-User-Id > session > IP."""
+        uid = (data.get('user_id') or data.get('user') or self.headers.get('X-User-Id')
+               or data.get('session_id') or data.get('session') or '').strip()
+        if not uid:
+            fwd = (self.headers.get('Fly-Client-IP') or self.headers.get('X-Forwarded-For') or '')
+            uid = 'ip:' + (fwd.split(',')[0].strip() or self.client_address[0])
+        return uid[:120]
+
+    def api_queue_join(self, data):
+        """Entra (ou renova a vaga / posição na fila). O navegador chama de
+        poucos em poucos segundos enquanto status == 'waiting'."""
+        if not ADMISSION:
+            self.send_json({'success': True, 'status': 'active', 'position': 0, 'eta_seconds': 0})
+            return
+        r = ADMISSION.enter(self._queue_uid(data))
+        r['success'] = True
+        r['poll_seconds'] = 4
+        self.send_json(r)
+
+    def api_queue_leave(self, data):
+        if ADMISSION:
+            ADMISSION.leave(self._queue_uid(data))
+        self.send_json({'success': True})
+
     def api_chat(self, data):
         """
         Endpoint principal de chat.
@@ -679,6 +721,19 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             self.send_json({'success': False, 'error': 'Mensagem vazia.'})
             return
 
+        # Controle de entrada: acima do limite de usuários ativos, espera na fila
+        if ADMISSION:
+            adm = ADMISSION.enter(self._queue_uid(data))
+            if adm.get('status') != 'active':
+                self.send_json({
+                    'success': False, 'queue': True,
+                    'status': adm.get('status'), 'position': adm.get('position', 0),
+                    'eta_seconds': adm.get('eta_seconds', 0),
+                    'active': adm.get('active', 0), 'limit': adm.get('limit', 0),
+                    'error': 'O Cookie AI está lotado agora. Você está na fila (posição %s).' % adm.get('position', '?'),
+                }, 429)
+                return
+
         learned = []
 
         # Claude Code / Ollama / local como atalhos legados
@@ -713,7 +768,14 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             # O cliente guarda a própria cópia da conversa e da memória: o disco do servidor
             # (Render grátis) é apagado a cada reinício, então restauramos a partir dela.
             if client_history:
-                history = client_history
+                # orçamento de ~4000 tokens (≈ caracteres / 4): as mais recentes que couberem, no máx. 30
+                kept, budget = [], 4000 * 4
+                for h in reversed(client_history):
+                    n = len(h['content'])
+                    if kept and (budget - n < 0 or len(kept) >= 30):
+                        break
+                    kept.append(h); budget -= n
+                history = list(reversed(kept))
             try:
                 if hasattr(memory_store, 'import_memories'):
                     memory_store.import_memories(data.get('memories') or [], scope=scope)
@@ -728,6 +790,11 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             mem_block = memory_store.memory_block_for_prompt(scope=scope, limit=25)
         else:
             history = client_history
+        # estado estruturado da conversa atual (vai junto da memória, então chega em todas as etapas)
+        if format_state_block:
+            sb = format_state_block(data.get('estado'), message)
+            if sb:
+                mem_block = (mem_block + '\n\n' if mem_block else '') + sb
 
         # Arquivos enviados — análise obrigatória de TODOS os tipos
         prepared = []
@@ -790,6 +857,7 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
         )
 
         council_members = []
+        state_out = {}
         # pipeline = opção 1: DeepSeek Local → OmniRoute (valida) → Groq (central)
         use_pipeline = provider in ('pipeline', 'auto', 'council', 'ensemble', 'conselho', '')
 
@@ -820,6 +888,8 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
 
                 texto, usado, council_members = pipeline_chat(
                     messages,
+                    estado_atual=(clean_state(data.get('estado')) if clean_state else None),
+                    state_out=state_out,
                     temperature=float(data.get('temperature', 0.6)),
                     max_tokens=int(data.get('max_tokens', 8192)),
                     api_key=api_key,
@@ -913,14 +983,27 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
             'memory_count': (memory_store.memory_count(scope) if memory_store and hasattr(memory_store, 'memory_count') else 0),
             'memory_block_preview': (mem_block[:300] if mem_block else ''),
             'memories': (memory_store.export_memories(scope) if memory_store and hasattr(memory_store, 'export_memories') else []),
-            'context': self._context_info(client_history, message),
+            'estado': state_out.get('estado'),
+            'context': self._context_info(client_history, message, len(history) + 1 if client_history else None),
         })
 
-    def _context_info(self, client_history, message):
-        limit = 20
+    def _context_info(self, client_history, message, kept=None):
         total = len(client_history) + 1
+        limit = kept if kept else total
         forgotten = max(0, total - limit)
         return {'limit': limit, 'total': total, 'forgotten': forgotten, 'forgot_now': 0 < forgotten <= 2}
+
+    def api_state(self, data):
+        """Atualiza o estado estruturado da conversa (chamado em segundo plano pelo chat)."""
+        if update_conversation_state is None:
+            return self.send_json({'success': False, 'error': 'ai_client indisponível'}, 500)
+        novo = update_conversation_state(
+            data.get('estado'),
+            str(data.get('user') or ''),
+            str(data.get('assistant') or ''),
+            api_key=(data.get('api_key') or '').strip() or None,
+        )
+        return self.send_json({'success': True, 'estado': novo})
 
     def api_upload_analyze(self, data):
         """Analisa um ou mais arquivos sem chat completo (só extrai + opcionalmente pergunta curta)."""

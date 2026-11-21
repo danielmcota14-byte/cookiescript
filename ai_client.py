@@ -264,7 +264,7 @@ def build_messages(
     messages: List[Dict[str, Any]] = [{"role": "system", "content": system}]
 
     if history:
-        for h in history[-20:]:  # limita histórico recente
+        for h in history[-30:]:  # o limite real é o orçamento de tokens do chamador
             role = h.get("role") or "user"
             content = h.get("content") or ""
             if role in ("user", "assistant") and content:
@@ -504,6 +504,15 @@ conteúdo
 Devolva APENAS a resposta validada/refinada (sem meta-comentários do tipo "validei que...").
 """
 
+PIPELINE_MAIN_SYSTEM = """Você é a Cookie AI. Responda à pergunta do usuário de forma DEFINITIVA, clara, completa e em português brasileiro.
+Se houver um RASCUNHO de outra IA, valide e corrija: use o que estiver certo, conserte erros de fato, de código ou de lógica e complete o que faltar; se estiver ruim ou vazio, responda do zero.
+Não invente links de imagens. Quando criar arquivos, use exatamente:
+<<<FILE path="caminho/arquivo.ext">>>
+conteúdo
+<<<END_FILE>>>
+Entregue só o conteúdo útil, sem prefácio e sem comentar o processo.
+"""
+
 PIPELINE_GROQ_SYSTEM = """Você é o Groq, coordenador CENTRAL do Conselho Cookie AI.
 Você recebe a pergunta do usuário e a resposta já PROCESSADA E VALIDADA pelo OmniRoute
 (que por sua vez partiu da resposta primária do DeepSeek Local).
@@ -529,12 +538,14 @@ def pipeline_chat(
     max_tokens: int = 8192,
     api_key: Optional[str] = None,
     deepseek_text: Optional[str] = None,
+    estado_atual: Optional[Dict[str, Any]] = None,
+    state_out: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str, List[Dict[str, Any]]]:
     """
-    Pipeline obrigatório:
-      1) DeepSeek Local  → resposta primária (passada em deepseek_text ou gerada aqui se possível)
-      2) OmniRoute       → processa e VALIDA a resposta primária
-      3) Groq            → IA CENTRAL: recebe o validado e entrega a resposta final
+    Pipeline:
+      1) DeepSeek Local  → rascunho opcional (passado em deepseek_text)
+      2) OmniRoute       → 1ª opção: resposta final + estado da conversa
+      3) Groq            → 2ª opção: só se o OmniRoute falhar
 
     Retorna (texto_final, label, etapas).
     """
@@ -574,76 +585,49 @@ def pipeline_chat(
             if idx >= 0:
                 mem_extra = "\n\n" + orig[idx:]
 
-    # ── 2. OmniRoute valida / processa ────────────────────────────────────────
-    validate_user = (
-        f"Pergunta do usuário:\n{user_q}\n\n"
-        f"Resposta primária (DeepSeek Local):\n{primary or '(vazia — gere do zero)'}\n\n"
-        "Valide, corrija e refine."
-    )
     # histórico recente da conversa (só texto) — sem isso a IA "esquece" tudo entre mensagens
     hist_msgs: List[Dict[str, Any]] = []
     for hm in messages[1:-1]:
         if hm.get("role") in ("user", "assistant") and isinstance(hm.get("content"), str) and hm["content"].strip():
             hist_msgs.append({"role": hm["role"], "content": hm["content"][:4000]})
-    hist_msgs = hist_msgs[-16:]
+    hist_msgs = hist_msgs[-30:]
 
-    omni_messages = [
-        {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_VALIDATE_SYSTEM + mem_extra},
+    # ── 2. OmniRoute = 1ª opção: responde de vez e já devolve o estado ──────────
+    main_user = (
+        f"Pergunta do usuário:\n{user_q}\n\n"
+        + (f"RASCUNHO (DeepSeek Local):\n{primary}\n\n" if primary else "")
+        + "ESTADO ATUAL (JSON): " + json.dumps(clean_state(estado_atual), ensure_ascii=False)
+    )
+    main_messages = [
+        {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_MAIN_SYSTEM + PIPELINE_STATE_GROQ + mem_extra},
         *hist_msgs,
-        {"role": "user", "content": validate_user},
+        {"role": "user", "content": main_user},
     ]
-    omni_text, omni_label, omni_err = _single_provider(
-        "omniroute",
-        omni_messages,
-        temperature=temperature,
-        max_tokens=min(max_tokens, 4096),
-        api_key=api_key,
+    final_text, omni_label, omni_err = _single_provider(
+        "omniroute", main_messages,
+        temperature=min(temperature, 0.6), max_tokens=min(max_tokens, 4096), api_key=api_key,
     )
-    steps.append({
-        "provider": "omniroute",
-        "label": omni_label or "OmniRoute",
-        "text": omni_text,
-        "error": omni_err,
-    })
-
-    validated = omni_text or primary or ""
-    if not validated:
-        # OmniRoute falhou e não há primary — tenta Groq direto na pergunta
-        validated = f"(sem validação prévia)\nPergunta: {user_q}"
-
-    # ── 3. Groq CENTRAL ───────────────────────────────────────────────────────
-    groq_user = (
-        f"Pergunta original do usuário:\n{user_q}\n\n"
-        f"Resposta já processada e validada (DeepSeek → OmniRoute):\n{validated}\n\n"
-        "Produza a resposta final potencializada."
-    )
-    groq_messages = [
-        {"role": "system", "content": SYSTEM_BASE + "\n\n" + PIPELINE_GROQ_SYSTEM + mem_extra},
-        *hist_msgs,
-        {"role": "user", "content": groq_user},
-    ]
-    final_text, groq_label, groq_err = _single_provider(
-        "groq",
-        groq_messages,
-        temperature=min(temperature, 0.5),
-        max_tokens=max_tokens,
-        api_key=api_key,
-    )
-    steps.append({
-        "provider": "groq",
-        "label": groq_label or "Groq",
-        "text": final_text,
-        "error": groq_err,
-    })
-
+    final_text, final_state = split_state_block(final_text or "")
+    steps.append({"provider": "omniroute", "label": omni_label or "OmniRoute", "text": final_text, "error": omni_err})
     if final_text:
-        return final_text, f"Pipeline→{groq_label}", steps
+        if state_out is not None and final_state:
+            state_out["estado"] = final_state
+        return final_text, f"Pipeline→{omni_label or 'OmniRoute'}", steps
 
-    # Fallbacks se Groq central falhar
-    if omni_text:
-        return omni_text + f"\n\n_[Nota: Groq central falhou ({groq_err}); usando validação OmniRoute.]_", f"Pipeline/OmniRoute-fallback", steps
+    # ── 3. Groq = 2ª opção: só entra se o OmniRoute falhar (poupa o limite grátis) ─
+    groq_text, groq_label, groq_err = _single_provider(
+        "groq", main_messages,
+        temperature=min(temperature, 0.5), max_tokens=max_tokens, api_key=api_key,
+    )
+    groq_text, groq_state = split_state_block(groq_text or "")
+    steps.append({"provider": "groq", "label": groq_label or "Groq", "text": groq_text, "error": groq_err})
+    if groq_text:
+        if state_out is not None and groq_state:
+            state_out["estado"] = groq_state
+        return groq_text, f"Pipeline→{groq_label or 'Groq'} (2ª opção)", steps
+
     if primary:
-        return primary + f"\n\n_[Nota: OmniRoute e Groq falharam; usando DeepSeek primário.]_", "Pipeline/DeepSeek-fallback", steps
+        return primary + "\n\n_[Nota: OmniRoute e Groq falharam; usando DeepSeek primário.]_", "Pipeline/DeepSeek-fallback", steps
 
     raise AIClientError(
         "Pipeline falhou em todas as etapas. "
@@ -678,3 +662,133 @@ def vision_chat(
     except Exception as e:
         errors.append(f"omniroute: {e}")
     raise AIClientError("Nenhum modelo com visão respondeu. " + " | ".join(errors))
+
+
+# ───────────────────────── Estado da conversa (substitui "cortar em N mensagens") ─────────────────────────
+STATE_SYSTEM = """Você mantém o ESTADO de uma conversa, como o registro que uma máquina atualiza a cada passo.
+Receba o ESTADO ATUAL (JSON) e a última troca (usuário + assistente) e devolva o NOVO ESTADO.
+Responda SOMENTE com JSON válido, sem texto antes ou depois, neste formato exato:
+{"objetivo": "string curta", "fatos": ["..."], "decisoes": ["..."], "pendente": ["..."], "detalhes": ["..."], "resumo": "string curta"}
+Regras:
+- Atualize apenas o que mudou; mantenha o resto igual. Remova o que ficou resolvido ou foi corrigido.
+- Preserve nomes, números, versões, caminhos de arquivo, comandos e decisões EXATAMENTE como ditos.
+- fatos: sobre o usuário ou o projeto (máx. 8). decisoes: o que foi combinado/escolhido (máx. 8). pendente: o que ainda falta (máx. 6).
+- detalhes: nuances que não cabem nos outros campos mas podem voltar a importar (máx. 12).
+- resumo: no máximo 3 frases sobre o que já foi tratado e ainda importa. Nunca invente nada que não foi dito.
+- Cada item com no máximo 160 caracteres. Se nada mudou, devolva o estado atual."""
+
+_STATE_LIMITS = {"fatos": 8, "decisoes": 8, "pendente": 6, "detalhes": 12}
+
+
+def clean_state(raw: Any) -> Dict[str, Any]:
+    """Valida e limita um estado vindo do cliente ou do modelo (nunca confia no formato)."""
+    out: Dict[str, Any] = {"objetivo": "", "fatos": [], "decisoes": [], "pendente": [], "detalhes": [], "resumo": ""}
+    if not isinstance(raw, dict):
+        return out
+    out["objetivo"] = str(raw.get("objetivo") or "")[:200].strip()
+    out["resumo"] = str(raw.get("resumo") or "")[:600].strip()
+    for k, n in _STATE_LIMITS.items():
+        v = raw.get(k)
+        if isinstance(v, list):
+            out[k] = [str(x)[:160].strip() for x in v if str(x).strip()][:n]
+    return out
+
+
+def state_is_empty(st: Dict[str, Any]) -> bool:
+    return not (st.get("objetivo") or st.get("resumo") or st.get("fatos") or st.get("decisoes") or st.get("pendente") or st.get("detalhes"))
+
+
+def _norm_words(s: str) -> set:
+    import unicodedata
+    t = unicodedata.normalize("NFD", (s or "").lower())
+    t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+    return {w for w in re.findall(r"[a-z0-9]{4,}", t)}
+
+
+def format_state_block(estado: Any, query: str = "") -> str:
+    """Estado mínimo sempre; 'detalhes' (as nuances) só os que combinam com o assunto atual."""
+    st = clean_state(estado)
+    if state_is_empty(st):
+        return ""
+    lines = ["ESTADO DA CONVERSA (registro atualizado a cada mensagem; é fiel ao que foi dito antes):"]
+    if st["objetivo"]:
+        lines.append(f"- objetivo atual: {st['objetivo']}")
+    for k, label in (("fatos", "fatos"), ("decisoes", "decisões"), ("pendente", "pendente")):
+        if st[k]:
+            lines.append(f"- {label}: " + " | ".join(st[k]))
+    if st["resumo"]:
+        lines.append(f"- já tratado: {st['resumo']}")
+    q = _norm_words(query)
+    if q and st["detalhes"]:
+        scored = sorted(((len(q & _norm_words(d)), d) for d in st["detalhes"]), key=lambda x: -x[0])
+        rel = [d for n, d in scored if n > 0][:3]
+        if rel:
+            lines.append("- detalhes antigos ligados a este assunto: " + " | ".join(rel))
+    return "\n".join(lines)
+
+
+STATE_TAG = "[[ESTADO]]"
+
+
+def split_state_block(text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """Separa o bloco [[ESTADO]] do texto. O bloco SEMPRE sai do texto, mesmo quando vem quebrado."""
+    t = text or ""
+    i = t.rfind(STATE_TAG)
+    if i < 0:
+        return t.strip(), None
+    visible, raw = t[:i].rstrip(), t[i + len(STATE_TAG):]
+    visible = re.sub(r"```(?:json)?\s*$", "", visible).rstrip()
+    obj = _parse_json_obj(raw)
+    if obj is None:
+        return visible, None
+    st = clean_state(obj)
+    return visible, (None if state_is_empty(st) else st)
+
+
+PIPELINE_STATE_OMNI = (
+    "\n\n=== ESTADO (tarefa extra, depois da resposta) ===\n"
+    "Depois de refinar a resposta, escreva em uma nova linha " + STATE_TAG + " seguido de UM JSON, sem texto depois, com o MÁXIMO de informação útil "
+    "desta troca mesclado ao ESTADO ATUAL: "
+    '{"objetivo":"","fatos":[],"decisoes":[],"pendente":[],"detalhes":[],"resumo":""}. '
+    "Só registre o que foi realmente dito na conversa; nunca invente. Preserve nomes, números e comandos exatamente."
+)
+PIPELINE_STATE_GROQ = (
+    "\n\n=== ESTADO (tarefa extra, depois da resposta) ===\n"
+    "Depois da resposta final, escreva em uma nova linha " + STATE_TAG + " seguido de UM JSON, sem texto depois: o estado FINAL da conversa. "
+    "Parta do ESTADO CANDIDATO (sugerido pela etapa anterior) e do ESTADO ATUAL, descarte tudo o que não aparece na conversa, "
+    "mantenha em fatos/decisoes/pendente só o essencial e mande as nuances restantes para detalhes. "
+    '{"objetivo":"","fatos":[],"decisoes":[],"pendente":[],"detalhes":[],"resumo":""}'
+)
+
+
+def _parse_json_obj(text: str) -> Optional[Dict[str, Any]]:
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
+    t = re.sub(r"```(?:json)?", "", t)
+    i, j = t.find("{"), t.rfind("}")
+    if i < 0 or j <= i:
+        return None
+    try:
+        v = json.loads(t[i:j + 1])
+        return v if isinstance(v, dict) else None
+    except Exception:
+        return None
+
+
+def update_conversation_state(estado: Any, user_msg: str, assistant_msg: str, api_key: Optional[str] = None) -> Dict[str, Any]:
+    """Pede à IA o novo estado. Se falhar, devolve o estado atual intacto (nunca quebra a conversa)."""
+    cur = clean_state(estado)
+    payload = (
+        "ESTADO ATUAL:\n" + json.dumps(cur, ensure_ascii=False) +
+        "\n\nÚLTIMA TROCA:\nUsuário: " + (user_msg or "")[:3000] +
+        "\nAssistente: " + (assistant_msg or "")[:3000]
+    )
+    msgs = [{"role": "system", "content": STATE_SYSTEM}, {"role": "user", "content": payload}]
+    for prov in ("omniroute", "groq"):
+        try:
+            text, _ = chat_completion(msgs, provider=prov, temperature=0.1, max_tokens=700, api_key=api_key)
+            obj = _parse_json_obj(text)
+            if obj is not None:
+                return clean_state(obj)
+        except Exception as e:
+            print(f"[state] {prov} falhou: {e}")
+    return cur
