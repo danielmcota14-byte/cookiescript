@@ -874,14 +874,13 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                 # 1) DeepSeek Local gera a resposta primária
                 deepseek_text = None
                 deepseek_input = message or (user_content or '')[:4000]
-                if CookieAIGenerator:
+                if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
                     try:
+                        # O DeepSeek local, quando habilitado, fornece apenas um rascunho.
+                        # Nunca usar respostas determinísticas/_fallback_resposta aqui:
+                        # a resposta visível deve ser produzida pelo pipeline (OmniRoute/Groq).
                         gen = CookieAIGenerator()
-                        if os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
-                            gen._load_deepseek_model()
-                        deepseek_text = gen.responder(deepseek_input) if hasattr(gen, 'responder') else None
-                        if not deepseek_text and hasattr(gen, '_fallback_resposta'):
-                            deepseek_text = gen._fallback_resposta(deepseek_input)
+                        deepseek_text = gen._gerar_com_deepseek(deepseek_input, mode='chat') or None
                     except Exception as e:
                         print(f'[Pipeline/DeepSeek] {e}')
                         deepseek_text = None
@@ -905,7 +904,12 @@ class CookieIDEHandler(SimpleHTTPRequestHandler):
                     api_key=api_key,
                 )
         except AIClientError as e:
-            # fallbacks legados
+            # Se o pipeline falhar, não substituir sua resposta por uma mensagem padrão.
+            # Isso evita que um fallback determinístico se passe pela resposta da Jertruge.
+            if use_pipeline:
+                self.send_json({'success': False, 'error': str(e)})
+                return
+            # fallbacks legados para provedores selecionados fora do pipeline
             if CookieAIGenerator and os.getenv('ENABLE_LOCAL_AI', '').lower() in ('1', 'true', 'yes'):
                 try:
                     gen = CookieAIGenerator()
