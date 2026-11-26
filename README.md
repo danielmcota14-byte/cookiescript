@@ -1,4 +1,6 @@
+## CommitAds
 
+[![Sponsored Ad by CommitAds](https://ads.softbridgelabs.in/api/serve/hwxMD9WGYcYKOPZKaNUhxCgjdkk1/rBwh2SDRl3KZX9ao4HeK)](https://ads.softbridgelabs.in/api/serve/hwxMD9WGYcYKOPZKaNUhxCgjdkk1/rBwh2SDRl3KZX9ao4HeK/check)
 
 # CookieScript IDE
 
