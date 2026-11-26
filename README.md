@@ -53,6 +53,8 @@ Abra `index1.html` → selecione **"🤖 Claude Code Local (CLI)"** → pronto!
 Se preferir um modelo totalmente offline (sem login, sem assinatura Claude), pode
 usar **Ollama** em vez do Claude Code.
 
+[![Sponsor](https://readme.cash/i/oj0jvwllrw.svg)](https://readme.cash/c/oj0jvwllrw)
+
 ### Windows
 ```
 Execute: instalar_ollama.bat
@@ -128,6 +130,7 @@ https://console.groq.com/keys antes de publicar ou continuar usando o projeto**.
 A partir de agora, configure sua chave via variável de ambiente `GROQ_API_KEY`
 ou no campo de API Key da própria interface — nunca direto no código.
 
+[![Sponsor](https://readme.cash/i/oj0jvwllrw.svg)](https://readme.cash/c/oj0jvwllrw)
 
 ## Jertruge 2.0 — OmniRoute + Grok + Memória + Arquivos
 
@@ -167,6 +170,7 @@ Ordem no modo **Auto**: OmniRoute → Grok → Groq.
 2. Build: Dockerfile (já inclui `requests` e pastas `data/` / `uploads/`).
 3. Disco persistente (recomendado): monte um volume em `/app/data` para a memória sobreviver a deploys.
 
+[![Sponsor](https://readme.cash/i/oj0jvwllrw.svg)](https://readme.cash/c/oj0jvwllrw)
 
 ## Conselho de IAs (modo padrão Auto)
 
