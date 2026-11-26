@@ -1,3 +1,5 @@
+[![Sponsor](https://readme.cash/i/oj0jvwllrw.svg)](https://readme.cash/c/oj0jvwllrw)
+
 # CookieScript IDE
 
 Uma IDE web completa para a linguagem **CookieScript**, com suporte a Python, JavaScript e Lua, e IA local via **Claude Code** (ou Ollama).
